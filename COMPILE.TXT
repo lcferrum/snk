@@ -1,0 +1,48 @@
+Search and Kill compiling instructions
+
+1. General
+----------
+Search and Kill (SnK) is written using C++ (ISO/IEC 14882:1998) and is intended
+to be used on Windows only. General compilation steps:
+
+    1) Download sources from https://github.com/lcferrum/snk
+
+    2) Compile it using appropriate compiler.
+
+    3) After compiling, see the README.TXT file for instructions on using SnK.
+
+2. Specific compiling instructions
+----------------------------------
+The easiest way to compile SnK is by using MinGW with included makefile. Just
+make sure that you have installed MinGW correctly, switch to sources directory
+and type (in Windows console):
+
+    mingw32-make
+    
+Or, if under MSYS:
+
+    make
+    
+This will compile both versions of SnK (windowless and normal). For some other
+compile options please check makefile itself.
+
+If you want to use another compiler (e.g. Visual Studio), consider the
+following:
+
+    - Use empty Win32 console project without precompiled headers as basis.
+    - Output executables must be named SnK.exe (console version) and SnKh.exe
+      (windowless version).    
+    - Include all the .cpp files to the project. But you don't need 
+      ConRedirection.cpp for non-windowless version.
+    - Define NOMINMAX in preprocessor settings.
+    - Add psapi.lib and version.lib to additional dependencies in linker
+      settings.
+    - Make sure that Windows target version (_WIN32_WINNT) is at least Windows
+      2000 (0x0500).
+    - If using Visual Studio 2010 and higher, set platform toolset to v90.
+      Otherwise, with higher value, you won't be able to run SnK on Windows
+      2000.
+    - To compile windowless version additionally you need to: define HIDDEN in
+      preprocessor settings; change subsystem to Windows in linker settings; 
+      change entry point to mainCRTStartup in linker settings.
+ 

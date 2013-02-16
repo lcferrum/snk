@@ -1,0 +1,452 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+
+<HTML>
+<HEAD>
+	
+	<META HTTP-EQUIV="CONTENT-TYPE" CONTENT="text/html; charset=utf-8">
+	<TITLE>Search and Kill Detect Matrix</TITLE>
+
+	<STYLE>
+		<!-- 
+		BODY,DIV,TABLE,THEAD,TBODY,TFOOT,TR,TH,TD,P { font-family:"Arial Cyr"; font-size:x-small }
+		 -->
+	</STYLE>
+	
+</HEAD>
+
+<BODY TEXT="#000000">
+<TABLE CELLSPACING="0" COLS="18" BORDER="0">
+	<COLGROUP WIDTH="89"></COLGROUP>
+	<COLGROUP WIDTH="144"></COLGROUP>
+	<COLGROUP SPAN="16" WIDTH="80"></COLGROUP>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" COLSPAN=2 HEIGHT="32" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d3d</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d3d:soft</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d3d:simple</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d3d:simple:soft</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">ogl</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">ogl:soft</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">ogl:simple</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">ogl:simple:soft</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">gld</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">gld:strict</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">gld:simple</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">gld:simple:strict</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d2d</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d2d:simple</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d2d:strict</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">d2d:strict:simple</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ROWSPAN=4 HEIGHT="128" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">DirectX</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFFFFF" SDNUM="1033;0;@">DirectDraw*</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">Direct3D Hardware</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">Direct3D Software**</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFCC00" SDNUM="1033;0;@">✔¹</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFFFFF" SDNUM="1033;0;@">Wrapper***</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFCC00" SDNUM="1033;0;@"><FONT FACE="Calibri">✘³</FONT></TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔ </TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ROWSPAN=5 HEIGHT="160" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">OpenGL</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">ICD</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">MCD</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">Generic Sofware</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">Software Emulation****</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFCC00" SDNUM="1033;0;@">✔²</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFCC00" SDNUM="1033;0;@">✔¹</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFFFFF" SDNUM="1033;0;@">Wrapper***</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFCC00" SDNUM="1033;0;@"><FONT FACE="Calibri">✘³</FONT></TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ROWSPAN=7 HEIGHT="224" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">3Dfx</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">OpenGL ICD*****</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">MiniGL / QuakeGL*****</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">WickedGL*****</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">MesaFX*****</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">Glide</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFFFFF" SDNUM="1033;0;@">Glide Wrapper***</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#FFCC00" SDNUM="1033;0;@"><FONT FACE="Calibri">✘³</FONT></TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@">Direct3D</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#008000" SDNUM="1033;0;@">✔</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+		<TD STYLE="border-top: 1px solid #000000; border-bottom: 1px solid #000000; border-left: 1px solid #000000; border-right: 1px solid #000000" ALIGN="CENTER" VALIGN=MIDDLE BGCOLOR="#800000" SDNUM="1033;0;@">✘</TD>
+	</TR>
+	<TR>
+		<TD HEIGHT="32" ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">* Windowed 3D applications always use DirectDraw. Use 'strict' method to filter out 3D applications.</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">** Software emulation with SwiftShader, WARP and REF.</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">*** Wrappers use OpenGL, Direct3D or Glide for emulation.</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">**** Software emulation with SwiftShader and Mesa3d.</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">***** All OpenGL implementations for 3Dfx use Glide (they don't count as wrappers).</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">¹ Can't detect SwiftShader (DLL name is not unique).</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">² Can't detect Mesa3d (DLL doesn't have version info).</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+	<TR>
+		<TD COLSPAN=11 HEIGHT="57" ALIGN="LEFT" VALIGN=MIDDLE SDNUM="1033;0;@">³ Due to great diversity of various wrappers, the only reliable detect method is 'simple'.</TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+		<TD ALIGN="CENTER" VALIGN=MIDDLE SDNUM="1033;0;@"><BR></TD>
+	</TR>
+</TABLE>
+<!-- ************************************************************************** -->
+</BODY>
+
+</HTML>

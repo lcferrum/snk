@@ -1,0 +1,2 @@
+void PrintUsage();
+void PrintVersion();
