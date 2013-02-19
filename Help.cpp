@@ -92,7 +92,7 @@ void PrintVersion() {
 "Run with +v /hlp command for usage information.\n"
 #endif
 "\n"
-"Copyright (c) 2012, Lcferrum <lcferrum@yandex.com>\n"
+"Copyright (c) 2012 Lcferrum\n"
 "Licensed under BSD license - see LICENSE.TXT file for details."
 #ifdef HIDDEN
 "\n"
