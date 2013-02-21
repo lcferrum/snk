@@ -1,6 +1,14 @@
 Search and Kill compiling instructions
 
-1. General
+1. License
+----------
+Copyright (c) 2012 Lcferrum
+
+This program comes with no warranty.
+You must use this program at your own risk.
+Licensed under BSD license - see LICENSE.TXT file for details.
+
+2. General
 ----------
 Search and Kill (SnK) is written using C++ (ISO/IEC 14882:1998) and is intended
 to be used on Windows only. General compilation steps:
@@ -11,7 +19,7 @@ to be used on Windows only. General compilation steps:
 
     3) After compiling, see the README.TXT file for instructions on using SnK.
 
-2. Specific compiling instructions
+3. Specific compiling instructions
 ----------------------------------
 The easiest way to compile SnK is by using MinGW with included makefile. Just
 make sure that you have installed MinGW correctly, switch to sources directory
