@@ -2,7 +2,7 @@ Search and Kill compiling instructions
 
 1. License
 ----------
-Copyright (c) 2012 Lcferrum
+Copyright (c) 2012, 2013 Lcferrum
 
 This program comes with no warranty.
 You must use this program at your own risk.
@@ -15,15 +15,16 @@ to be used on Windows only. General compilation steps:
 
     1) Download sources from https://github.com/lcferrum/snk
 
-    2) Compile it using appropriate compiler.
+    2) Compile it using appropriate compiler (both x86 and x64 targets are
+       supported).
 
     3) After compiling, see the README.TXT file for instructions on using SnK.
 
 3. Specific compiling instructions
 ----------------------------------
-The easiest way to compile SnK is by using MinGW with included makefile. Just
-make sure that you have installed MinGW correctly, switch to sources directory
-and type (in Windows console):
+The easiest way to compile SnK is by using MinGW or MinGW-w64 with included
+makefile. Just make sure that you have installed MinGW correctly, switch to
+sources directory and type (in Windows console):
 
     mingw32-make
     

@@ -2,7 +2,7 @@ Search and Kill
 
 1. License
 ----------
-Copyright (c) 2012 Lcferrum
+Copyright (c) 2012, 2013 Lcferrum
 
 This program comes with no warranty.
 You must use this program at your own risk.

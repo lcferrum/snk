@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
 	stack<char*> Rules;
 	multimap<float, DWORD> Processes;
 	char *head, *token, *rule;
-	int buff_len;
+	size_t buff_len;
 	char stngs_cmd;
 	bool insert_arg;
 	RULES_PROP RulesProp;

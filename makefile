@@ -47,5 +47,5 @@ $(WND_EXE): $(WND_OBJ)
 	$(CC) -c -o $@ $< $(CFLAGS) $(WND_CFLAGS)
 
 clean:
-	rm *.exe
-	
+	-rm *.exe
+	-del *.exe

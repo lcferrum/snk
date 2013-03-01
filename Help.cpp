@@ -1,5 +1,7 @@
 #include <iostream>
 
+#define SNK_VERSION "v 1.1"
+
 void PrintUsage() {
 	std::cout<<
 #ifndef HIDDEN
@@ -81,9 +83,17 @@ void PrintUsage() {
 void PrintVersion() {
 	std::cout<<
 #ifndef HIDDEN
-"Search and Kill v 1.0\n"
+#ifdef _WIN64
+"Search and Kill (x64) "<<SNK_VERSION<<"\n"
 #else
-"Search and Kill (windowless) v 1.0\n"
+"Search and Kill "<<SNK_VERSION<<"\n"
+#endif
+#else
+#ifdef _WIN64
+"Search and Kill (x64 windowless) "<<SNK_VERSION<<"\n"
+#else
+"Search and Kill (windowless) "<<SNK_VERSION<<"\n"
+#endif
 #endif
 "\n"
 #ifndef HIDDEN
@@ -92,7 +102,7 @@ void PrintVersion() {
 "Run with +v /hlp command for usage information.\n"
 #endif
 "\n"
-"Copyright (c) 2012 Lcferrum\n"
+"Copyright (c) 2012, 2013 Lcferrum\n"
 "Licensed under BSD license - see LICENSE.TXT file for details."
 #ifdef HIDDEN
 "\n"

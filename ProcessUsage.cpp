@@ -8,7 +8,7 @@
 void FillStatArrays(int index, DWORD* PID, FILETIME* UT, FILETIME* KT, FILETIME* ST, bool All);
 void ComputeStatArrays(int index, DWORD* PID, FILETIME* UT, FILETIME* KT, FILETIME* ST, std::multimap<float, DWORD> &CAN);
 
-int EnumProcessUsage(std::multimap<float, DWORD> &CAN, bool All) {
+size_t EnumProcessUsage(std::multimap<float, DWORD> &CAN, bool All) {
 	DWORD *aProcesses=NULL;
 	FILETIME *UserTicks, *KernelTicks, *StartTicks;
 	DWORD cbNeeded, Self, cProcesses, cbAllocated=0;

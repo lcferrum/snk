@@ -1,4 +1,5 @@
 #include "Extra.h"
+#include <iostream>
 
 typedef HWND (WINAPI *pNtUserHungWindowFromGhostWindow)(HWND hwndGhost);
 pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
@@ -11,7 +12,7 @@ bool Load_Extra() {
 
 	if (!g_hUser32) return false;
 
-	fnNtUserHungWindowFromGhostWindow=(pNtUserHungWindowFromGhostWindow)GetProcAddress(g_hUser32, "NtUserHungWindowFromGhostWindow");
+	fnNtUserHungWindowFromGhostWindow=(pNtUserHungWindowFromGhostWindow)GetProcAddress(g_hUser32, "HungWindowFromGhostWindow");
 
 	if (!fnNtUserHungWindowFromGhostWindow) return false;
 
@@ -19,11 +20,16 @@ bool Load_Extra() {
 }
 
 void UnLoad_Extra() {
-   if (g_hUser32) FreeLibrary(g_hUser32);
+	if (g_hUser32) FreeLibrary(g_hUser32);
 }
 
 HWND extraUserHungWindowFromGhostWindow(HWND hwndGhost) {
-   if (fnNtUserHungWindowFromGhostWindow) {
-      return fnNtUserHungWindowFromGhostWindow(hwndGhost);
-   } else return NULL;
+	if (fnNtUserHungWindowFromGhostWindow) {
+		return fnNtUserHungWindowFromGhostWindow(hwndGhost);
+	} else return NULL;
+}
+
+void checkUserHungWindowFromGhostWindow() {
+	if (!fnNtUserHungWindowFromGhostWindow)
+		std::cerr<<"HungWindowFromGhostWindow not found in user32.dll!"<<std::endl;
 }

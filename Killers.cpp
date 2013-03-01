@@ -150,6 +150,8 @@ bool KillByInr(std::multimap<float, DWORD> &CAN, char Mode, bool Aim) {
 	std::multiset<DWORD> WND_PID;
 	DWORD KillPid;
 	std::multimap<float, DWORD>::reverse_iterator rit;
+
+	if (Mode=='G') checkUserHungWindowFromGhostWindow();
 	
 	EnumCell.mode=Mode;
 	EnumCell.pWndPid=&WND_PID;
@@ -550,7 +552,8 @@ BOOL CALLBACK EnumFullscreenApps(HWND WinHandle, LPARAM Param)
 	ENUM_CELL_FSC *pEnumCell;
 	RECT rect;
 	char buf_cls[256];
-	DWORD StRes, ExStRes, PID=0;
+	DWORD PID=0;
+	LONG_PTR StRes, ExStRes;
 	
 	pEnumCell=(ENUM_CELL_FSC*)Param;
 	
@@ -615,7 +618,8 @@ BOOL CALLBACK EnumFullscreenAll(HWND WinHandle, LPARAM Param)
 	ENUM_CELL_FSC *pEnumCell;
 	RECT rect;
 	char buf_cls[256];
-	DWORD ExStRes, PID=0;
+	DWORD PID=0;
+	LONG_PTR ExStRes;
 	
 	pEnumCell=(ENUM_CELL_FSC*)Param;
 	
@@ -645,7 +649,8 @@ BOOL CALLBACK EnumFullscreenAll(HWND WinHandle, LPARAM Param)
 BOOL CALLBACK EnumNotResponding(HWND WinHandle, LPARAM Param)
 {
 	ENUM_CELL_INR *pEnumCell;
-	DWORD StRes, PID=0;
+	DWORD PID=0;
+	LONG_PTR StRes;
 	char class_name[6]="";
 
 	pEnumCell=(ENUM_CELL_INR*)Param;
