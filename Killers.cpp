@@ -29,7 +29,7 @@ bool CheckDescription(DWORD PID, char** Desc, char** Item);
 char* Desc[]={"I1_word1 OR", NULL, "(I1_word2A AND", "I1_word2B)", NULL, NULL,	"I2A_word1", NULL, NULL, 	"I2B_word1", NULL, NULL};
 char* Item[]={"Item1 OR", NULL,													"(Item2A AND",				"Item2B)", NULL, NULL};
 **********************************/
-bool CheckPath(DWORD PID, bool Full, bool Lcase, char* Wcard);
+bool CheckPath(DWORD PID, bool Full, char* Wcard);
 /******** CheckPath syntax ********
 * - zero or more characters
 ? - one character
@@ -292,7 +292,7 @@ bool KillByFsc(std::multimap<float, DWORD> &CAN, bool Strict, bool Apps, bool Ai
 	return false;
 }
 
-bool KillByPth(std::multimap<float, DWORD> &CAN, bool Full, bool Lcase, bool Aim, char* Wcard) {
+bool KillByPth(std::multimap<float, DWORD> &CAN, bool Full, bool Aim, char* Wcard) {
 	DWORD KillPid;
 	std::multimap<float, DWORD>::reverse_iterator rit;
 	
@@ -301,7 +301,7 @@ bool KillByPth(std::multimap<float, DWORD> &CAN, bool Full, bool Lcase, bool Aim
 	}
 	
 	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (CheckPath((*rit).second, Full, Lcase, Wcard)) {
+		if (CheckPath((*rit).second, Full, Wcard)) {
 			std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
 			KillPid=(*rit).second;
 			KillProcess(KillPid, Aim);
@@ -426,48 +426,41 @@ bool CheckDescription(DWORD PID, char** Desc, char** Item) {
 	return Found;
 }
 
+//WildcardCmp: 
+//Written by Jack Handy <jakkhandy@hotmail.com>
+//http://www.codeproject.com/Articles/1088/Wildcard-string-compare-globbing
 int WildcardCmp(const char* wild, const char* string) {
-	// Written by Jack Handy - <A href="mailto:jakkhandy@hotmail.com">jakkhandy@hotmail.com</A>
-	const char *cp = NULL, *mp = NULL;
+	const char *cp=NULL, *mp=NULL;
 
-	while ((*string) && (*wild != '*')) {
-		if ((*wild != *string) && (*wild != '?')) {
+	while ((*string)&&(*wild!='*')) {
+		if ((tolower(*wild)!=tolower(*string))&&(*wild!='?'))
 			return 0;
-		}
 		wild++;
 		string++;
 	}
 
 	while (*string) {
-		if (*wild == '*') {
-			if (!*++wild) {
+		if (*wild=='*') {
+			if (!*++wild)
 				return 1;
-			}
-			mp = wild;
-			cp = string+1;
-		} else if ((*wild == *string) || (*wild == '?')) {
+			mp=wild;
+			cp=string+1;
+		} else if ((tolower(*wild)==tolower(*string))||(*wild=='?')) {
 			wild++;
 			string++;
 		} else {
-			wild = mp;
-			string = cp++;
+			wild=mp;
+			string=cp++;
 		}
 	}
 
-	while (*wild == '*') {
+	while (*wild=='*')
 		wild++;
-	}
 	
 	return !*wild;
 }
 
-void ConvertToLower(char* str) {
-	do {
-		*str=tolower(*str);
-	} while (*str++!='\0');
-}
-
-bool CheckPath(DWORD PID, bool Full, bool Lcase, char* Wcard) {
+bool CheckPath(DWORD PID, bool Full, char* Wcard) {
 	char ProcName[MAX_PATH] = "";
 	
 	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_TERMINATE,
@@ -480,22 +473,7 @@ bool CheckPath(DWORD PID, bool Full, bool Lcase, char* Wcard) {
 	
 	CloseHandle(hProcess);
 	
-	if (Lcase) {
-		bool ret;
-		char* LcaseWcard;
-		
-		LcaseWcard=new char[strlen(Wcard)+1];
-		strcpy(LcaseWcard, Wcard);
-		ConvertToLower(LcaseWcard);
-		ConvertToLower(ProcName);
-		
-		ret=WildcardCmp(LcaseWcard, ProcName);
-		delete[] LcaseWcard;
-		
-		return ret;
-	} else {
-		return WildcardCmp(Wcard, ProcName);
-	}
+	return WildcardCmp(Wcard, ProcName);
 }
 
 bool CheckName(DWORD PID, char** Wcards) {
@@ -528,7 +506,6 @@ bool CheckName(DWORD PID, char** Wcards) {
 		char szModName[MAX_PATH];
 		
 		if (GetModuleBaseName(hProcess, aModules[i], szModName, sizeof(szModName))) {
-			ConvertToLower(szModName);
 			//printf("\t%s (0x%08X)\n", szModName, aModules[i] );
 			
 			int ii=0;
@@ -577,7 +554,7 @@ BOOL CALLBACK EnumFullscreenApps(HWND WinHandle, LPARAM Param)
 	if (ExStRes) {
 		if ((StRes&WS_VISIBLE)&&!(StRes&WS_CHILDWINDOW)&&!(StRes&WS_SIZEBOX)&&!(ExStRes&WS_EX_TOOLWINDOW)) {
 			if (GetClientRect(WinHandle, &rect)) {
-				if ((pEnumCell->dispW==rect.right-rect.left)&&(pEnumCell->dispH==rect.bottom-rect.top)) {
+				if ((pEnumCell->dispW<=rect.right-rect.left)&&(pEnumCell->dispH<=rect.bottom-rect.top)) {	//Sometimes fullscreen windows can be even larger than actual display resolution
 					GetWindowThreadProcessId(WinHandle, &PID);
 					pEnumCell->pWndPid->insert(PID);
 					//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
@@ -597,7 +574,7 @@ BOOL CALLBACK EnumFullscreenApps(HWND WinHandle, LPARAM Param)
 	} else {
 		if ((StRes&WS_VISIBLE)&&!(StRes&WS_CHILDWINDOW)&&!(StRes&WS_SIZEBOX)) {
 			if (GetClientRect(WinHandle, &rect)) {
-				if ((pEnumCell->dispW==rect.right-rect.left)&&(pEnumCell->dispH==rect.bottom-rect.top)) {
+				if ((pEnumCell->dispW<=rect.right-rect.left)&&(pEnumCell->dispH<=rect.bottom-rect.top)) {	//Sometimes fullscreen windows can be even larger than actual display resolution
 					GetWindowThreadProcessId(WinHandle, &PID);
 					pEnumCell->pWndPid->insert(PID);
 					//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);

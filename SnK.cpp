@@ -70,7 +70,6 @@ int main(int argc, char* argv[])
 	RulesProp.anykey=false;
 	RulesProp.verbose=false;
 	RulesProp.full=false;
-	RulesProp.lcase=false;
 	RulesProp.gld_strict=false;
 	RulesProp.inr_mode='H';
 	RulesProp.arg=NULL;
@@ -206,11 +205,8 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.arg=NULL;
 	} else if (!strcmp("/pth:full", In.top())) {
 		RP.full=true;
-	} else if (!strcmp("/pth:lcase", In.top())) {
-		RP.lcase=true;
 	} else if (!strcmp("/pth", In.top())) {
-		Done=KillByPth(CAN, RP.full, RP.lcase, RP.aim, RP.arg);
-		RP.lcase=false;
+		Done=KillByPth(CAN, RP.full, RP.aim, RP.arg);
 		RP.full=false;
 		RP.arg=NULL;
 	} else if (!strcmp("/ogl:simple", In.top())) {

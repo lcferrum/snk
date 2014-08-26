@@ -146,17 +146,16 @@ Switches:
                               will speed up search but make it somewhat less
                               precise. Will return positive result if process
                               was found.
-/pth[:full][:lcase]=NAME      
+/pth[:full]=NAME      
                               Kill process whose name matches wildcard 'NAME'
-                              and has highest cpu load. If 'full', will use
-                              full process path instead of just name. If
-                              'lcase', will convert both wildcard and process
-                              name to lowercase characters before compare.
-                              Wildcard uses standart wildcard characters '?'
-                              (exactly one unknown character) and  '*' (zero or
-                              more unknown characters). Character '*' doesn't
-                              automatically added to any end of 'NAME'. Will 
-                              return positive result if process was found.
+                              and has highest cpu load. Matching is always
+                              case-insensitive. If 'full', will use full
+                              process path instead of just name. Wildcard uses
+                              standart wildcard characters '?' (exactly one
+                              unknown character) and  '*' (zero or more unknown
+                              characters). Character '*' doesn't automatically
+                              added to any end of 'NAME'. Will return positive
+                              result if process was found.
 
 Settings:
 +t|-t                         
@@ -180,7 +179,7 @@ Settings:
 5. Usage example
 ----------------                              
 Example:
-       SnK /sec +vkt /bpp /d3d /ogl:soft:simple -tk /pth:lcase="*Skype*"
+       SnK /sec +vkt /bpp /d3d /ogl:soft:simple -tk /pth="*Skype*"
        
 SnK will do the following in this example:
 
@@ -195,7 +194,7 @@ SnK will do the following in this example:
    method. Will continue if nothing was found. Will prompt user to press 
    'any key' if process was found and then exit.
 6) Will turn 'any key' and test mode off.
-7) Will search for process with name similar to "Skype" using lowercase
+7) Will search for process with name similar to "Skype" using case-insensitive
    compare. Will prompt user to press 'enter' if nothing was found and then
    exit. Will kill process and prompt user to press 'enter' if process was
    found and then exit.

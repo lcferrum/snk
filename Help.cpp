@@ -55,7 +55,7 @@ void PrintUsage() {
 "                              has highest cpu load."
 	<<std::endl;
 	std::cout<<
-"/pth[:full][:lcase]=NAME      Kill process whose name matches wildcard 'NAME'\n"
+"/pth[:full]=NAME              Kill process whose name matches wildcard 'NAME'\n"
 "                              and has highest cpu load."
 	<<std::endl;
 	std::cout<<

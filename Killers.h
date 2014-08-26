@@ -42,9 +42,8 @@ bool KillByFsc(std::multimap<float, DWORD> &CAN, bool Strict, bool Apps, bool Ai
 															//If Apps - checks windows only with window styles specific to
 															//fullscreen application software (in contrast to system software)
 															//[the one with highest cpu load]
-bool KillByPth(std::multimap<float, DWORD> &CAN, bool Full, bool Lcase, bool Aim, char* Wcard);
-															//Kills process using it's path (with globbing)
+bool KillByPth(std::multimap<float, DWORD> &CAN, bool Full, bool Aim, char* Wcard);
+															//Kills process using it's path (case-insensitive, with globbing)
 															//Wcard - wildcard to match
 															//If Full - uses full path, otherwise uses just name
-															//If Lcase - performs lowercase comprasion
 															//[the one with highest cpu load]
