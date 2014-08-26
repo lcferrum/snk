@@ -175,6 +175,10 @@ Settings:
                               While in this mode, process with highest cpu load
                               will be searched among all processes and not just
                               user processes.
++i|-i
+                              Will turn 'ignore' mode on/off.
+                              While in this mode, even if switch returns
+                              positive result SnK execution continues.
 
 5. Usage example
 ----------------                              

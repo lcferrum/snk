@@ -274,12 +274,22 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		PrintUsage();
 		Done=true;
 		RP.ignore=false;
+#ifdef HIDDEN
+		RP.verbose=true;
+#else
+		RP.verbose=false;
+#endif
 		RP.arg=NULL;
 	} else if (!strcmp("/ver", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
 		PrintVersion();
 		Done=true;
 		RP.ignore=false;
+#ifdef HIDDEN
+		RP.verbose=true;
+#else
+		RP.verbose=false;
+#endif
 		RP.arg=NULL;
 #ifndef HIDDEN
 	} else if (!strcmp("+k", In.top())) {
