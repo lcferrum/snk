@@ -20,6 +20,7 @@ struct RULES_PROP {
 	bool	fsc_strict;
 	bool	apps;
 	bool 	aim;
+	bool	ignore;
 	bool	ogl_soft;
 	bool	ogl_simple;
 	bool	d3d_soft;
@@ -60,6 +61,7 @@ int main(int argc, char* argv[])
 	RulesProp.aim=false;
 	RulesProp.fsc_strict=false;
 	RulesProp.apps=false;
+	RulesProp.ignore=false;
 	RulesProp.ogl_soft=false;
 	RulesProp.ogl_simple=false;
 	RulesProp.d3d_soft=false;
@@ -186,6 +188,10 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.aim=true;
 	} else if (!strcmp("-t", In.top())) {
 		RP.aim=false;
+	} else if (!strcmp("+i", In.top())) {
+		RP.ignore=true;
+	} else if (!strcmp("-i", In.top())) {
+		RP.ignore=false;
 	} else if (!strcmp("/cpu", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
 		Done=KillByCpu(CAN, RP.aim);
@@ -267,11 +273,13 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		NoArgsAllowed(RP.arg, In.top());
 		PrintUsage();
 		Done=true;
+		RP.ignore=false;
 		RP.arg=NULL;
 	} else if (!strcmp("/ver", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
 		PrintVersion();
 		Done=true;
+		RP.ignore=false;
 		RP.arg=NULL;
 #ifndef HIDDEN
 	} else if (!strcmp("+k", In.top())) {
@@ -306,7 +314,7 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 	}
 
 	In.pop();
-	return !In.empty()&&!Done;
+	return !In.empty()&&(!Done||RP.ignore);
 }
 
 void WaitForUserInput(bool anykey) {

@@ -75,6 +75,7 @@ bool KillByCpu(std::multimap<float, DWORD> &CAN, bool Aim) {
 		std::cout<<"Process with highest cpu usage FOUND!"<<std::endl;
 		KillPid=(*CAN.rbegin()).second;
 		KillProcess(KillPid, Aim);
+		CAN.erase(CAN.rbegin());
 		return true;
 	} else {
 		std::cout<<"Process with highest cpu usage NOT found!"<<std::endl;
@@ -106,6 +107,7 @@ bool KillByOgl(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Ai
 			std::cout<<"Process that uses OpenGL FOUND!"<<std::endl;
 			KillPid=(*rit).second;
 			KillProcess(KillPid, Aim);
+			CAN.erase(rit);
 			return true;
 		}
 	}
@@ -137,6 +139,7 @@ bool KillByD3d(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Ai
 			std::cout<<"Process that uses Direct3D FOUND!"<<std::endl;
 			KillPid=(*rit).second;
 			KillProcess(KillPid, Aim);
+			CAN.erase(rit);
 			return true;
 		}
 	}
@@ -173,6 +176,7 @@ bool KillByInr(std::multimap<float, DWORD> &CAN, char Mode, bool Aim) {
 			std::cout<<"Process that is not responding FOUND!"<<std::endl;
 			KillPid=(*rit).second;
 			KillProcess(KillPid, Aim);
+			CAN.erase(rit);
 			return true;
 		}
 	}
@@ -201,6 +205,7 @@ bool KillByD2d(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool 
 			std::cout<<"Process that uses DirectDraw FOUND!"<<std::endl;
 			KillPid=(*rit).second;
 			KillProcess(KillPid, Aim);
+			CAN.erase(rit);
 			return true;
 		}
 	}
@@ -229,6 +234,7 @@ bool KillByGld(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool 
 			std::cout<<"Process that uses Glide FOUND!"<<std::endl;
 			KillPid=(*rit).second;
 			KillProcess(KillPid, Aim);
+			CAN.erase(rit);
 			return true;
 		}
 	}
@@ -283,6 +289,7 @@ bool KillByFsc(std::multimap<float, DWORD> &CAN, bool Strict, bool Apps, bool Ai
 				std::cout<<"Process running in fullscreen FOUND!"<<std::endl;
 				KillPid=(*rit).second;
 				KillProcess(KillPid, Aim);
+				CAN.erase(rit);
 				return true;
 			}
 		}
@@ -305,6 +312,7 @@ bool KillByPth(std::multimap<float, DWORD> &CAN, bool Full, bool Aim, char* Wcar
 			std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
 			KillPid=(*rit).second;
 			KillProcess(KillPid, Aim);
+			CAN.erase(rit);
 			return true;
 		}
 	}
