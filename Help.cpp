@@ -1,6 +1,6 @@
 #include <iostream>
 
-#define SNK_VERSION "v 1.1"
+#define SNK_VERSION "v 1.2"
 
 void PrintUsage() {
 	std::cout<<
@@ -96,13 +96,9 @@ void PrintVersion() {
 #endif
 #endif
 "\n"
-#ifndef HIDDEN
 "Run with /hlp switch for usage information.\n"
-#else
-"Run with +v /hlp command for usage information.\n"
-#endif
 "\n"
-"Copyright (c) 2012, 2013 Lcferrum\n"
+"Copyright (c) 2012, 2013, 2014 Lcferrum\n"
 "Licensed under BSD license - see LICENSE.TXT file for details."
 #ifdef HIDDEN
 "\n"

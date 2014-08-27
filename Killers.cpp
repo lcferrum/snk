@@ -68,14 +68,12 @@ void KillProcess(DWORD PID, bool Aim) {
 	CloseHandle(hProcess);
 }
 
-bool KillByCpu(std::multimap<float, DWORD> &CAN, bool Aim) {
-	DWORD KillPid;
+bool KillByCpu(Processes &CAN, bool Aim, bool Loop) {
 	
-	if (!CAN.empty()) {
+	if (CAN.ResetIteration()) {
 		std::cout<<"Process with highest cpu usage FOUND!"<<std::endl;
-		KillPid=(*CAN.rbegin()).second;
-		KillProcess(KillPid, Aim);
-		CAN.erase(CAN.rbegin());
+		KillProcess(CAN.GetCurrentPid(), Aim);
+		CAN.DisableCurrentPid();
 		return true;
 	} else {
 		std::cout<<"Process with highest cpu usage NOT found!"<<std::endl;
@@ -83,10 +81,7 @@ bool KillByCpu(std::multimap<float, DWORD> &CAN, bool Aim) {
 	}
 }
 
-bool KillByOgl(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Aim) {
-	DWORD KillPid;
-	std::multimap<float, DWORD>::reverse_iterator rit;
-	
+bool KillByOgl(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	char* descA[]={"OpenGL", NULL, "MiniGL", NULL, NULL,	"http://www.mesa3d.org", NULL, NULL};
 	char* itemA[]={"FileDescription", NULL,					"Contact", NULL, NULL};
 	
@@ -100,14 +95,13 @@ bool KillByOgl(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Ai
 	
 	char* wcrdB[]={"osmesa32.dll", NULL};
 	
-	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
 		if (Soft?
-			(Simple?CheckName((*rit).second, wcrdB):CheckDescription((*rit).second, descB, itemB)&&!CheckDescription((*rit).second, descC, itemC)):
-			(Simple?CheckName((*rit).second, wcrdA):CheckDescription((*rit).second, descA, itemA))) {
+			(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)&&!CheckDescription(CAN.GetCurrentPid(), descC, itemC)):
+			(Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))) {
 			std::cout<<"Process that uses OpenGL FOUND!"<<std::endl;
-			KillPid=(*rit).second;
-			KillProcess(KillPid, Aim);
-			CAN.erase(rit);
+			KillProcess(CAN.GetCurrentPid(), Aim);
+			CAN.DisableCurrentPid();
 			return true;
 		}
 	}
@@ -116,10 +110,7 @@ bool KillByOgl(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Ai
 	return false;
 }
 
-bool KillByD3d(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Aim) {
-	DWORD KillPid;
-	std::multimap<float, DWORD>::reverse_iterator rit;
-	
+bool KillByD3d(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	//"DirectX Driver" - rare case used in description of
 	//3Dfx (and it's vendors) driver bundle
 	char* descA[]={"Direct3D", NULL, "DirectX Driver", NULL, NULL};
@@ -132,14 +123,13 @@ bool KillByD3d(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Ai
 	
 	char* wcrdB[]={"d3d*ref.dll", "d3d*warp.dll", NULL};
 	
-	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
 		if (Soft?
-			(Simple?CheckName((*rit).second, wcrdB):CheckDescription((*rit).second, descB, itemB)):
-			(Simple?CheckName((*rit).second, wcrdA):CheckDescription((*rit).second, descA, itemA))) {
+			(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)):
+			(Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))) {
 			std::cout<<"Process that uses Direct3D FOUND!"<<std::endl;
-			KillPid=(*rit).second;
-			KillProcess(KillPid, Aim);
-			CAN.erase(rit);
+			KillProcess(CAN.GetCurrentPid(), Aim);
+			CAN.DisableCurrentPid();
 			return true;
 		}
 	}
@@ -148,11 +138,9 @@ bool KillByD3d(std::multimap<float, DWORD> &CAN, bool Simple, bool Soft, bool Ai
 	return false;
 }
 
-bool KillByInr(std::multimap<float, DWORD> &CAN, char Mode, bool Aim) {
+bool KillByInr(Processes &CAN, char Mode, bool Aim, bool Loop) {
 	ENUM_CELL_INR EnumCell;
 	std::multiset<DWORD> WND_PID;
-	DWORD KillPid;
-	std::multimap<float, DWORD>::reverse_iterator rit;
 
 	if (Mode=='G') checkUserHungWindowFromGhostWindow();
 	
@@ -171,12 +159,11 @@ bool KillByInr(std::multimap<float, DWORD> &CAN, char Mode, bool Aim) {
 		return false;
 	}
 	
-	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (WND_PID.find((*rit).second)!=WND_PID.end()) {
+	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
+		if (WND_PID.find(CAN.GetCurrentPid())!=WND_PID.end()) {
 			std::cout<<"Process that is not responding FOUND!"<<std::endl;
-			KillPid=(*rit).second;
-			KillProcess(KillPid, Aim);
-			CAN.erase(rit);
+			KillProcess(CAN.GetCurrentPid(), Aim);
+			CAN.DisableCurrentPid();
 			return true;
 		}
 	}
@@ -185,10 +172,7 @@ bool KillByInr(std::multimap<float, DWORD> &CAN, char Mode, bool Aim) {
 	return false;
 }
 
-bool KillByD2d(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool Aim) {
-	DWORD KillPid;
-	std::multimap<float, DWORD>::reverse_iterator rit;
-	
+bool KillByD2d(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {	
 	char* descA[]={"DirectDraw", NULL, NULL};
 	char* itemA[]={"FileDescription", NULL, NULL};
 	
@@ -199,13 +183,12 @@ bool KillByD2d(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool 
 	
 	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", "glide*.dll", NULL};
 	
-	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if ((Simple?CheckName((*rit).second, wcrdA):CheckDescription((*rit).second, descA, itemA))&&
-			!(Strict?(Simple?CheckName((*rit).second, wcrdB):CheckDescription((*rit).second, descB, itemB)):false)) {
+	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
+		if ((Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))&&
+			!(Strict?(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)):false)) {
 			std::cout<<"Process that uses DirectDraw FOUND!"<<std::endl;
-			KillPid=(*rit).second;
-			KillProcess(KillPid, Aim);
-			CAN.erase(rit);
+			KillProcess(CAN.GetCurrentPid(), Aim);
+			CAN.DisableCurrentPid();
 			return true;
 		}
 	}
@@ -214,10 +197,7 @@ bool KillByD2d(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool 
 	return false;
 }
 
-bool KillByGld(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool Aim) {
-	DWORD KillPid;
-	std::multimap<float, DWORD>::reverse_iterator rit;
-	
+bool KillByGld(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
 	char* descA[]={"Glide", "3Dfx Interactive", NULL, NULL};
 	char* itemA[]={"FileDescription", NULL, NULL};
 	
@@ -228,13 +208,12 @@ bool KillByGld(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool 
 	
 	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", NULL};
 	
-	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if ((Simple?CheckName((*rit).second, wcrdA):CheckDescription((*rit).second, descA, itemA))&&
-			!(Strict?(Simple?CheckName((*rit).second, wcrdB):CheckDescription((*rit).second, descB, itemB)):false)) {
+	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
+		if ((Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))&&
+			!(Strict?(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)):false)) {
 			std::cout<<"Process that uses Glide FOUND!"<<std::endl;
-			KillPid=(*rit).second;
-			KillProcess(KillPid, Aim);
-			CAN.erase(rit);
+			KillProcess(CAN.GetCurrentPid(), Aim);
+			CAN.DisableCurrentPid();
 			return true;
 		}
 	}
@@ -243,7 +222,7 @@ bool KillByGld(std::multimap<float, DWORD> &CAN, bool Simple, bool Strict, bool 
 	return false;
 }
 
-bool KillByFsc(std::multimap<float, DWORD> &CAN, bool Strict, bool Apps, bool Aim) {
+bool KillByFsc(Processes &CAN, bool Strict, bool Apps, bool Aim, bool Loop) {
 	std::multiset<DWORD> WND_PID;
 	ENUM_CELL_FSC EnumCell;
 	DEVMODE dmCurrent, dmRegistry;
@@ -251,9 +230,7 @@ bool KillByFsc(std::multimap<float, DWORD> &CAN, bool Strict, bool Apps, bool Ai
 	dmCurrent.dmDriverExtra=0;
 	dmRegistry.dmSize=sizeof(DEVMODE);
 	dmRegistry.dmDriverExtra=0;
-	DWORD KillPid;
-	std::multimap<float, DWORD>::reverse_iterator rit;
-	
+
 	if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dmCurrent)&&
 		EnumDisplaySettings(NULL, ENUM_REGISTRY_SETTINGS, &dmRegistry)) {
 		
@@ -284,12 +261,11 @@ bool KillByFsc(std::multimap<float, DWORD> &CAN, bool Strict, bool Apps, bool Ai
 			printf("%d\n", *it);
 		****TEST***/
 		
-		for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-			if (WND_PID.find((*rit).second)!=WND_PID.end()) {
+		for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
+			if (WND_PID.find(CAN.GetCurrentPid())!=WND_PID.end()) {
 				std::cout<<"Process running in fullscreen FOUND!"<<std::endl;
-				KillPid=(*rit).second;
-				KillProcess(KillPid, Aim);
-				CAN.erase(rit);
+				KillProcess(CAN.GetCurrentPid(), Aim);
+				CAN.DisableCurrentPid();
 				return true;
 			}
 		}
@@ -299,20 +275,16 @@ bool KillByFsc(std::multimap<float, DWORD> &CAN, bool Strict, bool Apps, bool Ai
 	return false;
 }
 
-bool KillByPth(std::multimap<float, DWORD> &CAN, bool Full, bool Aim, char* Wcard) {
-	DWORD KillPid;
-	std::multimap<float, DWORD>::reverse_iterator rit;
-	
+bool KillByPth(Processes &CAN, bool Full, bool Aim, bool Loop, char* Wcard) {
 	if (!Wcard) {
 		Wcard="";
 	}
 	
-	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (CheckPath((*rit).second, Full, Wcard)) {
+	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
+		if (CheckPath(CAN.GetCurrentPid(), Full, Wcard)) {
 			std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
-			KillPid=(*rit).second;
-			KillProcess(KillPid, Aim);
-			CAN.erase(rit);
+			KillProcess(CAN.GetCurrentPid(), Aim);
+			CAN.DisableCurrentPid();
 			return true;
 		}
 	}

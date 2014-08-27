@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stack>
-#include <map>
 #include <iostream>
 #include <limits>
 #include <windows.h>
@@ -31,8 +30,10 @@ struct RULES_PROP {
 	bool	gld_simple;
 	bool	anykey;
 	bool	verbose;
-	bool	full;
-	bool	lcase;
+	bool	pth_full;
+	bool	blk_full;
+	bool	blk_clear;
+	bool	loop;
 	char	inr_mode;
 	char*	arg;
 	HANDLE 	mutex;
@@ -40,18 +41,17 @@ struct RULES_PROP {
 
 using namespace std;
 
-bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP);
+bool MakeItDead(stack<char*> &In, Processes &CAN, RULES_PROP &RP);
 
 void WaitForUserInput(bool anykey);
 
-bool SecuredExecution(HANDLE &mutex);
+bool SecuredExecutionLoop(HANDLE &mutex, bool loop);
 
 void NoArgsAllowed(char* arg, char* sw);
 
 int main(int argc, char* argv[])
 {
 	stack<char*> Rules;
-	multimap<float, DWORD> Processes;
 	char *head, *token, *rule;
 	size_t buff_len;
 	char stngs_cmd;
@@ -71,8 +71,11 @@ int main(int argc, char* argv[])
 	RulesProp.gld_simple=false;
 	RulesProp.anykey=false;
 	RulesProp.verbose=false;
-	RulesProp.full=false;
+	RulesProp.pth_full=false;
+	RulesProp.blk_full=false;
+	RulesProp.blk_clear=false;
 	RulesProp.gld_strict=false;
+	RulesProp.loop=false;
 	RulesProp.inr_mode='H';
 	RulesProp.arg=NULL;
 	RulesProp.mutex=NULL;
@@ -155,15 +158,9 @@ int main(int argc, char* argv[])
 	}
 	****TEST***/
 
-	EnumProcessUsage(Processes, false);
+	Processes processes;
 	
-	/****TEST***
-	multimap<float, DWORD>::iterator it;
-	for (it=Processes.begin(); it!= Processes.end(); it++)
-		cout<<(*it).second<<" => "<<(*it).first<<"%"<<endl;
-	****TEST***/
-	
-	while (MakeItDead(Rules, Processes, RulesProp));
+	while (MakeItDead(Rules, processes, RulesProp));
 	
 	if (RulesProp.verbose) WaitForUserInput(RulesProp.anykey);
 	
@@ -179,7 +176,7 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
+bool MakeItDead(stack<char*> &In, Processes &CAN, RULES_PROP &RP) {
 	bool Done=false;
 
     if (In.empty()) return false;
@@ -194,26 +191,43 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.ignore=false;
 	} else if (!strcmp("/cpu", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=KillByCpu(CAN, RP.aim);
+		Done=KillByCpu(CAN, RP.aim, RP.loop);
 		RP.arg=NULL;
 	} else if (!strcmp("+a", In.top())) {
-		EnumProcessUsage(CAN, true);
+		CAN.SetAll(true);
 	} else if (!strcmp("-a", In.top())) {
-		EnumProcessUsage(CAN, false);
+		CAN.SetAll(false);
+	} else if (!strcmp("+l", In.top())) {
+		RP.loop=true;
+	} else if (!strcmp("-l", In.top())) {
+		RP.loop=false;
 	} else if (!strcmp("/inr:ghost", In.top())) {
 		if (RP.inr_mode=='H') RP.inr_mode='G';
 	} else if (!strcmp("/inr:manual", In.top())) {
 		if (RP.inr_mode=='H') RP.inr_mode='M';
 	} else if (!strcmp("/inr", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=KillByInr(CAN, RP.inr_mode, RP.aim);
+		Done=KillByInr(CAN, RP.inr_mode, RP.aim, RP.loop);
 		RP.inr_mode='H';
 		RP.arg=NULL;
+	} else if (!strcmp("/blk:full", In.top())) {
+		RP.blk_full=true;
+	} else if (!strcmp("/blk:clear", In.top())) {
+		RP.blk_clear=true;
+	} else if (!strcmp("/blk", In.top())) {
+		if (RP.blk_clear) {
+			NoArgsAllowed(RP.arg, "/blk:clear");
+			CAN.EraseBlacklist();
+		} else
+			CAN.AddBlacklist(RP.blk_full, RP.arg);
+		RP.blk_full=false;
+		RP.blk_clear=false;
+		RP.arg=NULL;
 	} else if (!strcmp("/pth:full", In.top())) {
-		RP.full=true;
+		RP.pth_full=true;
 	} else if (!strcmp("/pth", In.top())) {
-		Done=KillByPth(CAN, RP.full, RP.aim, RP.arg);
-		RP.full=false;
+		Done=KillByPth(CAN, RP.pth_full, RP.aim, RP.loop, RP.arg);
+		RP.pth_full=false;
 		RP.arg=NULL;
 	} else if (!strcmp("/ogl:simple", In.top())) {
 		RP.ogl_simple=true;
@@ -221,7 +235,7 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.ogl_soft=true;
 	} else if (!strcmp("/ogl", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=KillByOgl(CAN, RP.ogl_simple, RP.ogl_soft, RP.aim);
+		Done=KillByOgl(CAN, RP.ogl_simple, RP.ogl_soft, RP.aim, RP.loop);
 		RP.ogl_simple=false;
 		RP.ogl_soft=false;
 		RP.arg=NULL;
@@ -231,7 +245,7 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.d3d_soft=true;
 	} else if (!strcmp("/d3d", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=KillByD3d(CAN, RP.d3d_simple, RP.d3d_soft, RP.aim);
+		Done=KillByD3d(CAN, RP.d3d_simple, RP.d3d_soft, RP.aim, RP.loop);
 		RP.d3d_soft=false;
 		RP.d3d_simple=false;
 		RP.arg=NULL;
@@ -241,7 +255,7 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.d2d_strict=true;
 	} else if (!strcmp("/d2d", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=KillByD2d(CAN, RP.d2d_simple, RP.d2d_strict, RP.aim);
+		Done=KillByD2d(CAN, RP.d2d_simple, RP.d2d_strict, RP.aim, RP.loop);
 		RP.d2d_simple=false;
 		RP.d2d_strict=false;
 		RP.arg=NULL;
@@ -251,7 +265,7 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.gld_strict=true;
 	} else if (!strcmp("/gld", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=KillByGld(CAN, RP.gld_simple, RP.gld_strict, RP.aim);
+		Done=KillByGld(CAN, RP.gld_simple, RP.gld_strict, RP.aim, RP.loop);
 		RP.gld_strict=false;
 		RP.gld_simple=false;
 		RP.arg=NULL;
@@ -261,7 +275,7 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.apps=true;
 	} else if (!strcmp("/fsc", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=KillByFsc(CAN, RP.fsc_strict, RP.apps, RP.aim);
+		Done=KillByFsc(CAN, RP.fsc_strict, RP.apps, RP.aim, RP.loop);
 		RP.fsc_strict=false;
 		RP.apps=false;
 		RP.arg=NULL;
@@ -303,7 +317,7 @@ bool MakeItDead(stack<char*> &In, multimap<float, DWORD> &CAN, RULES_PROP &RP) {
 		RP.verbose=false;
 	} else if (!strcmp("/sec", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=SecuredExecution(RP.mutex);
+		Done=SecuredExecutionLoop(RP.mutex, RP.loop);
 		RP.arg=NULL;
 	} else if (In.top()[0]=='=') {
 		RP.arg=In.top()+1;
@@ -375,6 +389,17 @@ bool SecuredExecution(HANDLE &mutex) {
 	}
 	
 	return false;
+}
+
+bool SecuredExecutionLoop(HANDLE &mutex, bool loop) {
+	bool result=SecuredExecution(mutex);
+	
+	if (result&&loop)
+		do
+			Sleep(1000);
+		while (SecuredExecution(mutex));
+
+	return result;
 }
 
 void NoArgsAllowed(char* arg, char* sw) {
