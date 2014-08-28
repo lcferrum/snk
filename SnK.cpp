@@ -45,7 +45,7 @@ bool MakeItDead(stack<char*> &In, Processes &CAN, RULES_PROP &RP);
 
 void WaitForUserInput(bool anykey);
 
-bool SecuredExecutionLoop(HANDLE &mutex, bool loop);
+bool SecuredExecution(HANDLE &mutex);
 
 void NoArgsAllowed(char* arg, char* sw);
 
@@ -317,7 +317,8 @@ bool MakeItDead(stack<char*> &In, Processes &CAN, RULES_PROP &RP) {
 		RP.verbose=false;
 	} else if (!strcmp("/sec", In.top())) {
 		NoArgsAllowed(RP.arg, In.top());
-		Done=SecuredExecutionLoop(RP.mutex, RP.loop);
+		while ((Done=SecuredExecution(RP.mutex))&&RP.loop) 
+			Sleep(1000);
 		RP.arg=NULL;
 	} else if (In.top()[0]=='=') {
 		RP.arg=In.top()+1;
@@ -389,17 +390,6 @@ bool SecuredExecution(HANDLE &mutex) {
 	}
 	
 	return false;
-}
-
-bool SecuredExecutionLoop(HANDLE &mutex, bool loop) {
-	bool result=SecuredExecution(mutex);
-	
-	if (result&&loop)
-		do
-			Sleep(1000);
-		while (SecuredExecution(mutex));
-
-	return result;
 }
 
 void NoArgsAllowed(char* arg, char* sw) {
