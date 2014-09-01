@@ -12,6 +12,9 @@ private:
 		bool blacklisted;
 		bool system;
 		bool disabled;
+		bool operator<(const PData &right) const {
+			return perf<right.perf;
+		}
 	};
 
 	std::vector<PData> CAN;
@@ -22,7 +25,6 @@ private:
 	void FillStatArrays(int index, bool *sys, DWORD* PID, FILETIME* UT, FILETIME* KT, FILETIME* ST);
 	void ComputeStatArrays(int index, bool *sys, DWORD* PID, FILETIME* UT, FILETIME* KT, FILETIME* ST);
 	bool FirstValid();
-	static bool PDataSort(const PData &left, const PData &right);
 public:
 	Processes();
 	void SetAll(bool flag);

@@ -24,11 +24,6 @@ void Processes::SetAll(bool flag)
 	all=flag;
 }
 
-bool Processes::PDataSort(const PData &left, const PData &right)
-{
-	return left.perf<right.perf;
-}
-
 bool Processes::AddBlacklist(bool Full, char* Wcard)
 {
 	std::vector<PData>::iterator it;
@@ -138,7 +133,7 @@ void Processes::EnumProcessUsage()
 	//Compare function sorts PIDs in ascending order so reverse iterator is used for accessing PIDs
 	//Considering sorting order and stable sort algorithm we will first get PIDs with highest CPU load
 	//and, in the case of equal CPU load, last created PID will be selected
-	std::stable_sort(CAN.begin(), CAN.end(), PDataSort);
+	std::stable_sort(CAN.begin(), CAN.end());
 	
 	delete[] aProcesses;
 	delete[] UserTicks;
