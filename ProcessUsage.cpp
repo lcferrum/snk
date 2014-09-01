@@ -1,5 +1,6 @@
 #include "ProcessUsage.h"
 #include "Killers.h"
+#include <algorithm> 
 #include <stdio.h>
 #include <tchar.h>
 #include <psapi.h>
@@ -12,9 +13,9 @@ Processes::Processes():
 	EnumProcessUsage();
 	
 	/****TEST***
-	std::multimap<float, PData>::iterator it;
+	std::vector<PData>::iterator it;
 	for (it=CAN.begin(); it!= CAN.end(); it++)
-		std::cout<<(*it).second.pid<<" => "<<(*it).first<<"%"<<std::endl;
+		std::cout<<it->pid<<" => "<<it->perf<<"%"<<std::endl;
 	****TEST***/
 }
 
@@ -23,28 +24,37 @@ void Processes::SetAll(bool flag)
 	all=flag;
 }
 
+bool Processes::PDataSort(const PData &left, const PData &right)
+{
+	return left.perf<right.perf;
+}
+
 bool Processes::AddBlacklist(bool Full, char* Wcard)
 {
-	std::multimap<float, PData>::iterator it;
+	std::vector<PData>::iterator it;
 	for (it=CAN.begin(); it!=CAN.end(); it++) {
-		if (!it->second.blacklisted&&CheckPath(it->second.pid, Full, Wcard))
-			it->second.blacklisted=true;
+		if (!it->blacklisted&&CheckPath(it->pid, Full, Wcard))
+			it->blacklisted=true;
 	}
 }
 
 bool Processes::EraseBlacklist()
 {
-	std::multimap<float, PData>::iterator it;
+	std::vector<PData>::iterator it;
 	for (it=CAN.begin(); it!=CAN.end(); it++)
-		it->second.blacklisted=false;
+		it->blacklisted=false;
 }
 
 bool Processes::FirstValid()
 {
 	for (;;) {
+		/****TEST***
+		std::cout<<"FirstValid"<<std::endl;
+		std::cout<<current_rit->pid<<" => "<<current_rit->perf<<"% ("<<current_rit->disabled<<" "<<current_rit->blacklisted<<" "<<current_rit->system<<")"<<std::endl;
+		****TEST***/
 		if (current_rit==CAN.rend())
 			return false;
-		if (current_rit->second.disabled||current_rit->second.blacklisted||(all?false:current_rit->second.system))
+		if (current_rit->disabled||current_rit->blacklisted||(all?false:current_rit->system))
 			current_rit++;
 		else
 			return true;
@@ -76,12 +86,12 @@ bool Processes::NotEnd()
 
 DWORD Processes::GetCurrentPid()
 {
-	return current_rit->second.pid;
+	return current_rit->pid;
 }
 
 void Processes::DisableCurrentPid()
 {
-	current_rit->second.disabled=true;
+	current_rit->disabled=true;
 }
 
 
@@ -122,6 +132,13 @@ void Processes::EnumProcessUsage()
         if((aProcesses[i]!=0)&&(aProcesses[i]!=Self)) {
 			ComputeStatArrays(i, System, aProcesses, UserTicks, KernelTicks, StartTicks);
 		}
+	
+	//PIDs were added to the CAN in the creation order (last created PIDs are at the end of the list)
+	//Using stable_sort we preserve this original order for PIDs with equal CPU load
+	//Compare function sorts PIDs in ascending order so reverse iterator is used for accessing PIDs
+	//Considering sorting order and stable sort algorithm we will first get PIDs with highest CPU load
+	//and, in the case of equal CPU load, last created PID will be selected
+	std::stable_sort(CAN.begin(), CAN.end(), PDataSort);
 	
 	delete[] aProcesses;
 	delete[] UserTicks;
@@ -168,7 +185,6 @@ void Processes::ComputeStatArrays(int index, bool *sys, DWORD* PID, FILETIME* UT
 	FILETIME temp1, temp2, tempK, tempU, tempS;
 	ULARGE_INTEGER Left64, Right64, UserTicks64, KernelTicks64, StartTicks64;
 	SYSTEMTIME current;
-	float Usage;
     HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|
                                 PROCESS_VM_READ,
                                 FALSE, PID[index]);
@@ -206,11 +222,11 @@ void Processes::ComputeStatArrays(int index, bool *sys, DWORD* PID, FILETIME* UT
 	Right64.HighPart=KT[index].dwHighDateTime;
 	KernelTicks64.QuadPart=Left64.QuadPart-Right64.QuadPart;
 	
-    Usage=(float)(((UserTicks64.QuadPart+KernelTicks64.QuadPart)*100)/StartTicks64.QuadPart);
 	PData data={};
 	data.pid=PID[index];
 	data.system=sys[index];
-	CAN.insert(std::pair<float, PData>(Usage, data));
+	data.perf=((UserTicks64.QuadPart+KernelTicks64.QuadPart)*100.0)/StartTicks64.QuadPart;
+	CAN.push_back(data);
 
     CloseHandle(hProcess);
 }
