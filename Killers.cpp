@@ -44,8 +44,10 @@ BOOL CALLBACK EnumFullscreenApps(HWND WinHandle, LPARAM Param);
 BOOL CALLBACK EnumFullscreenAll(HWND WinHandle, LPARAM Param);
 BOOL CALLBACK EnumNotResponding(HWND WinHandle, LPARAM Param);
 
+bool loop=true;	//TEMPORARY
+
 void KillProcess(DWORD PID, bool Aim) {
-	char ProcName[MAX_PATH] = "";
+	char ProcName[MAX_PATH+3]=" (";
 	
 	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_TERMINATE,
 								FALSE, PID);
@@ -54,26 +56,30 @@ void KillProcess(DWORD PID, bool Aim) {
 		std::cout<<"Troublemaker process: "<<PID<<" (process can't be quired)"<<std::endl;
 		return;
 	}
-								
-	GetModuleBaseName(hProcess, NULL, ProcName, sizeof(ProcName));	
+		
+	size_t len;		
+	if (!(len=GetModuleBaseName(hProcess, NULL, ProcName+2, sizeof(ProcName)-3)))
+		ProcName[0]='\0';
+	else
+		ProcName[len+2]=')';
 	
 	if (Aim) {
-		std::cout<<"Troublemaker process: "<<PID<<" ("<<ProcName<<")"<<std::endl;
+		std::cout<<"Troublemaker process: "<<PID<<ProcName<<std::endl;
 	} else {
 		TerminateProcess(hProcess, 1);
-	
-		std::cout<<"Process "<<PID<<" ("<<ProcName<<") killed!"<<std::endl;
+		std::cout<<"Process "<<PID<<ProcName<<" killed!"<<std::endl;
 	}
 	
 	CloseHandle(hProcess);
 }
 
 bool KillByCpu(Processes &CAN, bool Aim, bool Loop) {
-	
-	if (CAN.ResetIteration()) {
-		std::cout<<"Process with highest cpu usage FOUND!"<<std::endl;
-		KillProcess(CAN.GetCurrentPid(), Aim);
-		CAN.DisableCurrentPid();
+	if (CAN.FirstPID()) {
+		do {
+			std::cout<<"Process with highest cpu usage FOUND!"<<std::endl;
+			KillProcess(CAN.GetCurrentPID(), Aim);
+			CAN.DisableCurrentPID();
+		} while (loop&&CAN.NextPID());
 		return true;
 	} else {
 		std::cout<<"Process with highest cpu usage NOT found!"<<std::endl;
@@ -95,19 +101,25 @@ bool KillByOgl(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"osmesa32.dll", NULL};
 	
-	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
-		if (Soft?
-			(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)&&!CheckDescription(CAN.GetCurrentPid(), descC, itemC)):
-			(Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))) {
-			std::cout<<"Process that uses OpenGL FOUND!"<<std::endl;
-			KillProcess(CAN.GetCurrentPid(), Aim);
-			CAN.DisableCurrentPid();
-			return true;
-		}
-	}
+	bool found=false;
+	if (CAN.FirstPID())
+		do {
+			if (Soft?
+				(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)&&!CheckDescription(CAN.GetCurrentPID(), descC, itemC)):
+				(Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))) {
+				std::cout<<"Process that uses OpenGL FOUND!"<<std::endl;
+				KillProcess(CAN.GetCurrentPID(), Aim);
+				CAN.DisableCurrentPID();
+				found=true;
+			}
+		} while ((!found||loop)&&CAN.NextPID());
 	
-	std::cout<<"Process that uses OpenGL NOT found!"<<std::endl;
-	return false;
+	if (found)
+		return true;
+	else {
+		std::cout<<"Process that uses OpenGL NOT found!"<<std::endl;
+		return false;
+	}
 }
 
 bool KillByD3d(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
@@ -123,19 +135,25 @@ bool KillByD3d(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"d3d*ref.dll", "d3d*warp.dll", NULL};
 	
-	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
-		if (Soft?
-			(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)):
-			(Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))) {
-			std::cout<<"Process that uses Direct3D FOUND!"<<std::endl;
-			KillProcess(CAN.GetCurrentPid(), Aim);
-			CAN.DisableCurrentPid();
-			return true;
-		}
-	}
+	bool found=false;
+	if (CAN.FirstPID())
+		do {
+			if (Soft?
+				(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)):
+				(Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))) {
+				std::cout<<"Process that uses Direct3D FOUND!"<<std::endl;
+				KillProcess(CAN.GetCurrentPID(), Aim);
+				CAN.DisableCurrentPID();
+				found=true;
+			}
+		} while ((!found||loop)&&CAN.NextPID());
 
-	std::cout<<"Process that uses Direct3D NOT found!"<<std::endl;
-	return false;
+	if (found)
+		return true;
+	else {
+		std::cout<<"Process that uses Direct3D NOT found!"<<std::endl;
+		return false;
+	}
 }
 
 bool KillByInr(Processes &CAN, char Mode, bool Aim, bool Loop) {
@@ -158,18 +176,24 @@ bool KillByInr(Processes &CAN, char Mode, bool Aim, bool Loop) {
 		std::cout<<"Process that is not responding NOT found!"<<std::endl;
 		return false;
 	}
-	
-	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
-		if (WND_PID.find(CAN.GetCurrentPid())!=WND_PID.end()) {
-			std::cout<<"Process that is not responding FOUND!"<<std::endl;
-			KillProcess(CAN.GetCurrentPid(), Aim);
-			CAN.DisableCurrentPid();
-			return true;
-		}
+
+	bool found=false;
+	if (CAN.FirstPID())
+		do {	
+			if (WND_PID.find(CAN.GetCurrentPID())!=WND_PID.end()) {
+				std::cout<<"Process that is not responding FOUND!"<<std::endl;
+				KillProcess(CAN.GetCurrentPID(), Aim);
+				CAN.DisableCurrentPID();
+				found=true;
+			}
+		} while ((!found||loop)&&CAN.NextPID());
+
+	if (found)
+		return true;
+	else {
+		std::cout<<"Process that is not responding NOT found!"<<std::endl;
+		return false;
 	}
-	
-	std::cout<<"Process that is not responding NOT found!"<<std::endl;
-	return false;
 }
 
 bool KillByD2d(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {	
@@ -183,18 +207,24 @@ bool KillByD2d(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", "glide*.dll", NULL};
 	
-	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
-		if ((Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))&&
-			!(Strict?(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)):false)) {
-			std::cout<<"Process that uses DirectDraw FOUND!"<<std::endl;
-			KillProcess(CAN.GetCurrentPid(), Aim);
-			CAN.DisableCurrentPid();
-			return true;
-		}
+	bool found=false;
+	if (CAN.FirstPID())
+		do {	
+			if ((Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))&&
+				!(Strict?(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)):false)) {
+				std::cout<<"Process that uses DirectDraw FOUND!"<<std::endl;
+				KillProcess(CAN.GetCurrentPID(), Aim);
+				CAN.DisableCurrentPID();
+				found=true;
+			}
+		} while ((!found||loop)&&CAN.NextPID());
+
+	if (found)
+		return true;
+	else {
+		std::cout<<"Process that uses DirectDraw NOT found!"<<std::endl;
+		return false;
 	}
-	
-	std::cout<<"Process that uses DirectDraw NOT found!"<<std::endl;
-	return false;
 }
 
 bool KillByGld(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
@@ -208,18 +238,24 @@ bool KillByGld(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", NULL};
 	
-	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
-		if ((Simple?CheckName(CAN.GetCurrentPid(), wcrdA):CheckDescription(CAN.GetCurrentPid(), descA, itemA))&&
-			!(Strict?(Simple?CheckName(CAN.GetCurrentPid(), wcrdB):CheckDescription(CAN.GetCurrentPid(), descB, itemB)):false)) {
-			std::cout<<"Process that uses Glide FOUND!"<<std::endl;
-			KillProcess(CAN.GetCurrentPid(), Aim);
-			CAN.DisableCurrentPid();
-			return true;
-		}
+	bool found=false;
+	if (CAN.FirstPID())
+		do {	
+			if ((Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))&&
+				!(Strict?(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)):false)) {
+				std::cout<<"Process that uses Glide FOUND!"<<std::endl;
+				KillProcess(CAN.GetCurrentPID(), Aim);
+				CAN.DisableCurrentPID();
+				found=true;
+			}
+		} while ((!found||loop)&&CAN.NextPID());
+
+	if (found)
+		return true;
+	else {
+		std::cout<<"Process that uses Glide NOT found!"<<std::endl;
+		return false;
 	}
-	
-	std::cout<<"Process that uses Glide NOT found!"<<std::endl;
-	return false;
 }
 
 bool KillByFsc(Processes &CAN, bool Strict, bool Apps, bool Aim, bool Loop) {
@@ -231,48 +267,56 @@ bool KillByFsc(Processes &CAN, bool Strict, bool Apps, bool Aim, bool Loop) {
 	dmRegistry.dmSize=sizeof(DEVMODE);
 	dmRegistry.dmDriverExtra=0;
 
-	if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dmCurrent)&&
-		EnumDisplaySettings(NULL, ENUM_REGISTRY_SETTINGS, &dmRegistry)) {
+	if (!EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dmCurrent)||
+		!EnumDisplaySettings(NULL, ENUM_REGISTRY_SETTINGS, &dmRegistry)) {
+		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
+		return false;
+	}
 		
-		EnumCell.dispW=dmCurrent.dmPelsWidth;
-		EnumCell.dispH=dmCurrent.dmPelsHeight;
-		EnumCell.taskbar_topmost=false;	
-		EnumCell.pWndPid=&WND_PID;
-		EnumWindows(Apps?(WNDENUMPROC)EnumFullscreenApps:(WNDENUMPROC)EnumFullscreenAll, (LPARAM)&EnumCell);
-		
-		if ((dmCurrent.dmPelsWidth==dmRegistry.dmPelsWidth)&&
-			(dmCurrent.dmPelsHeight==dmRegistry.dmPelsHeight)&&
-			EnumCell.taskbar_topmost&&Strict) {
-			//Indirect signs of CDS_FULLSCREEN flag set:
-			//	Current resolution != registry set resolution
-			//	Start bar is not visible (well, actually, WS_VISIBLE is always set - the only difference is WS_EX_TOPMOST flag)
-			std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
-			return false;
-		}
-		
-		if (WND_PID.empty()) {
-			std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
-			return false;
-		}
-		
-		/****TEST***
-		std::multiset<DWORD>::iterator it;
-		for (it=WND_PID.begin(); it!= WND_PID.end(); it++)
-			printf("%d\n", *it);
-		****TEST***/
-		
-		for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
-			if (WND_PID.find(CAN.GetCurrentPid())!=WND_PID.end()) {
-				std::cout<<"Process running in fullscreen FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPid(), Aim);
-				CAN.DisableCurrentPid();
-				return true;
-			}
-		}
+	EnumCell.dispW=dmCurrent.dmPelsWidth;
+	EnumCell.dispH=dmCurrent.dmPelsHeight;
+	EnumCell.taskbar_topmost=false;	
+	EnumCell.pWndPid=&WND_PID;
+	EnumWindows(Apps?(WNDENUMPROC)EnumFullscreenApps:(WNDENUMPROC)EnumFullscreenAll, (LPARAM)&EnumCell);
+	
+	if ((dmCurrent.dmPelsWidth==dmRegistry.dmPelsWidth)&&
+		(dmCurrent.dmPelsHeight==dmRegistry.dmPelsHeight)&&
+		EnumCell.taskbar_topmost&&Strict) {
+		//Indirect signs of CDS_FULLSCREEN flag set:
+		//	Current resolution != registry set resolution
+		//	Start bar is not visible (well, actually, WS_VISIBLE is always set - the only difference is WS_EX_TOPMOST flag)
+		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
+		return false;
 	}
 	
-	std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
-	return false;
+	if (WND_PID.empty()) {
+		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
+		return false;
+	}
+	
+	/****TEST***
+	std::multiset<DWORD>::iterator it;
+	for (it=WND_PID.begin(); it!= WND_PID.end(); it++)
+		printf("%d\n", *it);
+	****TEST***/
+	
+	bool found=false;
+	if (CAN.FirstPID())
+		do {	
+			if (WND_PID.find(CAN.GetCurrentPID())!=WND_PID.end()) {
+				std::cout<<"Process running in fullscreen FOUND!"<<std::endl;
+				KillProcess(CAN.GetCurrentPID(), Aim);
+				CAN.DisableCurrentPID();
+				found=true;
+			}
+		} while ((!found||loop)&&CAN.NextPID());
+
+	if (found)
+		return true;
+	else {
+		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
+		return false;
+	}
 }
 
 bool KillByPth(Processes &CAN, bool Full, bool Aim, bool Loop, char* Wcard) {
@@ -280,17 +324,23 @@ bool KillByPth(Processes &CAN, bool Full, bool Aim, bool Loop, char* Wcard) {
 		Wcard="";
 	}
 	
-	for (CAN.ResetIteration(); CAN.NotEnd(); CAN.NextIteration()) {
-		if (CheckPath(CAN.GetCurrentPid(), Full, Wcard)) {
-			std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
-			KillProcess(CAN.GetCurrentPid(), Aim);
-			CAN.DisableCurrentPid();
-			return true;
-		}
+	bool found=false;
+	if (CAN.FirstPID())
+		do {	
+			if (CheckPath(CAN.GetCurrentPID(), Full, Wcard)) {
+				std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
+				KillProcess(CAN.GetCurrentPID(), Aim);
+				CAN.DisableCurrentPID();
+				found=true;
+			}
+		} while ((!found||loop)&&CAN.NextPID());
+
+	if (found)
+		return true;
+	else {
+		std::cout<<"Process that matches wildcard \""<<Wcard<<"\" NOT found"<<std::endl;
+		return false;
 	}
-	
-	std::cout<<"Process that matches wildcard \""<<Wcard<<"\" NOT found"<<std::endl;
-	return false;
 }
 
 void ContinueCheck(int &DIndex, char** Desc) {

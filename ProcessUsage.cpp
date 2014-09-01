@@ -8,7 +8,7 @@
 #define USAGE_TIMEOUT 	1500 	//ms
 
 Processes::Processes():
-	CAN(), current_rit(), all(false)
+	CAN(), current_rit(CAN.rend()), all(false)
 {
 	EnumProcessUsage();
 	
@@ -56,35 +56,27 @@ bool Processes::FirstValid()
 	}
 }
 
-bool Processes::ResetIteration()
+bool Processes::FirstPID()
 {
-	if (CAN.size()) {
-		current_rit=CAN.rbegin();
-		return FirstValid();
-	} else 
-		return false;
+	current_rit=CAN.rbegin();
+	return FirstValid();
 }
 
-bool Processes::NextIteration()
+bool Processes::NextPID()
 {
-	if (NotEnd()) {
+	if (current_rit!=CAN.rend()) {
 		current_rit++;
 		return FirstValid();
 	} else
 		return false;
 }
 
-bool Processes::NotEnd()
-{
-	return CAN.size()&&current_rit!=CAN.rend();
-}
-
-DWORD Processes::GetCurrentPid()
+DWORD Processes::GetCurrentPID()
 {
 	return current_rit->pid;
 }
 
-void Processes::DisableCurrentPid()
+void Processes::DisableCurrentPID()
 {
 	current_rit->disabled=true;
 }

@@ -28,11 +28,10 @@ private:
 public:
 	Processes();
 	void SetAll(bool flag);
-	bool ResetIteration();
-	bool NextIteration();
-	bool NotEnd();
-	DWORD GetCurrentPid();
-	void DisableCurrentPid();
+	bool FirstPID();
+	bool NextPID();
+	DWORD GetCurrentPID();
+	void DisableCurrentPID();
 	bool AddBlacklist(bool Full, char* Wcard);
 	bool EraseBlacklist();
 };
