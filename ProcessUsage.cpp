@@ -8,7 +8,7 @@
 #define USAGE_TIMEOUT 	1500 	//ms
 
 Processes::Processes():
-	all(false)
+	CAN(), current_rit(), all(false)
 {
 	EnumProcessUsage();
 	
