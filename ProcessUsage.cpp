@@ -42,18 +42,17 @@ bool Processes::EraseBlacklist()
 
 bool Processes::FirstValid()
 {
-	for (;;) {
+	while (current_rit!=CAN.rend()) {
 		/****TEST***
 		std::cout<<"FirstValid"<<std::endl;
 		std::cout<<current_rit->pid<<" => "<<current_rit->perf<<"% ("<<current_rit->disabled<<" "<<current_rit->blacklisted<<" "<<current_rit->system<<")"<<std::endl;
 		****TEST***/
-		if (current_rit==CAN.rend())
-			return false;
 		if (current_rit->disabled||current_rit->blacklisted||(all?false:current_rit->system))
 			current_rit++;
 		else
 			return true;
 	}
+	return false;
 }
 
 bool Processes::FirstPID()
