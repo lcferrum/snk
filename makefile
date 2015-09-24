@@ -7,9 +7,15 @@
 #	Makes both versions of SnK
 # make clean
 #	Cleans directory of executables
+# make ARCH=x86_64
+#	Uses x64 compiler for all the operations above
 
 # Common section
-CC=g++
+ifeq ($(ARCH),x86_64)
+	CC=x86_64-w64-mingw32-g++
+else
+	CC=i686-w64-mingw32-g++
+endif
 CFLAGS=-std=c++98 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX
 LDFLAGS=-lpsapi -lversion -static-libgcc -static-libstdc++
 COMMON_SRC=SnK.cpp ProcessUsage.cpp Killers.cpp Extra.cpp Help.cpp
