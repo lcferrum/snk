@@ -16,7 +16,8 @@ ifeq ($(ARCH),x86_64)
 else
 	CC=i686-w64-mingw32-g++
 endif
-CFLAGS=-std=c++98 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX
+RM=rm -f
+CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX
 LDFLAGS=-lpsapi -lversion -static-libgcc -static-libstdc++
 COMMON_SRC=SnK.cpp ProcessUsage.cpp Killers.cpp Extra.cpp Help.cpp
 
@@ -53,5 +54,4 @@ $(WND_EXE): $(WND_OBJ)
 	$(CC) -c -o $@ $< $(CFLAGS) $(WND_CFLAGS)
 
 clean:
-	-rm *.exe *.o
-	-del *.exe *.o
+	$(RM) *.exe

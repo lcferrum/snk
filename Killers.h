@@ -4,6 +4,16 @@
 #include <windows.h>
 #include "ProcessUsage.h"
 
+class Killers {
+private:
+	bool blank;			//Issue "blank cartridges" instead of "live rounds"
+	Processes *CAN_WRP;	//As in "CAN wrapper" (refer to ProcessUsage.h)
+public:
+	Killers(Processes *CAN_WRP);
+	void SetBlank(bool flag);
+};
+	
+
 bool KillByCpu(Processes &CAN, bool Aim, bool Loop); 
 															//Kills process with highest cpu load
 bool KillByOgl(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop);	

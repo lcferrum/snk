@@ -24,6 +24,36 @@ void Processes::SetAll(bool flag)
 	all=flag;
 }
 
+void Processes::SetLoop(bool flag)
+{
+	loop=flag;
+}
+
+bool Processes::ApplyToProcesses(std::function<bool(DWORD)> mutator)
+{
+	bool applied=false;
+	
+	/*std::vector<PData>::reverse_iterator rit;
+	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+		if (!rit->disabled&&!rit->blacklisted&&!(all?false:rit->system)) {
+			if (mutator(rit->pid)) {
+				applied=true;
+				rit->disabled=true;
+				if (!loop) break;
+			}
+		}
+	}*/
+	
+	std::for_each(CAN.rbegin(), CAN.rend(), [this, &applied, mutator](PData &data){
+		if ((loop||!applied)&&!data.disabled&&!data.blacklisted&&!(all?false:data.system)&&mutator(data.pid)) {
+			applied=true;
+			data.disabled=true;
+		}
+	});
+	
+	return applied;
+}
+
 bool Processes::AddBlacklist(bool Full, char* Wcard)
 {
 	std::vector<PData>::iterator it;
