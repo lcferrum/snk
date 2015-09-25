@@ -33,41 +33,42 @@ bool Processes::ApplyToProcesses(std::function<bool(DWORD)> mutator)
 {
 	bool applied=false;
 	
-	/*std::vector<PData>::reverse_iterator rit;
-	for (rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (!rit->disabled&&!rit->blacklisted&&!(all?false:rit->system)) {
-			if (mutator(rit->pid)) {
-				applied=true;
-				rit->disabled=true;
-				if (!loop) break;
-			}
+	//Old fashioned for, so not to use lambdas with returns
+	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+		if (!rit->disabled&&!rit->blacklisted&&!(all?false:rit->system)&&mutator(rit->pid)) {
+			applied=true;
+			rit->disabled=true;
+			if (!loop) break;
 		}
-	}*/
+	}
 	
-	std::for_each(CAN.rbegin(), CAN.rend(), [this, &applied, mutator](PData &data){
-		if ((loop||!applied)&&!data.disabled&&!data.blacklisted&&!(all?false:data.system)&&mutator(data.pid)) {
+	//A hack to make for_each breackable - use find_if instead
+	//If lambda returns true - find_if breaks
+	/*std::find_if(CAN.rbegin(), CAN.rend(), [this, &applied, mutator](PData &data){
+		if (!data.disabled&&!data.blacklisted&&!(all?false:data.system)&&mutator(data.pid)) {
 			applied=true;
 			data.disabled=true;
-		}
-	});
+			return !loop;
+		} else
+			return false;
+	});*/
 	
 	return applied;
 }
 
 bool Processes::AddBlacklist(bool Full, char* Wcard)
 {
-	std::vector<PData>::iterator it;
-	for (it=CAN.begin(); it!=CAN.end(); it++) {
-		if (!it->blacklisted&&CheckPath(it->pid, Full, Wcard))
-			it->blacklisted=true;
+	for (PData &data: CAN) {
+		if (!data.blacklisted&&CheckPath(data.pid, Full, Wcard))
+			data.blacklisted=true;
 	}
 }
 
 bool Processes::EraseBlacklist()
 {
-	std::vector<PData>::iterator it;
-	for (it=CAN.begin(); it!=CAN.end(); it++)
-		it->blacklisted=false;
+	for (PData &data: CAN) {
+		data.blacklisted=false;
+	}
 }
 
 bool Processes::FirstValid()
