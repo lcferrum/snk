@@ -4,13 +4,13 @@
 #include <windows.h>
 #include "ProcessUsage.h"
 
-class Killers {
-private:
-	bool blank;			//Issue "blank cartridges" instead of "live rounds"
+class KillersBase {
+private:	
 	Processes *CAN_WRP;	//As in "CAN wrapper" (refer to ProcessUsage.h)
 public:
-	Killers(Processes *CAN_WRP);
-	void SetBlank(bool flag);
+	bool Blank;			//Issue "blank cartridges" instead of "live rounds"
+	char* Arg;
+	KillersBase(Processes *CAN_WRP);
 };
 	
 
