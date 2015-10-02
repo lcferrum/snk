@@ -19,7 +19,7 @@ endif
 RM=rm -f
 CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX
 LDFLAGS=-lpsapi -lversion -static-libgcc -static-libstdc++
-COMMON_SRC=SnK.cpp ProcessUsage.cpp Killers.cpp Extra.cpp Help.cpp
+COMMON_SRC=SnK.cpp ProcessUsage.cpp Killers.cpp Extra.cpp Help.cpp Controller.cpp
 
 # Target specific section
 CMD_CFLAGS=

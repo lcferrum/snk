@@ -27,8 +27,6 @@ private:
 	void ComputeStatArrays(int index, bool *sys, DWORD* PID, FILETIME* UT, FILETIME* KT, FILETIME* ST);
 protected:
 	bool ApplyToProcesses(std::function<bool(DWORD)> mutator);
-public:
-	Processes();
 	
 	bool ModeAll;	//If true - tries to kill even processes that are not accessible by current user
 	bool ModeLoop;	//If true - appllies killer function till there are no applicable processes left
@@ -44,6 +42,8 @@ public:
 							//[uses ParamFull, ParamClear and ArgWcard]
 	
 	void ClearParamsAndArgs();	//Clears ParamFull, ParamClear and ArgWcard
+public:
+	Processes();
 };
 
 #endif //PROCESS_H

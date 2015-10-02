@@ -25,9 +25,7 @@ public:
 class Killers: public Processes {
 private:
 	void KillProcess(DWORD PID);
-public:
-	Killers();
-	
+protected:	
 	bool ModeBlank;		//Issue "blank cartridges" instead of "live rounds"
 	
 	bool ParamSimple;
@@ -92,6 +90,8 @@ public:
 	bool KillByPth();
 	
 	void ClearParamsAndArgs();	//Clears ParamSimple, ParamSoft, ParamMode, ParamStrict and ParamApps
+public:
+	Killers();
 };
 															
 #endif //KILLERS_H
