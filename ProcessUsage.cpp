@@ -1,5 +1,5 @@
 #include "ProcessUsage.h"
-#include "Killers.h"
+#include "Extra.h"
 #include <algorithm> 
 #include <stdio.h>
 #include <tchar.h>
@@ -8,7 +8,7 @@
 #define USAGE_TIMEOUT 	1500 	//ms
 
 Processes::Processes():
-	CAN(), current_rit(CAN.rend()), all(false)
+	CAN(), ModeAll(false), ModeLoop(false), ParamFull(false), ParamClear(false), ArgWcard(NULL)
 {
 	EnumProcessUsage();
 	
@@ -19,26 +19,16 @@ Processes::Processes():
 	****TEST***/
 }
 
-void Processes::SetAll(bool flag)
-{
-	all=flag;
-}
-
-void Processes::SetLoop(bool flag)
-{
-	loop=flag;
-}
-
 bool Processes::ApplyToProcesses(std::function<bool(DWORD)> mutator)
 {
 	bool applied=false;
 	
 	//Old fashioned for, so not to use lambdas with returns
 	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (!rit->disabled&&!rit->blacklisted&&!(all?false:rit->system)&&mutator(rit->pid)) {
+		if (!rit->disabled&&!rit->blacklisted&&!(ModeAll?false:rit->system)&&mutator(rit->pid)) {
 			applied=true;
 			rit->disabled=true;
-			if (!loop) break;
+			if (!ModeLoop) break;
 		}
 	}
 	
@@ -56,61 +46,26 @@ bool Processes::ApplyToProcesses(std::function<bool(DWORD)> mutator)
 	return applied;
 }
 
-bool Processes::AddBlacklist(bool Full, char* Wcard)
+void Processes::ModifyBlacklist()
 {
-	for (PData &data: CAN) {
-		if (!data.blacklisted&&CheckPath(data.pid, Full, Wcard))
-			data.blacklisted=true;
-	}
-}
-
-bool Processes::EraseBlacklist()
-{
-	for (PData &data: CAN) {
-		data.blacklisted=false;
-	}
-}
-
-bool Processes::FirstValid()
-{
-	while (current_rit!=CAN.rend()) {
-		/****TEST***
-		std::cout<<"FirstValid"<<std::endl;
-		std::cout<<current_rit->pid<<" => "<<current_rit->perf<<"% ("<<current_rit->disabled<<" "<<current_rit->blacklisted<<" "<<current_rit->system<<")"<<std::endl;
-		****TEST***/
-		if (current_rit->disabled||current_rit->blacklisted||(all?false:current_rit->system))
-			current_rit++;
-		else
-			return true;
-	}
-	return false;
-}
-
-bool Processes::FirstPID()
-{
-	current_rit=CAN.rbegin();
-	return FirstValid();
-}
-
-bool Processes::NextPID()
-{
-	if (current_rit!=CAN.rend()) {
-		current_rit++;
-		return FirstValid();
+	if (ParamClear) {
+		if (ParamFull) std::cout<<"Warning: \"clear\" parameter is set - \"full\" parameter will be ignored!"<<std::endl;
+		for (PData &data: CAN) {
+			data.blacklisted=false;
+		}
 	} else
-		return false;
+		for (PData &data: CAN) {
+			if (!data.blacklisted&&CheckPath(data.pid, ParamFull, ArgWcard))
+				data.blacklisted=true;
+		}
 }
 
-DWORD Processes::GetCurrentPID()
+void Processes::ClearParamsAndArgs()
 {
-	return current_rit->pid;
+	ParamClear=false;
+	ParamFull=false;
+	ArgWcard=NULL;
 }
-
-void Processes::DisableCurrentPID()
-{
-	current_rit->disabled=true;
-}
-
 
 void Processes::EnumProcessUsage() 
 {

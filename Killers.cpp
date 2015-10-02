@@ -29,24 +29,33 @@ bool CheckDescription(DWORD PID, char** Desc, char** Item);
 char* Desc[]={"I1_word1 OR", NULL, "(I1_word2A AND", "I1_word2B)", NULL, NULL,	"I2A_word1", NULL, NULL, 	"I2B_word1", NULL, NULL};
 char* Item[]={"Item1 OR", NULL,													"(Item2A AND",				"Item2B)", NULL, NULL};
 **********************************/
-bool CheckPath(DWORD PID, bool Full, char* Wcard);
-/******** CheckPath syntax ********
-* - zero or more characters
-? - one character
-**********************************/
-bool CheckName(DWORD PID, char** Wcards);
-/******** CheckName syntax ********
-char* Wcards[]={"Wcard1 OR", "Wcard2", NULL};	
-* - zero or more characters
-? - one character
-**********************************/
+
 BOOL CALLBACK EnumFullscreenApps(HWND WinHandle, LPARAM Param);
 BOOL CALLBACK EnumFullscreenAll(HWND WinHandle, LPARAM Param);
 BOOL CALLBACK EnumNotResponding(HWND WinHandle, LPARAM Param);
 
-bool loop=true;	//TEMPORARY
+Killers::Killers():
+	Processes(), ModeBlank(false), ParamSimple(false), ParamSoft(false), ParamMode('H'), ParamStrict(false), ParamApps(false)
+{
+	ParamMode.set=[](char value, char &bvalue){ 
+		if (bvalue=='H')
+			bvalue=value;
+		else
+			std::cout<<"Warning: can't set more than one mode for \"is not responding\" check!"<<std::endl;
+		return value;
+	};
+}
 
-void KillProcess(DWORD PID, bool Aim) {
+void Killers::ClearParamsAndArgs() {
+	Processes::ClearParamsAndArgs();
+	ParamSimple=false;
+	ParamSoft=false;
+	ParamMode.back_value='H';
+	ParamStrict=false;
+	ParamApps=false;
+}
+
+void Killers::KillProcess(DWORD PID) {
 	char ProcName[MAX_PATH+3]=" (";
 	
 	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_TERMINATE,
@@ -63,7 +72,7 @@ void KillProcess(DWORD PID, bool Aim) {
 	else
 		ProcName[len+2]=')';
 	
-	if (Aim) {
+	if (ModeBlank) {
 		std::cout<<"Troublemaker process: "<<PID<<ProcName<<std::endl;
 	} else {
 		TerminateProcess(hProcess, 1);
@@ -73,13 +82,14 @@ void KillProcess(DWORD PID, bool Aim) {
 	CloseHandle(hProcess);
 }
 
-bool KillByCpu(Processes &CAN, bool Aim, bool Loop) {
-	if (CAN.FirstPID()) {
-		do {
-			std::cout<<"Process with highest cpu usage FOUND!"<<std::endl;
-			KillProcess(CAN.GetCurrentPID(), Aim);
-			CAN.DisableCurrentPID();
-		} while (loop&&CAN.NextPID());
+bool Killers::KillByCpu() {
+	bool found=ApplyToProcesses([this](DWORD PID){
+		std::cout<<"Process with highest cpu usage FOUND!"<<std::endl;
+		KillProcess(PID);
+		return true;
+	});
+	
+	if (found) {
 		return true;
 	} else {
 		std::cout<<"Process with highest cpu usage NOT found!"<<std::endl;
@@ -87,7 +97,7 @@ bool KillByCpu(Processes &CAN, bool Aim, bool Loop) {
 	}
 }
 
-bool KillByOgl(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
+bool Killers::KillByOgl() {
 	char* descA[]={"OpenGL", NULL, "MiniGL", NULL, NULL,	"http://www.mesa3d.org", NULL, NULL};
 	char* itemA[]={"FileDescription", NULL,					"Contact", NULL, NULL};
 	
@@ -101,18 +111,16 @@ bool KillByOgl(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"osmesa32.dll", NULL};
 	
-	bool found=false;
-	if (CAN.FirstPID())
-		do {
-			if (Soft?
-				(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)&&!CheckDescription(CAN.GetCurrentPID(), descC, itemC)):
-				(Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))) {
-				std::cout<<"Process that uses OpenGL FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPID(), Aim);
-				CAN.DisableCurrentPID();
-				found=true;
-			}
-		} while ((!found||loop)&&CAN.NextPID());
+	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, descC, itemC, wcardA, wcardB](DWORD PID){
+		if (ParamSoft?
+			(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)&&!CheckDescription(PID, descC, itemC)):
+			(ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))) {
+			std::cout<<"Process that uses OpenGL FOUND!"<<std::endl;
+			KillProcess(PID);
+			return true;
+		} else
+			return false;
+	});
 	
 	if (found)
 		return true;
@@ -122,7 +130,7 @@ bool KillByOgl(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	}
 }
 
-bool KillByD3d(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
+bool Killers::KillByD3d() {
 	//"DirectX Driver" - rare case used in description of
 	//3Dfx (and it's vendors) driver bundle
 	char* descA[]={"Direct3D", NULL, "DirectX Driver", NULL, NULL};
@@ -135,18 +143,16 @@ bool KillByD3d(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"d3d*ref.dll", "d3d*warp.dll", NULL};
 	
-	bool found=false;
-	if (CAN.FirstPID())
-		do {
-			if (Soft?
-				(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)):
-				(Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))) {
-				std::cout<<"Process that uses Direct3D FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPID(), Aim);
-				CAN.DisableCurrentPID();
-				found=true;
-			}
-		} while ((!found||loop)&&CAN.NextPID());
+	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, wcardA, wcardB](DWORD PID){
+		if (ParamSoft?
+			(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)):
+			(ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))) {
+			std::cout<<"Process that uses Direct3D FOUND!"<<std::endl;
+			KillProcess(PID);
+			return true;
+		} else
+			return false;
+	});
 
 	if (found)
 		return true;
@@ -156,13 +162,13 @@ bool KillByD3d(Processes &CAN, bool Simple, bool Soft, bool Aim, bool Loop) {
 	}
 }
 
-bool KillByInr(Processes &CAN, char Mode, bool Aim, bool Loop) {
+bool Killers::KillByInr() {
 	ENUM_CELL_INR EnumCell;
 	std::multiset<DWORD> WND_PID;
 
-	if (Mode=='G') checkUserHungWindowFromGhostWindow();
+	if (ParamMode=='G') checkUserHungWindowFromGhostWindow();
 	
-	EnumCell.mode=Mode;
+	EnumCell.mode=ParamMode;
 	EnumCell.pWndPid=&WND_PID;
 	EnumWindows((WNDENUMPROC)EnumNotResponding, (LPARAM)&EnumCell);
 
@@ -177,16 +183,14 @@ bool KillByInr(Processes &CAN, char Mode, bool Aim, bool Loop) {
 		return false;
 	}
 
-	bool found=false;
-	if (CAN.FirstPID())
-		do {	
-			if (WND_PID.find(CAN.GetCurrentPID())!=WND_PID.end()) {
-				std::cout<<"Process that is not responding FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPID(), Aim);
-				CAN.DisableCurrentPID();
-				found=true;
-			}
-		} while ((!found||loop)&&CAN.NextPID());
+	bool found=ApplyToProcesses([this, WND_PID](DWORD PID){
+		if (WND_PID.find(PID)!=WND_PID.end()) {
+			std::cout<<"Process that is not responding FOUND!"<<std::endl;
+			KillProcess(PID);
+			return true;
+		} else
+			return false;
+	});
 
 	if (found)
 		return true;
@@ -196,7 +200,7 @@ bool KillByInr(Processes &CAN, char Mode, bool Aim, bool Loop) {
 	}
 }
 
-bool KillByD2d(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {	
+bool Killers::KillByD2d() {	
 	char* descA[]={"DirectDraw", NULL, NULL};
 	char* itemA[]={"FileDescription", NULL, NULL};
 	
@@ -207,17 +211,15 @@ bool KillByD2d(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", "glide*.dll", NULL};
 	
-	bool found=false;
-	if (CAN.FirstPID())
-		do {	
-			if ((Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))&&
-				!(Strict?(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)):false)) {
-				std::cout<<"Process that uses DirectDraw FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPID(), Aim);
-				CAN.DisableCurrentPID();
-				found=true;
-			}
-		} while ((!found||loop)&&CAN.NextPID());
+	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, wcardA, wcardB](DWORD PID){
+		if ((ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))&&
+			!(ParamStrict?(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)):false)) {
+			std::cout<<"Process that uses DirectDraw FOUND!"<<std::endl;
+			KillProcess(PID);
+			return true;
+		} else
+			return false;
+	});
 
 	if (found)
 		return true;
@@ -227,7 +229,7 @@ bool KillByD2d(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
 	}
 }
 
-bool KillByGld(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
+bool Killers::KillByGld() {
 	char* descA[]={"Glide", "3Dfx Interactive", NULL, NULL};
 	char* itemA[]={"FileDescription", NULL, NULL};
 	
@@ -238,17 +240,15 @@ bool KillByGld(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
 	
 	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", NULL};
 	
-	bool found=false;
-	if (CAN.FirstPID())
-		do {	
-			if ((Simple?CheckName(CAN.GetCurrentPID(), wcrdA):CheckDescription(CAN.GetCurrentPID(), descA, itemA))&&
-				!(Strict?(Simple?CheckName(CAN.GetCurrentPID(), wcrdB):CheckDescription(CAN.GetCurrentPID(), descB, itemB)):false)) {
-				std::cout<<"Process that uses Glide FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPID(), Aim);
-				CAN.DisableCurrentPID();
-				found=true;
-			}
-		} while ((!found||loop)&&CAN.NextPID());
+	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, wcardA, wcardB](DWORD PID){
+		if ((ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))&&
+			!(ParamStrict?(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)):false)) {
+			std::cout<<"Process that uses Glide FOUND!"<<std::endl;
+			KillProcess(PID);
+			return true;
+		} else
+			return false;
+	});
 
 	if (found)
 		return true;
@@ -258,7 +258,7 @@ bool KillByGld(Processes &CAN, bool Simple, bool Strict, bool Aim, bool Loop) {
 	}
 }
 
-bool KillByFsc(Processes &CAN, bool Strict, bool Apps, bool Aim, bool Loop) {
+bool Killers::KillByFsc() {
 	std::multiset<DWORD> WND_PID;
 	ENUM_CELL_FSC EnumCell;
 	DEVMODE dmCurrent, dmRegistry;
@@ -277,11 +277,11 @@ bool KillByFsc(Processes &CAN, bool Strict, bool Apps, bool Aim, bool Loop) {
 	EnumCell.dispH=dmCurrent.dmPelsHeight;
 	EnumCell.taskbar_topmost=false;	
 	EnumCell.pWndPid=&WND_PID;
-	EnumWindows(Apps?(WNDENUMPROC)EnumFullscreenApps:(WNDENUMPROC)EnumFullscreenAll, (LPARAM)&EnumCell);
+	EnumWindows(ParamApps?(WNDENUMPROC)EnumFullscreenApps:(WNDENUMPROC)EnumFullscreenAll, (LPARAM)&EnumCell);
 	
 	if ((dmCurrent.dmPelsWidth==dmRegistry.dmPelsWidth)&&
 		(dmCurrent.dmPelsHeight==dmRegistry.dmPelsHeight)&&
-		EnumCell.taskbar_topmost&&Strict) {
+		EnumCell.taskbar_topmost&&ParamStrict) {
 		//Indirect signs of CDS_FULLSCREEN flag set:
 		//	Current resolution != registry set resolution
 		//	Start bar is not visible (well, actually, WS_VISIBLE is always set - the only difference is WS_EX_TOPMOST flag)
@@ -300,16 +300,14 @@ bool KillByFsc(Processes &CAN, bool Strict, bool Apps, bool Aim, bool Loop) {
 		printf("%d\n", *it);
 	****TEST***/
 	
-	bool found=false;
-	if (CAN.FirstPID())
-		do {	
-			if (WND_PID.find(CAN.GetCurrentPID())!=WND_PID.end()) {
-				std::cout<<"Process running in fullscreen FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPID(), Aim);
-				CAN.DisableCurrentPID();
-				found=true;
-			}
-		} while ((!found||loop)&&CAN.NextPID());
+	bool found=ApplyToProcesses([this, WND_PID](DWORD PID){
+		if (WND_PID.find(PID)!=WND_PID.end()) {
+			std::cout<<"Process running in fullscreen FOUND!"<<std::endl;
+			KillProcess(PID);
+			return true;
+		} else
+			return false;
+	});
 
 	if (found)
 		return true;
@@ -319,21 +317,19 @@ bool KillByFsc(Processes &CAN, bool Strict, bool Apps, bool Aim, bool Loop) {
 	}
 }
 
-bool KillByPth(Processes &CAN, bool Full, bool Aim, bool Loop, char* Wcard) {
-	if (!Wcard) {
-		Wcard="";
+bool Killers::KillByPth() {
+	if (!ArgWcard) {
+		ArgWcard="";
 	}
 	
-	bool found=false;
-	if (CAN.FirstPID())
-		do {	
-			if (CheckPath(CAN.GetCurrentPID(), Full, Wcard)) {
-				std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
-				KillProcess(CAN.GetCurrentPID(), Aim);
-				CAN.DisableCurrentPID();
-				found=true;
-			}
-		} while ((!found||loop)&&CAN.NextPID());
+	bool found=ApplyToProcesses([this](DWORD PID){
+		if (CheckPath(PID, ParamFull, ArgWcard)) {
+			std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
+			KillProcess(PID);
+			return true;
+		} else
+			return false;
+	});
 
 	if (found)
 		return true;
@@ -450,104 +446,6 @@ bool CheckDescription(DWORD PID, char** Desc, char** Item) {
 	}
 	
 	if (pBlock) delete[] pBlock;
-	delete[] aModules;	
-	CloseHandle(hProcess);
-	
-	return Found;
-}
-
-//WildcardCmp: 
-//Written by Jack Handy <jakkhandy@hotmail.com>
-//http://www.codeproject.com/Articles/1088/Wildcard-string-compare-globbing
-int WildcardCmp(const char* wild, const char* string) {
-	const char *cp=NULL, *mp=NULL;
-
-	while ((*string)&&(*wild!='*')) {
-		if ((tolower(*wild)!=tolower(*string))&&(*wild!='?'))
-			return 0;
-		wild++;
-		string++;
-	}
-
-	while (*string) {
-		if (*wild=='*') {
-			if (!*++wild)
-				return 1;
-			mp=wild;
-			cp=string+1;
-		} else if ((tolower(*wild)==tolower(*string))||(*wild=='?')) {
-			wild++;
-			string++;
-		} else {
-			wild=mp;
-			string=cp++;
-		}
-	}
-
-	while (*wild=='*')
-		wild++;
-	
-	return !*wild;
-}
-
-bool CheckPath(DWORD PID, bool Full, char* Wcard) {
-	char ProcName[MAX_PATH] = "";
-	
-	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_TERMINATE,
-								FALSE, PID);
-								
-	if (!hProcess) return false;
-								
-	if (Full) GetModuleFileNameEx(hProcess, NULL, ProcName, sizeof(ProcName));	
-		else GetModuleBaseName(hProcess, NULL, ProcName, sizeof(ProcName));	
-	
-	CloseHandle(hProcess);
-	
-	return WildcardCmp(Wcard, ProcName);
-}
-
-bool CheckName(DWORD PID, char** Wcards) {
-	HMODULE *aModules=NULL;
-	DWORD cbNeeded, cModules, cbAllocated=0;
-	HANDLE hProcess;
-	bool Found=false;
-	
-	hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|
-                         PROCESS_VM_READ,
-                         FALSE, PID);
-						 
-	if (!hProcess) return false;
-
-    do {
-		if (aModules) delete[] aModules;
-		cbAllocated+=150;
-		aModules=new HMODULE[cbAllocated];
-		if (!EnumProcessModules(hProcess, aModules, sizeof(HMODULE)*cbAllocated, &cbNeeded)) {
-			delete[] aModules;
-			CloseHandle(hProcess);
-			return false;
-		}
-		//printf("needed bytes %d, have %d bytes with %d cells\n", cbNeeded, sizeof(HMODULE)*cbAllocated, cbAllocated);
-	} while (cbNeeded>=sizeof(DWORD)*cbAllocated);
-			
-	cModules=cbNeeded/sizeof(HMODULE);
-	
-	for (unsigned int i=0; i<cModules; i++) {
-		char szModName[MAX_PATH];
-		
-		if (GetModuleBaseName(hProcess, aModules[i], szModName, sizeof(szModName))) {
-			//printf("\t%s (0x%08X)\n", szModName, aModules[i] );
-			
-			int ii=0;
-			while (Wcards[ii]) {
-				if (Found=WildcardCmp(Wcards[ii], szModName)) break;
-				ii++;
-			}
-		}
-		
-		if (Found) break;
-	}
-	
 	delete[] aModules;	
 	CloseHandle(hProcess);
 	
