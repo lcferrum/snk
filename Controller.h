@@ -9,7 +9,7 @@ class Controller: public Killers {
 private:
 	bool ModeIgnore;
 	bool ModeVerbose;
-	HANDLE ModeMutex;
+	HANDLE sec_mutex;
 	
 	NoArgsAllowed(char* sw);
 	WaitForUserInput();
