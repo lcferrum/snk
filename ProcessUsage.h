@@ -35,6 +35,7 @@ private:
 	void AddPData(DWORD PID);
 	void ComputePData(PData &data);
 	void EnumProcessUsage();
+	void EnableDebugPrivileges();
 public:
 	bool ApplyToProcesses(std::function<bool(DWORD)> mutator);
 

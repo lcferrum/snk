@@ -2,8 +2,8 @@
 #include "Extra.h"
 #include <iostream>
 #include <algorithm> 
-#include <stdio.h>
-//#include <tchar.h>
+#include <winternl.h>	//NT_SUCCESS
+#include <stddef.h>		//offsetof
 #include <psapi.h>
 
 #define USAGE_TIMEOUT 	1500 	//ms
@@ -80,6 +80,7 @@ PData::PData(DWORD pid):
 Processes::Processes():
 	CAN(), ModeAll(false), ModeLoop(false), ParamFull(false), ParamClear(false), ArgWcard(NULL)
 {
+	EnableDebugPrivileges();
 	EnumProcessUsage();
 	
 #ifdef DEBUG
@@ -175,4 +176,36 @@ void Processes::EnumProcessUsage()
 	//Considering sorting order and stable sort algorithm we will first get PIDs with highest CPU load
 	//and, in the case of equal CPU load, last created PID will be selected
 	std::stable_sort(CAN.begin(), CAN.end());
+}
+
+#define SE_DEBUG_PRIVILEGE (20L)		//Grants r/w access to any process
+#define SE_BACKUP_PRIVILEGE (17L)		//Grants read access to any file
+#define SE_LOAD_DRIVER_PRIVILEGE (10L)	//Grants device driver load/unload rights [currently no use]
+#define SE_RESTORE_PRIVILEGE (18L)		//Grants write access to any file
+#define SE_SECURITY_PRIVILEGE (8L)		//Grants r/w access to audit and security messages [no use]
+	
+void Processes::EnableDebugPrivileges()
+{
+    HANDLE tokenHandle;
+	
+	//Privileges similar to Process Explorer
+	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE,
+							SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE};
+
+    if (NT_SUCCESS(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle))) {
+        PTOKEN_PRIVILEGES privileges=(PTOKEN_PRIVILEGES)new char[offsetof(TOKEN_PRIVILEGES, Privileges)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
+
+        privileges->PrivilegeCount=0;
+        for (DWORD priv: needed_privs) {
+			privileges->Privileges[privileges->PrivilegeCount].Attributes=SE_PRIVILEGE_ENABLED;
+            privileges->Privileges[privileges->PrivilegeCount].Luid.HighPart=0;
+			privileges->Privileges[privileges->PrivilegeCount].Luid.LowPart=priv;
+			privileges->PrivilegeCount++;
+        }
+
+        AdjustTokenPrivileges(tokenHandle, FALSE, privileges, 0, NULL, NULL);
+		
+		delete[] privileges;
+        CloseHandle(tokenHandle);
+    }
 }

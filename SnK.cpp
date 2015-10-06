@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stack>
 #include <iostream>
+#include <limits>
 #include "ProcessUsage.h"
 //#include "Killers.h"
 #include "Extra.h"
@@ -22,7 +23,7 @@ int main(int argc, char* argv[])
 	CaptureCout();
 #endif
 	
-	if (argc<2) {
+	/*if (argc<2) {
 		PrintVersion();
 #ifdef HIDDEN
 		std::cout<<"Press OK to continue... "<<std::endl;
@@ -31,7 +32,7 @@ int main(int argc, char* argv[])
 		std::cout<<GetCoutBuf();
 #endif
 		return 0;
-	}
+	}*/
 	
 	Load_Extra();
 	
@@ -95,6 +96,8 @@ int main(int argc, char* argv[])
 #endif
 
 	Processes processes;
+	
+	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	
 	UnLoad_Extra();	
 #ifdef HIDDEN
