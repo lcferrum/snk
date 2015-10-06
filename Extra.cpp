@@ -1,4 +1,5 @@
 #include "Extra.h"
+#include <psapi.h>
 #include <iostream>
 
 typedef HWND (WINAPI *pNtUserHungWindowFromGhostWindow)(HWND hwndGhost);
@@ -71,8 +72,8 @@ int WildcardCmp(const char* wild, const char* string) {
 bool CheckPath(DWORD PID, bool Full, char* Wcard) {
 	char ProcName[MAX_PATH] = "";
 	
-	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_TERMINATE,
-								FALSE, PID);
+	//PROCESS_QUERY_INFORMATION and PROCESS_VM_READ are needed for GetModuleBaseName and GetModuleFileNameEx
+	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, FALSE, PID);
 								
 	if (!hProcess) return false;
 								
@@ -90,9 +91,8 @@ bool CheckName(DWORD PID, char** Wcards) {
 	HANDLE hProcess;
 	bool Found=false;
 	
-	hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|
-                         PROCESS_VM_READ,
-                         FALSE, PID);
+	//PROCESS_QUERY_INFORMATION and PROCESS_VM_READ are needed for GetModuleBaseName and EnumProcessModules
+	hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, FALSE, PID);
 						 
 	if (!hProcess) return false;
 

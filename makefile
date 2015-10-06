@@ -9,6 +9,8 @@
 #	Cleans directory of executables
 # make ARCH=x86_64
 #	Uses x64 compiler for all the operations above
+# make DEBUG=1
+#	Makes debug build
 
 # Common section
 ifeq ($(ARCH),x86_64)
@@ -16,10 +18,14 @@ ifeq ($(ARCH),x86_64)
 else
 	CC=i686-w64-mingw32-g++
 endif
+ifdef DEBUG
+	_DEBUG=-DDEBUG	
+endif
 RM=rm -f
-CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX
+CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX $(_DEBUG)
 LDFLAGS=-lpsapi -lversion -static-libgcc -static-libstdc++
-COMMON_SRC=SnK.cpp ProcessUsage.cpp Killers.cpp Extra.cpp Help.cpp Controller.cpp
+#COMMON_SRC=SnK.cpp ProcessUsage.cpp Killers.cpp Extra.cpp Help.cpp Controller.cpp
+COMMON_SRC=SnK.cpp Extra.cpp Help.cpp ProcessUsage.cpp
 
 # Target specific section
 CMD_CFLAGS=

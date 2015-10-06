@@ -1,22 +1,91 @@
 #include "ProcessUsage.h"
 #include "Extra.h"
+#include <iostream>
 #include <algorithm> 
 #include <stdio.h>
-#include <tchar.h>
+//#include <tchar.h>
 #include <psapi.h>
 
 #define USAGE_TIMEOUT 	1500 	//ms
+
+unsigned long long int PData::ConvertToUInt64(FILETIME ftime)
+{
+	ULARGE_INTEGER time64={ftime.dwLowDateTime, ftime.dwHighDateTime};
+	return time64.QuadPart;
+}
+
+bool PData::ComputePerformance()
+{
+	if (disabled) return true;
+	
+	FILETIME tmp_ftime, s_ftime, k_ftime, u_ftime;
+	SYSTEMTIME cur_stime;
+	//PROCESS_QUERY_LIMITED_INFORMATION/PROCESS_QUERY_INFORMATION is needed for GetProcessTimes
+	//PROCESS_VM_READ and PROCESS_QUERY_LIMITED_INFORMATION are needed for EnumProcessModules
+    HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, FALSE, pid);
+	//HANDLE hProcess=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+								
+	if (!hProcess) {
+		disabled=true;
+		return true;
+	}
+
+	if (!GetProcessTimes(hProcess, &tmp_ftime, &s_ftime, &k_ftime, &u_ftime)||
+		(GetSystemTime(&cur_stime), false)||
+		!SystemTimeToFileTime(&cur_stime, &s_ftime)) {
+		disabled=true;
+		CloseHandle(hProcess);
+		return true;
+	}
+
+	perf=((ConvertToUInt64(u_ftime)-u_time64+ConvertToUInt64(k_ftime)-k_time64)*100.0)/(ConvertToUInt64(s_ftime)-s_time64);
+	
+    CloseHandle(hProcess);
+	return false;
+}
+
+PData::PData(DWORD pid):
+	perf(0), pid(pid), blacklisted(false), system(false), disabled(true)
+{
+	FILETIME tmp_ftime, s_ftime, k_ftime, u_ftime;
+	SYSTEMTIME cur_stime;
+    DWORD nmod;
+    HMODULE hmod;
+	//PROCESS_QUERY_LIMITED_INFORMATION/PROCESS_QUERY_INFORMATION is needed for GetProcessTimes
+	//PROCESS_VM_READ and PROCESS_QUERY_LIMITED_INFORMATION are needed for EnumProcessModules
+    HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, FALSE, pid);
+	//HANDLE hProcess=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+								
+	if (!hProcess)
+		return;
+
+    if (!EnumProcessModules(hProcess, &hmod, sizeof(hmod), &nmod))	//checks if user-run application
+		system=true;
+	
+	if (!GetProcessTimes(hProcess, &tmp_ftime, &s_ftime, &k_ftime, &u_ftime)||
+		(GetSystemTime(&cur_stime), false)||
+		!SystemTimeToFileTime(&cur_stime, &s_ftime)) {
+		CloseHandle(hProcess);
+		return;
+	}
+	
+	u_time64=ConvertToUInt64(u_ftime);
+	k_time64=ConvertToUInt64(k_ftime);
+	s_time64=ConvertToUInt64(s_ftime);
+	disabled=false;
+
+    CloseHandle(hProcess);
+}
 
 Processes::Processes():
 	CAN(), ModeAll(false), ModeLoop(false), ParamFull(false), ParamClear(false), ArgWcard(NULL)
 {
 	EnumProcessUsage();
 	
-	/****TEST***
-	std::vector<PData>::iterator it;
-	for (it=CAN.begin(); it!= CAN.end(); it++)
-		std::cout<<it->pid<<" => "<<it->perf<<"%"<<std::endl;
-	****TEST***/
+#ifdef DEBUG
+	for (PData &data: CAN)
+		std::cout<<data.pid<<" => "<<data.perf<<"% ("<<(data.blacklisted?"b":"_")<<(data.system?"s":"_")<<(data.disabled?"d)":"_)")<<std::endl;
+#endif
 }
 
 bool Processes::ApplyToProcesses(std::function<bool(DWORD)> mutator)
@@ -58,6 +127,11 @@ void Processes::ModifyBlacklist()
 			if (!data.blacklisted&&CheckPath(data.pid, ParamFull, ArgWcard))
 				data.blacklisted=true;
 		}
+		
+#ifdef DEBUG
+	for (PData &data: CAN)
+		std::cout<<data.pid<<" => "<<data.perf<<"% ("<<(data.blacklisted?"b":"_")<<(data.system?"s":"_")<<(data.disabled?"d)":"_)")<<std::endl;
+#endif
 }
 
 void Processes::ClearParamsAndArgs()
@@ -70,40 +144,30 @@ void Processes::ClearParamsAndArgs()
 void Processes::EnumProcessUsage() 
 {
 	DWORD *aProcesses=NULL;
-	FILETIME *UserTicks, *KernelTicks, *StartTicks;
-	bool *System;
-	DWORD cbNeeded, Self, cProcesses, cbAllocated=0;
+	DWORD Self=GetCurrentProcessId();
+	DWORD cur_len=0;
+	DWORD ret_size=0;
 	
 	CAN.clear();
-	
-    do {
-		if (aProcesses) delete[] aProcesses;
-		cbAllocated+=100;
-		aProcesses=new DWORD[cbAllocated];
-		if (!EnumProcesses(aProcesses, sizeof(DWORD)*cbAllocated, &cbNeeded)) return;
-		//printf("needed bytes %d, have %d bytes with %d cells\n", cbNeeded, sizeof(DWORD)*cbAllocated, cbAllocated);
-	} while (cbNeeded>=sizeof(DWORD)*cbAllocated);
-	
-	//printf("we have %d processes\n", cbNeeded/sizeof(DWORD));
-	cProcesses=cbNeeded/sizeof(DWORD);
-	UserTicks=new FILETIME[cProcesses];
-	KernelTicks=new FILETIME[cProcesses];
-	StartTicks=new FILETIME[cProcesses];
-	System=new bool[cProcesses];
-	Self=GetCurrentProcessId();
-	//printf("GetCurrentProcessId() = %d\n", Self);
-	
-	for (unsigned int i=0; i<cProcesses; i++)
-        if((aProcesses[i]!=0)&&(aProcesses[i]!=Self)) {		//0 = idle process
-			FillStatArrays(i, System, aProcesses, UserTicks, KernelTicks, StartTicks);
-		}
+
+	//EnumProcesses returns actual read size in pBytesReturned and treats operation succesfull even if buffer size was smaller than needed
+	//We can tell that we read all information available only if actual read size is smaller than allocated buffer size
+	while (ret_size>=cur_len*sizeof(DWORD)) {
+		delete[] aProcesses;
+		aProcesses=new DWORD[(cur_len+=64)];
+		if (!EnumProcesses(aProcesses, cur_len*sizeof(DWORD), &ret_size)) return;
+	}
+
+	for (int i=0; i<ret_size/sizeof(DWORD); i++)
+		if((aProcesses[i]!=0)&&(aProcesses[i]!=Self))	//0 = idle process
+			CAN.push_back(PData(aProcesses[i]));
+
+	delete[] aProcesses;
 	
 	Sleep(USAGE_TIMEOUT);
 	
-	for (unsigned int i=0; i<cProcesses; i++)
-        if((aProcesses[i]!=0)&&(aProcesses[i]!=Self)) {
-			ComputeStatArrays(i, System, aProcesses, UserTicks, KernelTicks, StartTicks);
-		}
+	//Unaccessible elements will be erased, while performance will be calculated for accessible ones
+	CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [](PData &data){ return data.ComputePerformance(); }), CAN.end());
 	
 	//PIDs were added to the CAN in the creation order (last created PIDs are at the end of the list)
 	//Using stable_sort we preserve this original order for PIDs with equal CPU load
@@ -111,94 +175,4 @@ void Processes::EnumProcessUsage()
 	//Considering sorting order and stable sort algorithm we will first get PIDs with highest CPU load
 	//and, in the case of equal CPU load, last created PID will be selected
 	std::stable_sort(CAN.begin(), CAN.end());
-	
-	delete[] aProcesses;
-	delete[] UserTicks;
-	delete[] KernelTicks;
-	delete[] StartTicks;
-	delete[] System;
-}
-
-void Processes::FillStatArrays(int index, bool *sys, DWORD* PID, FILETIME* UT, FILETIME* KT, FILETIME* ST)
-{
-	FILETIME temp1, temp2;
-	SYSTEMTIME current;
-    DWORD nmod;
-    HMODULE fakemod;
-    HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|
-                                PROCESS_VM_READ,
-                                FALSE, PID[index]);
-								
-	if (!hProcess) {
-		PID[index]=0;
-		return;
-	}
-
-    if (!EnumProcessModules(hProcess, &fakemod, sizeof(fakemod), &nmod)) { //checks if user-run application
-		sys[index]=true;
-    }
-	
-	if (!GetProcessTimes(hProcess, &temp1, &temp2, KT+index, UT+index)) {
-		PID[index]=0;
-		CloseHandle(hProcess);
-		return;
-	}
-	
-	GetSystemTime(&current);
-	if (!SystemTimeToFileTime(&current, ST+index)) {
-		PID[index]=0;
-	}	
-
-    CloseHandle(hProcess);
-}
-
-void Processes::ComputeStatArrays(int index, bool *sys, DWORD* PID, FILETIME* UT, FILETIME* KT, FILETIME* ST)
-{
-	FILETIME temp1, temp2, tempK, tempU, tempS;
-	ULARGE_INTEGER Left64, Right64, UserTicks64, KernelTicks64, StartTicks64;
-	SYSTEMTIME current;
-    HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|
-                                PROCESS_VM_READ,
-                                FALSE, PID[index]);
-								
-	if (!hProcess) {
-		return;
-	}
-	
-	if (!GetProcessTimes(hProcess, &temp1, &temp2, &tempK, &tempU)) {
-		CloseHandle(hProcess);
-		return;
-	}
-	
-	GetSystemTime(&current);
-	if (!SystemTimeToFileTime(&current, &tempS)) {
-		CloseHandle(hProcess);
-		return;
-	}	
-	
-	Left64.LowPart=tempS.dwLowDateTime;
-	Left64.HighPart=tempS.dwHighDateTime;
-	Right64.LowPart=ST[index].dwLowDateTime;
-	Right64.HighPart=ST[index].dwHighDateTime;
-	StartTicks64.QuadPart=Left64.QuadPart-Right64.QuadPart;
-	
-	Left64.LowPart=tempU.dwLowDateTime;
-	Left64.HighPart=tempU.dwHighDateTime;
-	Right64.LowPart=UT[index].dwLowDateTime;
-	Right64.HighPart=UT[index].dwHighDateTime;
-	UserTicks64.QuadPart=Left64.QuadPart-Right64.QuadPart;
-	
-	Left64.LowPart=tempK.dwLowDateTime;
-	Left64.HighPart=tempK.dwHighDateTime;
-	Right64.LowPart=KT[index].dwLowDateTime;
-	Right64.HighPart=KT[index].dwHighDateTime;
-	KernelTicks64.QuadPart=Left64.QuadPart-Right64.QuadPart;
-	
-	PData data={};
-	data.pid=PID[index];
-	data.system=sys[index];
-	data.perf=((UserTicks64.QuadPart+KernelTicks64.QuadPart)*100.0)/StartTicks64.QuadPart;
-	CAN.push_back(data);
-
-    CloseHandle(hProcess);
 }

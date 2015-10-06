@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <iostream>
 #include <set>
-#include <psapi.h>
 
 #define INR_TIMEOUT					5000 //ms
 
@@ -58,6 +57,8 @@ void Killers::ClearParamsAndArgs() {
 void Killers::KillProcess(DWORD PID) {
 	char ProcName[MAX_PATH+3]=" (";
 	
+	//PROCESS_TERMINATE is needed for TerminateProcess
+	//PROCESS_QUERY_INFORMATION and PROCESS_VM_READ are needed for GetModuleBaseName
 	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_TERMINATE,
 								FALSE, PID);
 								
