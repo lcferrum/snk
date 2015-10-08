@@ -1,26 +1,33 @@
 # Usage:
-# make cmd
+# make CC=COMPILER cmd
 #	Builds SnK with console output (SnK.exe)
-# make wnd
+# make CC=COMPILER wnd
 #	Builds windowless SnK with dialog output (SnKh.exe)
-# make
+# make CC=COMPILER
 #	Makes both versions of SnK
-# make clean
+# make CC=COMPILER clean
 #	Cleans directory of executables
-# make ARCH=x86_64
-#	Uses x64 compiler for all the operations above
 # make DEBUG=1
 #	Makes debug build
 
-# Common section
-ifeq ($(ARCH),x86_64)
-	CC=x86_64-w64-mingw32-g++
-else
-	CC=i686-w64-mingw32-g++
+# Conditionals
+ifneq ($(CC),x86_64-w64-mingw32-g++)
+ifneq ($(CC),i686-w64-mingw32-g++)
+ifneq ($(CC),g++)
+ifneq ($(CC),clang++)
+$(info Compiler not selected! Please set CC variable.)
+$(info Possible CC values: x86_64-w64-mingw32-g++, i686-w64-mingw32-g++, g++, clang++)
+$(error CC not set)
 endif
+endif
+endif
+endif
+
 ifdef DEBUG
 	_DEBUG=-DDEBUG	
 endif
+
+# Common section
 RM=rm -f
 CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX $(_DEBUG)
 LDFLAGS=-lpsapi -lversion -static-libgcc -static-libstdc++

@@ -3,6 +3,8 @@
 #include <iostream>
 #include <algorithm> 
 #include <winternl.h>	//NT_SUCCESS
+//#define NTSTATUS ULONG
+//#define NT_SUCCESS(Status) ((NTSTATUS)(Status) >= 0)
 #include <stddef.h>		//offsetof
 #include <psapi.h>
 
