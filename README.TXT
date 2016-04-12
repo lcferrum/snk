@@ -2,7 +2,7 @@ Search and Kill
 
 1. License
 ----------
-Copyright (c) 2012, 2013 Lcferrum
+Copyright (c) 2012-2016 Lcferrum
 
 This program comes with no warranty.
 You must use this program at your own risk.
@@ -68,6 +68,17 @@ Switches:
                               has executed this switch. Use before other
                               switches with verbose mode to prevent
                               accidentiall subsequent execution of program.
+/blk(:clear|[:full]=WCARDS)     
+                              Adds every process which name matches one of 
+							  wildcars (delimeted by semicolon) to blacklist.
+							  Matching is always case-insensitive. Blacklisted
+							  processes will be ignored by all other switches.
+							  If 'clear', will clear blacklist (ignoring any
+							  other parameter). If 'full', will use full
+							  process path instead of just name. Wildcards use
+							  standart wildcard characters '?' (exactly one
+							  unknown character) and  '*' (zero or more
+							  unknown characters).
 /cpu                          
                               Kill process with highest cpu load. Will return
                               positive result if process was found. Can return
@@ -116,48 +127,66 @@ Switches:
                               Please check DetectMatrix.html for more
                               information. Will return positive result if
                               process was found.
-/inr[:manual|:ghost]          
+/inr[:manual|:vista]          
                               Kill process that is not responding and has
-                              highest cpu load. By default will use standart
-                              Windows procedure to check if application is
-                              hung. If 'manual', will use custom procedure to
-                              check if application is hung - this is somewhat
-                              more precise but slower method. If 'ghost', will
-                              kill only hung applications with ghosted windows.
-                              'Ghost' method is only working on Windows Vista
-                              and above - it will always return negative result
-                              on lower versions of Windows. "Preciseness" of
-                              'manual' method really means that it can detect
-                              hung process at earlier stage of "hungness" than
-                              Windows standart procedure. So, if process is
-                              already hung for a long time - there is no point 
-                              in using 'manual' method. Will return positive 
-                              result if process was found.
-/fsc[:apps][:strict]          
+                              highest cpu load. By default will use standard
+                              Windows procedure (IsHungAppWindow) to check if
+							  application is hung. If 'manual', will check if
+							  window is pumping any messages through it's
+							  message loop to determine hung state. If 'vista', 
+							  will uses undocumented IsHungAppWindow analog
+							  from newer OS versions. Even if hung app not yet
+							  being marked as hung by Windows - default method
+							  will work most of the time, stick with it. Will 
+							  return positive result if process was found.
+/fsc[:anywnd][:primary]          
                               Kill process that is running in fullscreen and
-                              has highest cpu load. If 'apps', will check only
-                              non-system windows to find fullscreen process.
-                              Otherwise, will check all windows. If 'strict',
-                              before searching for fullscreen processes will
-                              check, using current state of OS, if any process
-                              has actually requested fullscreen mode. If
-                              fullscreen mode wasn't requested - will skip
-                              search and assume that process wasn't found. This
-                              will speed up search but make it somewhat less
-                              precise. Will return positive result if process
-                              was found.
-/pth[:full]=NAME      
-                              Kill process whose name matches wildcard 'NAME'
-                              and has highest cpu load. Matching is always
-                              case-insensitive. If 'full', will use full
-                              process path instead of just name. Wildcard uses
+                              has highest cpu load. Works with multi-monitor
+							  setups. By default only exclusive fullscreen and
+							  borderless windowed processes are checked. If 
+							  'anywnd', will check processes with any window
+							  type, borderless or not. If 'primary', will check
+							  only windows that belong to primary display. Will
+							  return positive result if process was found.
+/fgd          
+                              Kill process which window is in foreground. 
+							  Though there is always a foreground window, this
+							  switch may return nothing if foreground process
+							  has 'non-task' window (has no icon on the task
+							  bar) or doesn't belong to user and 'query all
+							  processes' mode was turned off. Will return 
+							  positive result if process was found.
+/pth[:full]=WCARDS      
+                              Kill process which name matches one of the 
+							  wildcards (delimeted by semicolon) and has
+							  highest cpu load. Matching is always 
+							  case-insensitive. If 'full', will use full
+                              process path instead of just name. Wildcards use
                               standart wildcard characters '?' (exactly one
                               unknown character) and  '*' (zero or more unknown
-                              characters). Character '*' doesn't automatically
-                              added to any end of 'NAME'. Will return positive
-                              result if process was found.
+                              characters). Will return positive result if
+							  process was found.
+/mod[:full]=WCARDS      
+                              Kill process that has a module which name matches
+							  one of the wildcards (delimeted by semicolon) and
+							  has highest cpu load. Matching is always 
+							  case-insensitive. If 'full', will use full
+                              module path instead of just name. Wildcards use
+                              standart wildcard characters '?' (exactly one
+                              unknown character) and  '*' (zero or more unknown
+                              characters). Will return positive result if
+							  process was found.
+/pid=PIDS      
+                              Kill process which PID belongs to PID array and
+							  has highest cpu load. PID array consists of PIDs,
+							  delimeted by comma or semicolon, and can include
+							  descending or ascending ranges. PID must be 
+							  decimal (no prefix), hexadecimal ('0x'/'0X' 
+							  prefix) or octal ('0' prefix) unsigned integer.
+                              Will return positive result if process was found.
 
 Settings:
+
 +t|-t                         
                               Will turn test mode on/off. While in test mode,
                               switches only display information about found
@@ -166,38 +195,40 @@ Settings:
                               Will turn verbose mode on/off. While in verbose
                               mode, program will prompt user to press 'enter'
                               before exit.
-+k|-k                         
-                              Will turn 'any key' mode on/off. While this mode
-                              and verbose mode is turned on, program will
-                              prompt user to press 'any key' before exit.
 +a|-a                         
                               Will turn 'query all processes' mode on/off.
                               While in this mode, process with highest cpu load
                               will be searched among all processes and not just
                               user processes.
++l|-l
+                              Will turn 'loop' mode on/off. While in this mode, 
+							  every switch will be looped until it finally 
+							  returns negative result. Overall result will be
+							  posistive if one of the iterations returned
+							  positive result.
 +i|-i
-                              Will turn 'ignore' mode on/off.
-                              While in this mode, even if switch returns
-                              positive result SnK execution continues.
+                              Will turn 'ignore' mode on/off. While in this 
+							  mode, even if switch returns positive result SnK
+							  execution continues.
 
 5. Usage example
 ----------------                              
 Example:
-       SnK /sec +vkt /bpp /d3d /ogl:soft:simple -tk /pth="*Skype*"
+       SnK /sec +vt /bpp /d3d /ogl:soft:simple -t /pth="*Skype*"
        
 SnK will do the following in this example:
 
 1) Secure current SnK instance. If there is another secured SnK instance
    running already, program will exit without prompting. Otherwise it will
    continue execution.
-2) Will turn verbose, 'any key' and test mode on.
+2) Will turn verbose and test mode on.
 3) Will make 'informational beep' and continue.
 4) Will search for Direct3D processes. Will continue if nothing was found.
-   Will prompt user to press 'any key' if process was found and then exit.
+   Will prompt user to press 'enter' if process was found and then exit.
 5) Will search for OpenGL processes with software rendering using 'simple'
    method. Will continue if nothing was found. Will prompt user to press 
-   'any key' if process was found and then exit.
-6) Will turn 'any key' and test mode off.
+   'enter' if process was found and then exit.
+6) Will turn test mode off.
 7) Will search for process with name similar to "Skype" using case-insensitive
    compare. Will prompt user to press 'enter' if nothing was found and then
    exit. Will kill process and prompt user to press 'enter' if process was

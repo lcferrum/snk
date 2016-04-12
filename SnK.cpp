@@ -1,110 +1,95 @@
-#include <stdio.h>
+#include <cstdio>
+#include <cwchar>
 #include <stack>
 #include <iostream>
 #include <limits>
 #include "ProcessUsage.h"
-//#include "Killers.h"
-#include "Extra.h"
-#include "Help.h"
+#include "Controller.h"
+#include "Killers.h"
+#include "Extras.h"
+#include "Common.h"
+#include "Hout.h"
 
-#ifdef HIDDEN
-#include "ConRedirection.h"
+extern pWcoutMessageBox fnWcoutMessageBox;
+extern template class Controller<Processes, Killers>;
+
+#ifdef OBSOLETE_WMAIN
+typedef struct {
+	int newmode;
+} _startupinfo;
+#undef _CRT_glob
+extern int _CRT_glob;
+extern "C" void __wgetmainargs(int*, wchar_t***, wchar_t***, int, _startupinfo*);
+
+int main() {
+	wchar_t **enpv, **argv;
+	int argc;
+	_startupinfo si;
+	__wgetmainargs(&argc, &argv, &enpv, _CRT_glob, &si);
+#else
+extern "C" int wmain(int argc, wchar_t* argv[]) {
 #endif
 
-int main(int argc, char* argv[])
-{
-	std::stack<char*> Rules;
-	char *head, *token, *rule;
-	size_t buff_len;
-	char stngs_cmd;
-	bool insert_arg;
-	
 #ifdef HIDDEN
-	CaptureCout();
+	Extras::MakeInstance(true, L"Search and Kill");
+#else
+	Extras::MakeInstance(false, NULL);
 #endif
-	
-	/*if (argc<2) {
+
+	if (argc<2) {
 		PrintVersion();
 #ifdef HIDDEN
-		std::cout<<"Press OK to continue... "<<std::endl;
-		MessageBox(NULL, GetCoutBuf().c_str(), "Search and Kill", MB_ICONWARNING|MB_SETFOREGROUND);
-		ReleaseCout();
-		std::cout<<GetCoutBuf();
+		if (fnWcoutMessageBox) {
+			std::wcout<<L"Press OK to continue... "<<std::endl;
+			fnWcoutMessageBox();
+		}
 #endif
 		return 0;
-	}*/
-	
-	Load_Extra();
-	
-	while (argc>1) {
-		argc--;
-		
-		if (argv[argc][0]=='/') {
-			if (head=strchr(argv[argc], '=')) {
-				token=new char[strlen(head)+1];
-				strcpy(token, head);
-				*head=0;
-				insert_arg=true;
-			} else insert_arg=false;
-		
-			buff_len=strlen(argv[argc])+1;
-			
-			head=strtok(argv[argc], ":");
-			rule=new char[buff_len];
-			strcpy(rule, head);
-			Rules.push(rule);
-			
-			if (insert_arg) Rules.push(token);
-			
-			while (token=strtok(NULL, ":")) {
-				rule=new char[buff_len];
-				strcpy(rule, head);
-				strcat(rule, ":");
-				strcat(rule, token);
-				Rules.push(rule);
-			}
-			
-			continue;
-		}
-		
-		if (argv[argc][0]=='+'||argv[argc][0]=='-') {
-			stngs_cmd=argv[argc][0];
-		
-			while (*++argv[argc]!='\0') {
-				rule=new char[3];
-				rule[0]=stngs_cmd;
-				rule[1]=*argv[argc];
-				rule[2]='\0';
-				Rules.push(rule);
-			}
-			
-			continue;
-		}
-		
-		std::cerr<<"Warning: unknown input: "<<argv[argc]<<std::endl;
 	}
+	
+	std::stack<std::wstring> Rules;
+	wchar_t *head, *token;
+	while (argc-->1) switch (*argv[argc]) {
+		case L'/':
+			if ((token=wcschr(argv[argc], L'=')))
+				*token++=L'\0';
+		
+			Rules.push((head=wcstok(argv[argc], L":")));
+			
+			if (token)
+				Rules.push(std::wstring(L"=")+token);
+			
+			while ((token=wcstok(NULL, L":")))
+				Rules.push(head+std::wstring(L":")+token);
+			
+			continue;
+		case L'+':
+		case L'-':
+			head=argv[argc];
+		
+			while (*++argv[argc]!=L'\0')
+				Rules.push({*head, *argv[argc]});
+			
+			continue;
+		default:
+			std::wcerr<<L"Warning: unknown input: "<<argv[argc]<<std::endl;
+	}
+	//After above loop ARGV and ARGC are corrupted beyond repair so don't use them
 
-#ifdef DEBUG
+#if DEBUG>=3
 	{
-		std::stack<char*> _Rules=Rules;
-		std::cout<<"Rules (unfolding stack):"<<std::endl;
+		std::stack<std::wstring> _Rules=Rules;
+		std::wcerr<<L"" __FILE__ ":main:"<<__LINE__<<L": Rules (unfolding stack)..."<<std::endl;
 		while (!_Rules.empty()) {
-			std::cout<<"\t\t"<<_Rules.top()<<std::endl;
+			std::wcerr<<L"\t\t"<<_Rules.top()<<std::endl;
 			_Rules.pop();
 		}
 	}
 #endif
 
-	Processes processes;
+	Controller<Processes, Killers> controller;
 	
-	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-	
-	UnLoad_Extra();	
-#ifdef HIDDEN
-	ReleaseCout();
-	
-	std::cout<<GetCoutBuf();
-#endif	
+	controller.MakeItDead(Rules);
 	
 	return 0;
 }

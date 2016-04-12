@@ -1,310 +1,306 @@
 #include "Killers.h"
-#include "Extra.h"
-#include <stdio.h>
+#include "FilePathRoutines.h"
+#include "Extras.h"
+#include "Common.h"
 #include <iostream>
-#include <set>
+#include <sstream>
+#include <iomanip>
+#include <tuple>
+#include <vector>
+#include <algorithm>
+#include <cstdio>
 
 #define INR_TIMEOUT					5000 //ms
 
-struct LANGANDCODEPAGE {
-	WORD	wLanguage;
-	WORD	wCodePage;
-};
+typedef struct _LANGANDCODEPAGE {
+	WORD wLanguage;
+	WORD wCodePage;
+} LANGANDCODEPAGE;
 
-struct ENUM_CELL_FSC {
-	DWORD	dispW;
-	DWORD	dispH;
-	bool	taskbar_topmost;
-	std::multiset<DWORD> *pWndPid;
-};
+extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 
-struct ENUM_CELL_INR {
-	char mode;				//H - IsHungAppWindow, M - SendMessageTimeout, G - Ghost
-	std::multiset<DWORD> *pWndPid;
-};
+#ifdef _WIN64
+#define EnumDisplayDevicesWrapper EnumDisplayDevices
+#else
+extern "C" BOOL __cdecl EnumDisplayDevicesWrapper(LPCTSTR lpDevice, DWORD iDevNum, PDISPLAY_DEVICE lpDisplayDevice, DWORD dwFlags, BOOL (WINAPI *fnPtr)(LPCWSTR, DWORD, PDISPLAY_DEVICEW, DWORD)=EnumDisplayDevices, DWORD dwEBP=0);
+#endif
 
-bool CheckDescription(DWORD PID, char** Desc, char** Item);
-/**** CheckDescription syntax *****
-char* Desc[]={"I1_word1 OR", NULL, "(I1_word2A AND", "I1_word2B)", NULL, NULL,	"I2A_word1", NULL, NULL, 	"I2B_word1", NULL, NULL};
-char* Item[]={"Item1 OR", NULL,													"(Item2A AND",				"Item2B)", NULL, NULL};
-**********************************/
+#ifdef __clang__
+//Obscure clang++ bug - it reports "multiple definition" of std::setfill() when statically linking with libstdc++
+//Observed on LLVM 3.6.2 with MinGW 4.7.2
+//This is a fix for the bug
+extern template std::_Setfill<wchar_t> std::setfill(wchar_t);	//caused by use of std::setfill(wchar_t)
+#endif
 
-BOOL CALLBACK EnumFullscreenApps(HWND WinHandle, LPARAM Param);
-BOOL CALLBACK EnumFullscreenAll(HWND WinHandle, LPARAM Param);
-BOOL CALLBACK EnumNotResponding(HWND WinHandle, LPARAM Param);
+Killers::Killers()
+{}
 
-Killers::Killers():
-	Processes(), ModeBlank(false), ParamSimple(false), ParamSoft(false), ParamMode('H'), ParamStrict(false), ParamApps(false)
-{
-	ParamMode.set=[](char value, char &bvalue){ 
-		if (bvalue=='H')
-			bvalue=value;
-		else
-			std::cout<<"Warning: can't set more than one mode for \"is not responding\" check!"<<std::endl;
-		return value;
-	};
-}
-
-void Killers::ClearParamsAndArgs() {
-	Processes::ClearParamsAndArgs();
-	ParamSimple=false;
-	ParamSoft=false;
-	ParamMode.back_value='H';
-	ParamStrict=false;
-	ParamApps=false;
-}
-
-void Killers::KillProcess(DWORD PID) {
-	char ProcName[MAX_PATH+3]=" (";
-	
-	//PROCESS_TERMINATE is needed for TerminateProcess
-	//PROCESS_QUERY_INFORMATION and PROCESS_VM_READ are needed for GetModuleBaseName
-	HANDLE hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_TERMINATE,
-								FALSE, PID);
-								
-	if (!hProcess) {
-		std::cout<<"Troublemaker process: "<<PID<<" (process can't be quired)"<<std::endl;
-		return;
-	}
-		
-	size_t len;		
-	if (!(len=GetModuleBaseName(hProcess, NULL, ProcName+2, sizeof(ProcName)-3)))
-		ProcName[0]='\0';
-	else
-		ProcName[len+2]=')';
-	
-	if (ModeBlank) {
-		std::cout<<"Troublemaker process: "<<PID<<ProcName<<std::endl;
+void Killers::KillProcess(DWORD PID, const std::wstring &name) {
+	if (ModeBlank()) {
+		std::wcout<<L"Troublemaker process: "<<PID<<L" ("<<name<<L")!"<<std::endl;
 	} else {
+		//PROCESS_TERMINATE is needed for TerminateProcess
+		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE);
+									
+		if (!hProcess) {
+			std::wcout<<L"Troublemaker process: "<<PID<<L" ("<<name<<L") - process can't be terminated!"<<std::endl;
+			return;
+		}
+		
 		TerminateProcess(hProcess, 1);
-		std::cout<<"Process "<<PID<<ProcName<<" killed!"<<std::endl;
+		std::wcout<<L"Process "<<PID<<L" ("<<name<<L") killed!"<<std::endl;
+		CloseHandle(hProcess);
 	}
-	
-	CloseHandle(hProcess);
 }
 
 bool Killers::KillByCpu() {
-	bool found=ApplyToProcesses([this](DWORD PID){
-		std::cout<<"Process with highest cpu usage FOUND!"<<std::endl;
-		KillProcess(PID);
+	bool found=ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		std::wcout<<L"Process with highest cpu usage FOUND!"<<std::endl;
+		KillProcess(PID, name);
 		return true;
 	});
 	
 	if (found) {
 		return true;
 	} else {
-		std::cout<<"Process with highest cpu usage NOT found!"<<std::endl;
+		std::wcout<<L"Process with highest cpu usage NOT found!"<<std::endl;
 		return false;
 	}
 }
 
-bool Killers::KillByOgl() {
-	char* descA[]={"OpenGL", NULL, "MiniGL", NULL, NULL,	"http://www.mesa3d.org", NULL, NULL};
-	char* itemA[]={"FileDescription", NULL,					"Contact", NULL, NULL};
+bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard) {
+	if (!arg_wcard)
+		arg_wcard=L"";
 	
-	char* descB[]={"OpenGL", NULL, NULL, 	"SwiftShader", NULL, "DLL", NULL, NULL};
-	char* itemB[]={"FileDescription", 		"FileDescription", NULL, NULL};
-	
-	char* descC[]={"OpenGL", NULL, NULL, 	"Driver", NULL, "ICD", NULL, "MCD", NULL, NULL};
-	char* itemC[]={"FileDescription", 		"FileDescription", NULL, NULL};
-	
-	char* wcrdA[]={"opengl*.dll", "3dfx*gl*.dll", NULL};
-	
-	char* wcrdB[]={"osmesa32.dll", NULL};
-	
-	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, descC, itemC, wcardA, wcardB](DWORD PID){
-		if (ParamSoft?
-			(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)&&!CheckDescription(PID, descC, itemC)):
-			(ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))) {
-			std::cout<<"Process that uses OpenGL FOUND!"<<std::endl;
-			KillProcess(PID);
+	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str())) {
+			std::wcout<<L"Process that matches wildcard(s) \""<<arg_wcard<<L"\" FOUND!"<<std::endl;
+			KillProcess(PID, name);
 			return true;
 		} else
 			return false;
 	});
-	
+
 	if (found)
 		return true;
 	else {
-		std::cout<<"Process that uses OpenGL NOT found!"<<std::endl;
+		std::wcout<<L"Process that matches wildcard(s) \""<<arg_wcard<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
 
-bool Killers::KillByD3d() {
+bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard) {
+	if (!arg_wcard)
+		arg_wcard=L"";
+	
+	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
+		if (!hProcess) return false;
+		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		CloseHandle(hProcess);
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByMod:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
+		for (const std::pair<std::wstring, std::wstring> &module: mlist)
+			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+#endif
+
+		if (CheckName(mlist, param_full, arg_wcard)) {
+			std::wcout<<L"Process with module that matches wildcard(s) \""<<arg_wcard<<L"\" FOUND!"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"Process with module that matches wildcard(s) \""<<arg_wcard<<L"\" NOT found"<<std::endl;
+		return false;
+	}
+}
+
+bool Killers::KillByPid(const wchar_t* arg_parray) {
+	if (!arg_parray)
+		arg_parray=L"";
+
+	wchar_t buffer[wcslen(arg_parray)+1];
+	wcscpy(buffer, arg_parray);
+	
+	std::vector<DWORD> dw_array;
+	DWORD dw_pri, dw_sec, *pdw_cur=&dw_pri;
+	wchar_t* rtok;
+	bool cnv_err=false;
+	
+	for (wchar_t* token=wcstok(buffer, L",;"); token; token=wcstok(NULL, L",;")) {
+		for(;;) {
+			if (!*token||*token==L'-'||*token==L'+'||*token==L' ') {
+				cnv_err=true;
+				break;
+			}
+			*pdw_cur=wcstoul(token, &rtok, 0);
+			if ((*pdw_cur==0&&rtok==token)||(*pdw_cur==ULONG_MAX&&errno==ERANGE)||(*rtok&&(*rtok!=L'-'||pdw_cur!=&dw_pri))) {
+				cnv_err=true;
+				break;
+			}
+			if (*rtok) {
+				token=rtok+1;
+				pdw_cur=&dw_sec;
+			} else {
+				if (pdw_cur==&dw_sec) {
+					for (DWORD dw_i=dw_pri; dw_array.push_back(dw_i), dw_i!=dw_sec; dw_pri<=dw_sec?dw_i++:dw_i--);
+					pdw_cur=&dw_pri;
+				} else
+					dw_array.push_back(dw_pri);
+				break;
+			}
+		}
+		if (cnv_err) {
+			std::wcerr<<L"Warning: PID list \""<<arg_parray<<L"\" is malformed, error in token \""<<token<<L"\"!"<<std::endl;
+			dw_array.clear();
+			break;
+		}
+	}
+	
+	//All this hassle with sorting, erasing and following binary_search is to speed up performance with big PID arrays
+	//Because intended use for this function is mass PID killing or killing single PIDs from vaguely known range
+	std::sort(dw_array.begin(), dw_array.end());
+	dw_array.erase(std::unique(dw_array.begin(), dw_array.end()), dw_array.end());
+	
+#if DEBUG>=3
+	std::wcerr<<L"" __FILE__ ":KillByPid:"<<__LINE__<<L": Dumping generated PID list for \""<<(cnv_err?L"":arg_parray)<<L"\"..."<<std::endl;
+	for (DWORD &dw_i: dw_array)
+		std::wcerr<<L"\t\t"<<dw_i<<std::endl;
+#endif
+	
+	bool found=!dw_array.empty()&&ApplyToProcesses([this, arg_parray, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		if (std::binary_search(dw_array.begin(), dw_array.end(), PID)) {
+			std::wcout<<L"Process that matches PID(s) \""<<arg_parray<<L"\" FOUND!"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"Process that matches PID(s) \""<<(cnv_err?L"":arg_parray)<<L"\" NOT found"<<std::endl;
+		return false;
+	}
+}
+
+//Checks if StringFileInfo ITEM contains DESC string
+//Check is case-sensetive for both DESCs and ITEMs
+//If you want to check if ITEM simply exists - pass empty DESC
+//const wchar_t* desc_str[]={"I1_str1 OR", NULL, "(I1_str2A AND", "I1_str2B)", NULL, NULL,		"I2A_str1", NULL, NULL, 	"I2B_str1", NULL, NULL};
+//const wchar_t* item_str[]={"Item1 OR", NULL,													"(Item2A AND",				"Item2B)", NULL, NULL};
+bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str) {
+	enum MatchState:char {IN_PROGRESS, CLAUSE_FAILED, ARRAY_MATCHED};
+	MatchState item_matched=IN_PROGRESS;	
+	MatchState desc_matched=IN_PROGRESS;
+
+	if (DWORD buflen=GetFileVersionInfoSize(fpath, NULL)) {					//Proceed only if FPATH could be queried
+		BYTE retbuf[buflen];
+		if (GetFileVersionInfo(fpath, 0, buflen, (LPVOID)retbuf)) {
+			LANGANDCODEPAGE *plcp;
+			UINT lcplen;
+			if (VerQueryValue((LPVOID)retbuf, L"\\VarFileInfo\\Translation", (LPVOID*)&plcp, &lcplen)) {
+				for (; lcplen; plcp++, lcplen-=sizeof(LANGANDCODEPAGE)) {	//Traversing translations this early because most of the DLLs actually have only one translation
+					for (; item_str[0]||item_str[1]; item_str++) {						//Loop ITEM until NULL NULL
+						if (!item_str[0]) { item_matched=IN_PROGRESS; continue; }		//If OR - reset ITEM match and continue
+						if (item_matched==CLAUSE_FAILED) continue;						//If current clause failed - continue until OR or NULL NULL
+						
+						wchar_t *value;
+						UINT valuelen;
+						std::wstringstream qstr;
+						qstr<<std::nouppercase<<std::noshowbase<<std::hex<<L"\\StringFileInfo\\"<<std::setfill(L'0')<<std::setw(4)<<plcp->wLanguage<<std::setfill(L'0')<<std::setw(4)<<plcp->wCodePage<<L"\\"<<item_str[0];
+						if (VerQueryValue((LPVOID)retbuf, qstr.str().c_str(), (LPVOID*)&value, &valuelen)) {
+#if DEBUG>=3
+							std::wcerr<<L"" __FILE__ ":CheckStringFileInfo:"<<__LINE__<<L": "<<fpath<<L":"<<qstr.str()<<L"=\""<<value<<L"\" matching..."<<std::endl;
+#endif
+							desc_matched=IN_PROGRESS;
+							for (; desc_str[0]||desc_str[1]; desc_str++) {							//Loop DESC until NULL NULL
+								if (desc_matched==ARRAY_MATCHED) continue;							//If DESC array was already matched - continue until NULL NULL
+								if (!desc_str[0]) { desc_matched=IN_PROGRESS; continue; }			//If OR - reset DESC match and continue
+								if (desc_matched==CLAUSE_FAILED) continue;							//If current clause failed - continue until OR or NULL NULL
+								
+								if (wcsstr(value, desc_str[0])) {									//Poses as "*DESC*" wildcard, case-sensetive, and also matches empty DESCs
+									if (!desc_str[1]) desc_matched=ARRAY_MATCHED;					//If DESC matched and next DESC will be OR (or NULL NULL) - mark this DESC array as matched
+										else desc_matched=IN_PROGRESS;								//If DESC matched and next DESC will be ANDed - continue matching process
+								} else
+									desc_matched=CLAUSE_FAILED;										//If DESC not matched - mark this clause as failed
+#if DEBUG>=3
+								std::wcerr<<L"\t\t"<<desc_str[0]<<(desc_matched==CLAUSE_FAILED?L" [FAILED]":desc_matched==ARRAY_MATCHED?L" [PASSED]":L" [NEXT]")<<std::endl;
+#endif
+							}
+							desc_str+=2;													//Set DESC array to the next set of DESCs to match
+
+							if (desc_matched==ARRAY_MATCHED) {
+								if (!item_str[1]) { item_matched=ARRAY_MATCHED;	break; }	//If DESC array for this ITEM matched and next ITEM will be OR (or NULL NULL) - mark ITEM array as matched and stop matching process
+									else item_matched=IN_PROGRESS;							//If DESC array for this ITEM matched and next ITEM will be ANDed - continue matching process 
+							} else
+								item_matched=CLAUSE_FAILED;									//If DESC not matched - mark this clause as failed							
+						} else {
+#if DEBUG>=3
+							std::wcerr<<L"" __FILE__ ":CheckStringFileInfo:"<<__LINE__<<L": "<<fpath<<L":"<<qstr.str()<<L" not found!"<<std::endl;
+#endif
+							for (; desc_str[0]||desc_str[1]; desc_str++);					//ITEM wasn't found in StringFileInfo structure
+							desc_str+=2;													//So loop DESC array to the next one
+							item_matched=CLAUSE_FAILED;										//And mark this clause as failed
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	return item_matched==ARRAY_MATCHED;
+}
+
+bool Killers::CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard) {
+	for (const std::pair<std::wstring, std::wstring> &module: mlist)
+		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str())) return true;
+	
+	return false;
+}
+
+bool Killers::CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str) {
+	for (const std::pair<std::wstring, std::wstring> &module: mlist)
+		if (CheckStringFileInfo(module.second.c_str(), item_str, desc_str)) return true;
+	
+	return false;
+}
+
+bool Killers::KillByD3d(bool param_simple, bool param_soft) {
 	//"DirectX Driver" - rare case used in description of
 	//3Dfx (and it's vendors) driver bundle
-	char* descA[]={"Direct3D", NULL, "DirectX Driver", NULL, NULL};
-	char* itemA[]={"FileDescription", NULL, NULL};
+	const wchar_t* descA[]={L"Direct3D", NULL, L"DirectX Driver", NULL, NULL};
+	const wchar_t* itemA[]={L"FileDescription", NULL, NULL};
 	
-	char* descB[]={"Direct3D", NULL, NULL, 	"SwiftShader", NULL, "Reference", NULL, "Rasterizer", NULL, NULL};
-	char* itemB[]={"FileDescription", 		"FileDescription", NULL, NULL};
+	const wchar_t* descB[]={L"Direct3D", NULL, NULL, 	L"SwiftShader", NULL, L"Reference", NULL, L"Rasterizer", NULL, NULL};
+	const wchar_t* itemB[]={L"FileDescription", 		L"FileDescription", NULL, NULL};
 	
-	char* wcrdA[]={"d3d*.dll", NULL};
+	const wchar_t* wcrdA=L"d3d*.dll";
 	
-	char* wcrdB[]={"d3d*ref.dll", "d3d*warp.dll", NULL};
+	const wchar_t* wcrdB=L"d3d*ref.dll;d3d*warp.dll";
 	
-	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, wcardA, wcardB](DWORD PID){
-		if (ParamSoft?
-			(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)):
-			(ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))) {
-			std::cout<<"Process that uses Direct3D FOUND!"<<std::endl;
-			KillProcess(PID);
-			return true;
-		} else
-			return false;
-	});
-
-	if (found)
-		return true;
-	else {
-		std::cout<<"Process that uses Direct3D NOT found!"<<std::endl;
-		return false;
-	}
-}
-
-bool Killers::KillByInr() {
-	ENUM_CELL_INR EnumCell;
-	std::multiset<DWORD> WND_PID;
-
-	if (ParamMode=='G') checkUserHungWindowFromGhostWindow();
-	
-	EnumCell.mode=ParamMode;
-	EnumCell.pWndPid=&WND_PID;
-	EnumWindows((WNDENUMPROC)EnumNotResponding, (LPARAM)&EnumCell);
-
-	/****TEST***
-	std::multiset<DWORD>::iterator it;
-	for (it=WND_PID.begin(); it!= WND_PID.end(); it++)
-		printf("%d\n", *it);
-	****TEST***/
-	
-	if (WND_PID.empty()) {
-		std::cout<<"Process that is not responding NOT found!"<<std::endl;
-		return false;
-	}
-
-	bool found=ApplyToProcesses([this, WND_PID](DWORD PID){
-		if (WND_PID.find(PID)!=WND_PID.end()) {
-			std::cout<<"Process that is not responding FOUND!"<<std::endl;
-			KillProcess(PID);
-			return true;
-		} else
-			return false;
-	});
-
-	if (found)
-		return true;
-	else {
-		std::cout<<"Process that is not responding NOT found!"<<std::endl;
-		return false;
-	}
-}
-
-bool Killers::KillByD2d() {	
-	char* descA[]={"DirectDraw", NULL, NULL};
-	char* itemA[]={"FileDescription", NULL, NULL};
-	
-	char* descB[]={"OpenGL", NULL, "Direct3D", NULL, "DirectX Driver", NULL, "Glide", "3Dfx Interactive", NULL, NULL};
-	char* itemB[]={"FileDescription", NULL, NULL};
-	
-	char* wcrdA[]={"ddraw.dll", NULL};
-	
-	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", "glide*.dll", NULL};
-	
-	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, wcardA, wcardB](DWORD PID){
-		if ((ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))&&
-			!(ParamStrict?(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)):false)) {
-			std::cout<<"Process that uses DirectDraw FOUND!"<<std::endl;
-			KillProcess(PID);
-			return true;
-		} else
-			return false;
-	});
-
-	if (found)
-		return true;
-	else {
-		std::cout<<"Process that uses DirectDraw NOT found!"<<std::endl;
-		return false;
-	}
-}
-
-bool Killers::KillByGld() {
-	char* descA[]={"Glide", "3Dfx Interactive", NULL, NULL};
-	char* itemA[]={"FileDescription", NULL, NULL};
-	
-	char* descB[]={"OpenGL", NULL, "MiniGL", NULL, "Direct3D", NULL, NULL,	"http://www.mesa3d.org", NULL, NULL};
-	char* itemB[]={"FileDescription", NULL,									"Contact", NULL, NULL};
-	
-	char* wcrdA[]={"glide*.dll", NULL};
-	
-	char* wcrdB[]={"opengl*.dll", "3dfx*gl*.dll", "d3d*.dll", NULL};
-	
-	bool found=ApplyToProcesses([this, descA, itemA, descB, itemB, wcardA, wcardB](DWORD PID){
-		if ((ParamSimple?CheckName(PID, wcrdA):CheckDescription(PID, descA, itemA))&&
-			!(ParamStrict?(ParamSimple?CheckName(PID, wcrdB):CheckDescription(PID, descB, itemB)):false)) {
-			std::cout<<"Process that uses Glide FOUND!"<<std::endl;
-			KillProcess(PID);
-			return true;
-		} else
-			return false;
-	});
-
-	if (found)
-		return true;
-	else {
-		std::cout<<"Process that uses Glide NOT found!"<<std::endl;
-		return false;
-	}
-}
-
-bool Killers::KillByFsc() {
-	std::multiset<DWORD> WND_PID;
-	ENUM_CELL_FSC EnumCell;
-	DEVMODE dmCurrent, dmRegistry;
-	dmCurrent.dmSize=sizeof(DEVMODE);
-	dmCurrent.dmDriverExtra=0;
-	dmRegistry.dmSize=sizeof(DEVMODE);
-	dmRegistry.dmDriverExtra=0;
-
-	if (!EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dmCurrent)||
-		!EnumDisplaySettings(NULL, ENUM_REGISTRY_SETTINGS, &dmRegistry)) {
-		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
-		return false;
-	}
+	bool found=ApplyToProcesses([this, param_soft, param_simple, &descA, &itemA, &descB, &itemB, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
+		if (!hProcess) return false;
+		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		CloseHandle(hProcess);
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByD3d:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
+		for (const std::pair<std::wstring, std::wstring> &module: mlist)
+			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+#endif
 		
-	EnumCell.dispW=dmCurrent.dmPelsWidth;
-	EnumCell.dispH=dmCurrent.dmPelsHeight;
-	EnumCell.taskbar_topmost=false;	
-	EnumCell.pWndPid=&WND_PID;
-	EnumWindows(ParamApps?(WNDENUMPROC)EnumFullscreenApps:(WNDENUMPROC)EnumFullscreenAll, (LPARAM)&EnumCell);
-	
-	if ((dmCurrent.dmPelsWidth==dmRegistry.dmPelsWidth)&&
-		(dmCurrent.dmPelsHeight==dmRegistry.dmPelsHeight)&&
-		EnumCell.taskbar_topmost&&ParamStrict) {
-		//Indirect signs of CDS_FULLSCREEN flag set:
-		//	Current resolution != registry set resolution
-		//	Start bar is not visible (well, actually, WS_VISIBLE is always set - the only difference is WS_EX_TOPMOST flag)
-		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
-		return false;
-	}
-	
-	if (WND_PID.empty()) {
-		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
-		return false;
-	}
-	
-	/****TEST***
-	std::multiset<DWORD>::iterator it;
-	for (it=WND_PID.begin(); it!= WND_PID.end(); it++)
-		printf("%d\n", *it);
-	****TEST***/
-	
-	bool found=ApplyToProcesses([this, WND_PID](DWORD PID){
-		if (WND_PID.find(PID)!=WND_PID.end()) {
-			std::cout<<"Process running in fullscreen FOUND!"<<std::endl;
-			KillProcess(PID);
+		if (param_soft?
+			(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)):
+			(param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))) {
+			std::wcout<<L"Process that uses Direct3D FOUND!"<<std::endl;
+			KillProcess(PID, name);
 			return true;
 		} else
 			return false;
@@ -313,20 +309,41 @@ bool Killers::KillByFsc() {
 	if (found)
 		return true;
 	else {
-		std::cout<<"Process running in fullscreen NOT found!"<<std::endl;
+		std::wcout<<L"Process that uses Direct3D NOT found!"<<std::endl;
 		return false;
 	}
 }
 
-bool Killers::KillByPth() {
-	if (!ArgWcard) {
-		ArgWcard="";
-	}
+bool Killers::KillByOgl(bool param_simple, bool param_soft) {
+	const wchar_t* descA[]={L"OpenGL", NULL, L"MiniGL", NULL, NULL,	L"http://www.mesa3d.org", NULL, NULL};
+	const wchar_t* itemA[]={L"FileDescription", NULL,				L"Contact", NULL, NULL};
 	
-	bool found=ApplyToProcesses([this](DWORD PID){
-		if (CheckPath(PID, ParamFull, ArgWcard)) {
-			std::cout<<"Process that matches wildcard \""<<Wcard<<"\" FOUND!"<<std::endl;
-			KillProcess(PID);
+	const wchar_t* descB[]={L"OpenGL", NULL, NULL,	L"SwiftShader", NULL, L"DLL", NULL, NULL};
+	const wchar_t* itemB[]={L"FileDescription", 	L"FileDescription", NULL, NULL};
+	
+	const wchar_t* descC[]={L"OpenGL", NULL, NULL,	L"Driver", NULL, L"ICD", NULL, L"MCD", NULL, NULL};
+	const wchar_t* itemC[]={L"FileDescription", 	L"FileDescription", NULL, NULL};
+	
+	const wchar_t* wcrdA=L"opengl*.dll;3dfx*gl*.dll";
+	
+	const wchar_t* wcrdB=L"osmesa32.dll";
+	
+	bool found=ApplyToProcesses([this, param_soft, param_simple, &descA, &itemA, &descB, &itemB, &descC, &itemC, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
+		if (!hProcess) return false;
+		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		CloseHandle(hProcess);
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByOgl:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
+		for (const std::pair<std::wstring, std::wstring> &module: mlist)
+			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+#endif
+		
+		if (param_soft?
+			(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)&&!CheckDescription(mlist, itemC, descC)):
+			(param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))) {
+			std::wcout<<L"Process that uses OpenGL FOUND!"<<std::endl;
+			KillProcess(PID, name);
 			return true;
 		} else
 			return false;
@@ -335,269 +352,332 @@ bool Killers::KillByPth() {
 	if (found)
 		return true;
 	else {
-		std::cout<<"Process that matches wildcard \""<<Wcard<<"\" NOT found"<<std::endl;
+		std::wcout<<L"Process that uses OpenGL NOT found!"<<std::endl;
 		return false;
 	}
 }
 
-void ContinueCheck(int &DIndex, char** Desc) {
-	while (Desc[DIndex]||Desc[DIndex+1]) DIndex++;
-	DIndex+=2;
-}
-
-bool CycleCheck(int DIndex, char** Desc, char* Buffer) {
-	bool Found;
+bool Killers::KillByD2d(bool param_simple, bool param_strict) {
+	const wchar_t* descA[]={L"DirectDraw", NULL, NULL};
+	const wchar_t* itemA[]={L"FileDescription", NULL, NULL};
 	
-	while (Desc[DIndex]) {
-		Found=true;
+	const wchar_t* descB[]={L"OpenGL", NULL, L"Direct3D", NULL, L"DirectX Driver", NULL, L"Glide", L"3Dfx Interactive", NULL, NULL};
+	const wchar_t* itemB[]={L"FileDescription", NULL, NULL};
+	
+	const wchar_t* wcrdA=L"ddraw.dll";
+	
+	const wchar_t* wcrdB=L"opengl*.dll;3dfx*gl*.dll;d3d*.dll;glide*.dll";
+	
+	bool found=ApplyToProcesses([this, param_strict, param_simple, &descA, &itemA, &descB, &itemB, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
+		if (!hProcess) return false;
+		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		CloseHandle(hProcess);
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByD2d:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
+		for (const std::pair<std::wstring, std::wstring> &module: mlist)
+			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+#endif
 		
-		while (Desc[DIndex]) {
-			if (!strstr(Buffer, Desc[DIndex])) {
-				Found=false;
-			}
-			DIndex++;
-		}
-		
-		if (Found) break;
-		DIndex++;
-	}
-	
-	return Found;
-}
-
-bool CheckDescription(DWORD PID, char** Desc, char** Item) {
-	HMODULE *aModules=NULL;
-	DWORD cbNeeded, cModules, cbAllocated=0;
-	HANDLE hProcess;
-	BYTE *pBlock=NULL;
-	bool Found=false;
-	char QueryBlock[64];
-	
-	hProcess=OpenProcess(PROCESS_QUERY_INFORMATION|
-                         PROCESS_VM_READ,
-                         FALSE, PID);
-						 
-	if (!hProcess) return false;
-
-    do {
-		if (aModules) delete[] aModules;
-		cbAllocated+=150;
-		aModules=new HMODULE[cbAllocated];
-		if (!EnumProcessModules(hProcess, aModules, sizeof(HMODULE)*cbAllocated, &cbNeeded)) {
-			delete[] aModules;
-			CloseHandle(hProcess);
+		if ((param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))&&
+			!(param_strict?(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)):false)) {
+			std::wcout<<L"Process that uses DirectDraw FOUND!"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
 			return false;
-		}
-		//printf("needed bytes %d, have %d bytes with %d cells\n", cbNeeded, sizeof(HMODULE)*cbAllocated, cbAllocated);
-	} while (cbNeeded>=sizeof(DWORD)*cbAllocated);
-			
-	cModules=cbNeeded/sizeof(HMODULE);
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"Process that uses DirectDraw NOT found!"<<std::endl;
+		return false;
+	}
+}
+
+bool Killers::KillByGld(bool param_simple, bool param_strict) {
+	const wchar_t* descA[]={L"Glide", L"3Dfx Interactive", NULL, NULL};
+	const wchar_t* itemA[]={L"FileDescription", NULL, NULL};
 	
-	for (unsigned int i=0; i<cModules; i++) {
-		char szModName[MAX_PATH];
-		DWORD zero=0;
-		DWORD dwLen=0;
-		struct LANGANDCODEPAGE *lpTranslate;
-		UINT cbTranslate, dwBytes;
-		char SubBlock[64];
-		char* lpBuffer;
+	const wchar_t* descB[]={L"OpenGL", NULL, L"MiniGL", NULL, L"Direct3D", NULL, NULL,	L"http://www.mesa3d.org", NULL, NULL};
+	const wchar_t* itemB[]={L"FileDescription", NULL,									L"Contact", NULL, NULL};
+	
+	const wchar_t* wcrdA=L"glide*.dll";
+	
+	const wchar_t* wcrdB=L"opengl*.dll;3dfx*gl*.dll;d3d*.dll";
+	
+	bool found=ApplyToProcesses([this, param_strict, param_simple, &descA, &itemA, &descB, &itemB, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
+		if (!hProcess) return false;
+		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		CloseHandle(hProcess);
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByGld:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
+		for (const std::pair<std::wstring, std::wstring> &module: mlist)
+			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+#endif
 		
-		if (pBlock) delete[] pBlock;
-		pBlock=NULL;
+		if ((param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))&&
+			!(param_strict?(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)):false)) {
+			std::wcout<<L"Process that uses Glide FOUND!"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
 
-		if (GetModuleFileNameEx(hProcess, aModules[i], szModName, sizeof(szModName))) {
-			//printf("\t%s (0x%08X)\n", szModName, aModules[i] );
-			
-			if(!(dwLen=GetFileVersionInfoSize(szModName, &zero))) continue;
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"Process that uses Glide NOT found!"<<std::endl;
+		return false;
+	}
+}
 
-			pBlock=new BYTE[dwLen];
-
-			if(!GetFileVersionInfo(szModName, 0, dwLen, (LPVOID)pBlock)) continue;
-
-			VerQueryValue((LPVOID)pBlock, "\\VarFileInfo\\Translation", (LPVOID*)&lpTranslate, &cbTranslate);
-			
-			int ii=0, di=0;
-			bool trFound;
-			while (Item[ii]) {
-				Found=true;
+//Checks if window is task-window - window that is eligible to be shown in Task Bar and Task Switcher (Alt+Tab)
+bool Killers::IsTaskWindow(HWND hwnd)
+{
+	LONG_PTR lpStyleEx=GetWindowLongPtr(hwnd, GWL_EXSTYLE);
 	
-				while (Item[ii]) {
-					if (ii) ContinueCheck(di, Desc);
-					strcpy(QueryBlock, "\\StringFileInfo\\%04x%04x\\");
-					strcat(QueryBlock, Item[ii]);
+	return ((lpStyleEx&WS_EX_APPWINDOW)||!(lpStyleEx&WS_EX_TOOLWINDOW))&&IsWindowVisible(hwnd)&&IsWindowEnabled(hwnd);
+}
+
+//Checks if inner RECT is within outer RECT (it's assumed that RECTs are valid)
+bool Killers::WithinRect(const RECT &outer, const RECT &inner)
+{
+	return inner.left>=outer.left&&inner.top>=outer.top&&inner.right<=outer.right&&inner.bottom<=outer.bottom;
+}
+
+bool Killers::KillByInr(InrMode param_mode) {
+	std::vector<DWORD> dw_array;
+
+#if DEBUG>=2
+	if (!fnNtUserHungWindowFromGhostWindow) {
+		std::wcerr<<L"" __FILE__ ":KillByInr:"<<__LINE__<<L": NtUserHungWindowFromGhostWindow not found!"<<std::endl;
+	}
+#endif
+
+	//Unfortunately, can't use those pretty capture-less lambdas here because of calling conventions
+	//By default lambda calling conventions is __cdecl, which is OK on x86-64 because CALLBACK is also __cdecl here
+	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
+	//At least we can use tuples so not to litter class definition with structs
+	WNDCLASS dummy_wnd;
+	std::tuple<InrMode, std::vector<DWORD>&, ATOM> enum_wnd_tuple(param_mode, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
+	//The trick with GetClassInfo is described by Raymond Chen in his blog http://blogs.msdn.com/b/oldnewthing/archive/2004/10/11/240744.aspx
+	//Undocumented side of GetClassInfo is that it returns ATOM for the queried window class
+	//By passing NULL as HINSTANCE we can get ATOM for the system "Ghost" class
+	EnumWindows(EnumWndInr, (LPARAM)&enum_wnd_tuple);
+	
+	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
+			std::wcout<<L"Process that is not responding FOUND!"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"Process that is not responding NOT found"<<std::endl;
+		return false;
+	}
+}
+
+BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam) {
+	InrMode mode=std::get<0>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
+	std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
+	ATOM ghost_atom=std::get<2>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
 					
-					trFound=false;
-					for(unsigned int x=0; x<(cbTranslate/sizeof(struct LANGANDCODEPAGE)); x++) {
-						sprintf(SubBlock, QueryBlock, lpTranslate[x].wLanguage, lpTranslate[x].wCodePage);
-						if (!VerQueryValue((LPVOID)pBlock, SubBlock, (LPVOID*)&lpBuffer, &dwBytes)) continue;
-						//printf("\t\t%s\n", lpBuffer);
-						if (trFound=CycleCheck(di, Desc, lpBuffer)) break;
-					}
-					if (!trFound) Found=false;
-					
-					ii++;
-				}
-				
-				if (Found) break;
-				ii++;
-			}
-		}
-		
-		if (Found) break;
-	}
-	
-	if (pBlock) delete[] pBlock;
-	delete[] aModules;	
-	CloseHandle(hProcess);
-	
-	return Found;
-}
-
-BOOL CALLBACK EnumFullscreenApps(HWND WinHandle, LPARAM Param)
-{
-	ENUM_CELL_FSC *pEnumCell;
-	RECT rect;
-	char buf_cls[256];
-	DWORD PID=0;
-	LONG_PTR StRes, ExStRes;
-	
-	pEnumCell=(ENUM_CELL_FSC*)Param;
-	
-	StRes=GetWindowLongPtr(WinHandle, GWL_STYLE);
-	
-	if (!StRes) return true;
-	
-	ExStRes=GetWindowLongPtr(WinHandle, GWL_EXSTYLE);
-	
-	//Standart techique to run fullscreen is to set app's windows to WS_POPUP.
-	//But in Vista (and up, thanks to DWM) it's not a good idea to use WS_POPUP in fullscreen apps.
-	//Workaround fow Vista is to use WS_CAPTION (with WS_OVERLAPPED) without rest of WS_OVERLAPPEDWINDOW
-	//and then properly handle paint events to hide caption bar and window box.
-	//So there is one common thing between this two window styles:
-	//there is no need to use window resizing - WS_SIZEBOX is unnecessary
-	//Also, some apps (non-3d-game-apps) are using just WS_OVERLAPPED 
-	//(without even WS_CAPTION) to go fullscreen ("dirty" technique)
-	//Some system top level windows use WS_CHILDWINDOW.
-	//Most system windows are WS_EX_TOOLWINDOW and not WS_VISIBLE.
-	
-	if (ExStRes) {
-		if ((StRes&WS_VISIBLE)&&!(StRes&WS_CHILDWINDOW)&&!(StRes&WS_SIZEBOX)&&!(ExStRes&WS_EX_TOOLWINDOW)) {
-			if (GetClientRect(WinHandle, &rect)) {
-				if ((pEnumCell->dispW<=rect.right-rect.left)&&(pEnumCell->dispH<=rect.bottom-rect.top)) {	//Sometimes fullscreen windows can be even larger than actual display resolution
-					GetWindowThreadProcessId(WinHandle, &PID);
-					pEnumCell->pWndPid->insert(PID);
-					//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-				}
-			} else {
-				GetWindowThreadProcessId(WinHandle, &PID);
-				pEnumCell->pWndPid->insert(PID);
-				//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-			}
-		}
-		
-		if (GetClassName(WinHandle, buf_cls, sizeof(buf_cls))) {
-			if (!strcmp(buf_cls, "Shell_TrayWnd")) {
-				pEnumCell->taskbar_topmost=ExStRes&WS_EX_TOPMOST;
-			}
-		}
-	} else {
-		if ((StRes&WS_VISIBLE)&&!(StRes&WS_CHILDWINDOW)&&!(StRes&WS_SIZEBOX)) {
-			if (GetClientRect(WinHandle, &rect)) {
-				if ((pEnumCell->dispW<=rect.right-rect.left)&&(pEnumCell->dispH<=rect.bottom-rect.top)) {	//Sometimes fullscreen windows can be even larger than actual display resolution
-					GetWindowThreadProcessId(WinHandle, &PID);
-					pEnumCell->pWndPid->insert(PID);
-					//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-				}
-			} else {
-				GetWindowThreadProcessId(WinHandle, &PID);
-				pEnumCell->pWndPid->insert(PID);
-				//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-			}
+	if (IsTaskWindow(hwnd)) {
+		DWORD pid;
+		switch (mode) {
+			case DEFAULT:	
+				//This is the way Windows checks if application is hung - using IsHungAppWindow
+				//Mechanism behind IsHungAppWindow considers window hung if it's thread:
+				//	isn't waiting for input
+				//	isn't in startup processing
+				//	hasn't called PeekMessage() within some time interval (5 sec for IsHungAppWindow)
+				//The trick is that IsHungAppWindow will return true for both app's own window and it's "ghost" window (that belongs to dwm or explorer)
+				//IsHungAppWindow fails to detect apps that were specifically made to be hung (using SuspendThread)
+				//But outside test environment it's almost impossible case
+				if (IsHungAppWindow(hwnd))
+					//Check that hung window is not "ghost" window
+					//Comparing class name with "Ghost" can be unreliable - application can register it's own local class with that name
+					//But outside of enum function we already got ATOM of the actual system "Ghost" class
+					//So all we have to do is just compare window class ATOM with "Ghost" class ATOM
+					if (GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom)
+						if (GetWindowThreadProcessId(hwnd, &pid))
+							dw_array.push_back(pid);
+				break;					
+			case MANUAL:
+				//Pretty straightforward method that is suggested by MS https://support.microsoft.com/kb/231844
+				//Just wait for SendMessageTimeout to fail - because of abort (if app is hung) or actual timeout
+				//This method perfectly detects SuspendThread test apps 
+				//It doesn't trigger on "ghost" windows
+				//But ironically fails to detect some normal hung apps that trigger IsHungAppWindow
+				//That's because internally SMTO_ABORTIFHUNG uses the same mechanism of checking hung windows as IsHungAppWindow but with different time constants
+				//While IsHungAppWindow checks if PeekMessage() hasn't been called within 5 sec interval, for SMTO_ABORTIFHUNG this interval is 20 sec
+				if (!SendMessageTimeout(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG|SMTO_BLOCK, INR_TIMEOUT, NULL))
+					if (GetWindowThreadProcessId(hwnd, &pid))
+						dw_array.push_back(pid);
+				break;
+			case VISTA:
+				//Undocumented function that is available starting from Vista
+				//In contrast with IsHungAppWindow it triggers only on "ghost" windows
+				//And returns HWND of the actual hung window
+				//So in the end it is more convenient than IsHungAppWindow
+				if (fnNtUserHungWindowFromGhostWindow&&(hwnd=fnNtUserHungWindowFromGhostWindow(hwnd)))
+					if (GetWindowThreadProcessId(hwnd, &pid))
+						dw_array.push_back(pid);
+				break;
 		}
 	}
 	
 	return true;
 }
 
-BOOL CALLBACK EnumFullscreenAll(HWND WinHandle, LPARAM Param)
-{
-	ENUM_CELL_FSC *pEnumCell;
-	RECT rect;
-	char buf_cls[256];
-	DWORD PID=0;
-	LONG_PTR ExStRes;
+bool Killers::KillByFsc(bool param_anywnd, bool param_primary) {
+	std::vector<DWORD> dw_array;
+	std::vector<RECT> disp_array;
 	
-	pEnumCell=(ENUM_CELL_FSC*)Param;
-	
-	ExStRes=GetWindowLongPtr(WinHandle, GWL_EXSTYLE);
-	
-	if (GetWindowRect(WinHandle, &rect)) {
-		if ((pEnumCell->dispW==rect.right-rect.left)&&(pEnumCell->dispH==rect.bottom-rect.top)) {
-			GetWindowThreadProcessId(WinHandle, &PID);
-			pEnumCell->pWndPid->insert(PID);
-			//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-		}
-	} else {
-		GetWindowThreadProcessId(WinHandle, &PID);
-		pEnumCell->pWndPid->insert(PID);
-		//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
+	//So what's the deal with EnumDisplayDevicesWrapper and intersecting switch/while?
+	//EnumDisplayDevices takes 4 parameters and iDevNum starts at 0
+	//But not on NT4 - here it will take 3 parameters and iDevNum starts at 1
+	//Detecting OS version, importing EnumDisplayDevices with proper prototype and dealing with these cases separately - no fun
+	//Intersecting switch/while will check both iDevNum start positions
+	//And wrapper will deal with variable number of parameters
+	//Because calling STDCALL function which takes less params than expected will in most cases lead to stack corruption
+	//Wrapping STDCALL in plain CDECL function that just passes parameters at first seemed a good idea
+	//But tests showed that it's not guaranteed that proper stack frame (push ebp; mov ebp,esp; ... leave;) will be used by compiler
+	//E.g. Clang (-march=pentium2) restores ESP with "add esp,X" which doesn't prevent stack corruption
+	//So custom assembler wrapper is used that not only restores stack but also omits unnecessary parameter relocations
+	//And on x86-64 this wrapper is just a synonym for ordinary EnumDisplayDevices - no special moves here
+	DISPLAY_DEVICE ddDev={sizeof(DISPLAY_DEVICE)};
+	DWORD iDevNum=0;
+	switch (EnumDisplayDevicesWrapper(NULL, 0, &ddDev, 0)) {
+		case 0:
+			while (EnumDisplayDevicesWrapper(NULL, ++iDevNum, &ddDev, 0)) {
+		default:
+				DEVMODE dmDev;
+				dmDev.dmSize=sizeof(DEVMODE);
+				dmDev.dmDriverExtra=0;
+				//Instead of checking DISPLAY_DEVICE_ATTACHED_TO_DESKTOP flag test if display currently setup (i.e. actually being used)
+				if (EnumDisplaySettings(ddDev.DeviceName, ENUM_CURRENT_SETTINGS, &dmDev)) {
+					//Move primary display to the first position in array
+					if (ddDev.StateFlags&DISPLAY_DEVICE_PRIMARY_DEVICE)
+						disp_array.insert(disp_array.begin(), {dmDev.dmPosition.x, dmDev.dmPosition.y, dmDev.dmPosition.x+(LONG)dmDev.dmPelsWidth, dmDev.dmPosition.y+(LONG)dmDev.dmPelsHeight});
+					else
+						disp_array.push_back({dmDev.dmPosition.x, dmDev.dmPosition.y, dmDev.dmPosition.x+(LONG)dmDev.dmPelsWidth, dmDev.dmPosition.y+(LONG)dmDev.dmPelsHeight});
+				}
+			}	
 	}
 	
-	if (GetClassName(WinHandle, buf_cls, sizeof(buf_cls))) {
-		if (!strcmp(buf_cls, "Shell_TrayWnd")) {
-			pEnumCell->taskbar_topmost=ExStRes&WS_EX_TOPMOST;
+#if DEBUG>=3
+	std::wcerr<<L"" __FILE__ ":KillByFsc:"<<__LINE__<<L": Dumping displays..."<<std::endl;
+	for (const RECT &disp: disp_array)
+		std::wcerr<<L"\t\t("<<disp.left<<L","<<disp.top<<L")("<<disp.right<<L","<<disp.bottom<<L")"<<std::endl;
+#endif
+
+	//Unfortunately, can't use those pretty capture-less lambdas here because of calling conventions
+	//By default lambda calling conventions is __cdecl, which is OK on x86-64 because CALLBACK is also __cdecl here
+	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
+	//At least we can use tuples so not to litter class definition with structs
+	if (!disp_array.empty()) {
+		std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&> enum_wnd_tuple(param_anywnd, param_primary, dw_array, disp_array);
+		EnumWindows(EnumWndFsc, (LPARAM)&enum_wnd_tuple);
+	}
+	
+	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
+			std::wcout<<L"Process running in fullscreen FOUND!"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"Process running in fullscreen NOT found"<<std::endl;
+		return false;
+	}
+}
+
+//Don't make tons of empty vector checks - this callback is called for a lot of windows
+//Just don't call EnumWindows at first place if display vector is empty
+//This will also guarantee that display vector is non-empty in this callback
+BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam) {
+	bool any_wnd=std::get<0>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
+	bool pri_disp=std::get<1>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
+	std::vector<DWORD> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
+	std::vector<RECT> &disp_array=std::get<3>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
+	
+	if (IsTaskWindow(hwnd)) {
+		RECT client_rect;
+		RECT window_rect;
+		if (GetClientRect(hwnd, &client_rect)&&GetWindowRect(hwnd, &window_rect)) {
+			//If any_wnd - assuming that we are testing apps with any type of window
+			//	If game is forced to run in window it's client RECT not necessary equals set resolution (often it's smaller)
+			//	But it's window RECT always greater than set resolution and display RECT will be within window RECT
+			//Otherwise - assuming that we are testing exclusive fullscreen apps or apps that have borderless window
+			//	Check if client area dimension equals window dimension - should be true for both exclusive fullscreen and borderless window
+			//	Client RECT's top left corner is always at (0,0) so bottom right corner represents width/height of client area
+			if (any_wnd||(client_rect.right==window_rect.right-window_rect.left&&client_rect.bottom==window_rect.bottom-window_rect.top)) {
+#if DEBUG>=3
+				std::wcerr<<L"" __FILE__ ":EnumWndFsc:"<<__LINE__<<L": HWND ("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L") - CRECT=("
+					<<client_rect.left<<L","<<client_rect.top<<L")("<<client_rect.right<<L","<<client_rect.bottom<<L") - WRECT=("
+					<<window_rect.left<<L","<<window_rect.top<<L")("<<window_rect.right<<L","<<window_rect.bottom<<L")"<<std::endl;
+#endif
+				DWORD pid;
+				if (disp_array.size()==1) {
+					//If we have only one display - use more relaxed algorithm
+					//Some fullscreen game windows have their coordinates unaligned with display (e.g. Valkyria Chronicles)
+					//Some fullscreen game windows have size greater than display size
+					//So just check that app's window size is greater or equal to display size
+					if (window_rect.right-window_rect.left>=disp_array[0].right-disp_array[0].left&&window_rect.bottom-window_rect.top>=disp_array[0].bottom-disp_array[0].top)
+						if (GetWindowThreadProcessId(hwnd, &pid))
+							dw_array.push_back(pid);
+				} else {
+					//Relaxed algorithm that is suitable for single display can cause false positive on multiple displays
+					//For multiple displays test if app's RECT contains at least one of the displays' RECT to consider it fullscreen app
+					//Still, games for which relaxed algorithm works best behave the same on multiple displays and therefore will not be considered fullscreen there
+					//In this case KillByFgd is more suitable
+					if (pri_disp
+						?WithinRect(window_rect, disp_array[0])
+						:std::any_of(disp_array.begin(), disp_array.end(), std::bind(WithinRect, window_rect, std::placeholders::_1)))
+						if (GetWindowThreadProcessId(hwnd, &pid))
+							dw_array.push_back(pid);
+				}
+			}
 		}
 	}
 
 	return true;
 }
 
-BOOL CALLBACK EnumNotResponding(HWND WinHandle, LPARAM Param)
+bool Killers::KillByFgd()
 {
-	ENUM_CELL_INR *pEnumCell;
-	DWORD PID=0;
-	LONG_PTR StRes;
-	char class_name[6]="";
+	DWORD pid;
+	HWND hwnd;
 
-	pEnumCell=(ENUM_CELL_INR*)Param;
-	
-	StRes=GetWindowLongPtr(WinHandle, GWL_STYLE);
-	
-	if (!StRes) return true;
-	
-	if (GetClassName(WinHandle, class_name, 6)) {
-		if (StRes&WS_VISIBLE) {	//Checks only visible windows - some hidden technical windows can be accidentially detected as hung.
-			switch (pEnumCell->mode) {
-				case 'H':
-					if (strcmp(class_name, "Ghost")) {
-						if (IsHungAppWindow(WinHandle)==1) {	//Needs _WIN32_WINNT=0x0502.
-							GetWindowThreadProcessId(WinHandle, &PID);
-							pEnumCell->pWndPid->insert(PID);
-							//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-						}
-					}
-					break;
-				case 'M':
-					if (strcmp(class_name, "Ghost")) {
-						if (SendMessageTimeout(WinHandle, WM_NULL, 0, 0, SMTO_ABORTIFHUNG, INR_TIMEOUT, NULL)==0) {
-							GetWindowThreadProcessId(WinHandle, &PID);
-							pEnumCell->pWndPid->insert(PID);
-							//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-						}
-					}
-					break;
-				case 'G':
-					if (!strcmp(class_name, "Ghost")) {
-						if (WinHandle=extraUserHungWindowFromGhostWindow(WinHandle)) {	//Undocumented function, Vista or higher required.
-							GetWindowThreadProcessId(WinHandle, &PID);
-							pEnumCell->pWndPid->insert(PID);
-							//printf("window handle 0x%08X with pid %d\n", WinHandle, PID);
-						}
-					}
-					break;
-			}
-		}
+	bool found=(hwnd=GetForegroundWindow())&&IsTaskWindow(hwnd)&&GetWindowThreadProcessId(hwnd, &pid)&&
+		ApplyToProcesses([this, pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+			if (pid==PID) {
+				std::wcout<<L"Process with foreground window FOUND!"<<std::endl;
+				KillProcess(PID, name);
+				return true;
+			} else
+				return false;
+		});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"Process with foreground window NOT found"<<std::endl;
+		return false;
 	}
-	
-	return true;
 }

@@ -1,95 +1,85 @@
 #ifndef KILLERS_H
 #define KILLERS_H
 
-#include <windows.h>
 #include "ProcessUsage.h"
+#include <string>
+#include <windows.h>
 
-template <typename ValueType, typename Container>
-class OpenAutoProperty {
-	friend Container;
+class Killers: virtual protected ProcessesCrossBase {
 private:
-	function<ValueType(ValueType, ValueType&)> set;
-	function<ValueType(ValueType&)> get;
-	ValueType back_value;
-public:
-    ValueType operator=(const ValueType &value) { return set(value, back_value); }
-    operator ValueType() { return get(back_value); }
+	void KillProcess(DWORD PID, const std::wstring &name);
+	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
+	bool CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
+	bool CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
 	
-	friend bool operator==(OpenAutoProperty<ValueType, Container> &left, ValueType &right) { return left.back_value==right; }
-    friend bool operator!=(OpenAutoProperty<ValueType, Container> &left, ValueType &right) { return left.back_value!=right; }
+	static bool IsTaskWindow(HWND hwnd);
+	static bool WithinRect(const RECT &outer, const RECT &inner);
+	static BOOL CALLBACK EnumWndInr(HWND hwnd, LPARAM lParam);
+	static BOOL CALLBACK EnumWndFsc(HWND hwnd, LPARAM lParam);
 	
-	OpenAutoProperty(): set([](int value, int &back_value){ return back_value=value; }), get([](int &back_value){ return back_value; }), back_value() {}
-	OpenAutoProperty(const ValueType &value): OpenAutoProperty() { back_value=value; }
-};
-
-class Killers: public Processes {
-private:
-	void KillProcess(DWORD PID);
+	virtual bool ModeBlank()=0;
 protected:	
-	bool ModeBlank;		//Issue "blank cartridges" instead of "live rounds"
-	
-	bool ParamSimple;
-	bool ParamSoft;
-	OpenAutoProperty<char, Killers> ParamMode;
-	bool ParamStrict;
-	bool ParamApps;
-	
+	enum InrMode:char {DEFAULT=0, MANUAL, VISTA};
+
 	//Kills process with highest cpu load
 	bool KillByCpu();
-	//Kills process that uses OpenGL
-	//If ParamSimple - uses process modules names to find OpenGL process
-	//If not ParamSimple - uses description of modules
-	//If ParamSoft - checks if software rendering is in use
-	//[the one with highest cpu load]
-	//[uses ParamSimple and ParamSoft]
-	bool KillByOgl();
-	//Kills process that uses DirectX (Direct3D)
-	//If ParamSimple - uses process modules names to find DirectX process
-	//If not ParamSimple - uses description of modules
-	//If ParamSoft - checks if software rendering is in use
-	//[the one with highest cpu load]
-	//[uses ParamSimple and ParamSoft]	
-	bool KillByD3d();	
-	//Kills process with window that doesn't respond (Is Not Responding)
-	//Modes are Is(H)ungAppWindow, Send(M)essageTimeout and (G)host
-	//If H (aka Hung) - checks applications with IsHungAppWindow()
-	//If M (aka Manual) - uses SendMessageTimeout() with WM_NULL and 5 sec timeout to find hanged window
-	//If G (aka Ghost) - looks for Ghost windows and searches for it true process
-	//(uses undocumented function from Vista and higher versions of user32.dll)
-	//[the one with highest cpu load]
-	//[uses ParamMode]
-	bool KillByInr();
-	//Kills process that uses DirectDraw (2D Acceleration)
-	//If ParamSimple - uses process modules names to find OpenGL process
-	//If ParamStrict - checks if DirectDraw is used exclusively, not with Direct3D, OpenGL or Glide
-	//If not ParamSimple - uses description of modules
-	//N.B. Windowed 3D processes always use DirectDraw with OpenGL or DirectX
-	//[the one with highest cpu load]
-	//[uses ParamSimple and ParamStrict]
-	bool KillByD2d();
-	//Kills process that uses Glide (3Dfx)
-	//If ParamSimple - uses process modules names to find Glide process
-	//If ParamStrict - checks if Glide is used directly, not through OpenGL
-	//If not ParamSimple - uses description of modules
-	//[the one with highest cpu load]
-	//[uses ParamSimple and ParamStrict]
-	bool KillByGld();	
-	//Kills process running in fullscreen
-	//If ParamStrict - checks if ChangeDisplaySettings(...) was called 
-	//with CDS_FULLSCREEN flag (through indirect symptoms)
-	//If ParamApps - checks windows only with window styles specific to
-	//fullscreen application software (in contrast to system software)
-	//[the one with highest cpu load]
-	//[uses ParamApps and ParamStrict]
-	bool KillByFsc();
-	//Kills process using it's path (case-insensitive, with globbing)
-	//ArgWcard - wildcard to match
-	//If ParamFull - uses full path, otherwise uses just name
-	//[the one with highest cpu load]
-	//[uses ParamFull and ArgWcard]
-	bool KillByPth();
 	
-	void ClearParamsAndArgs();	//Clears ParamSimple, ParamSoft, ParamMode, ParamStrict and ParamApps
+	//Kills process with highest cpu load which path matches one of wildcars (case-insensitive, with globbing)
+	//arg_wcard - wildcards to match (delimeted by semicolon)
+	//If param_full - uses full path, otherwise uses just name
+	bool KillByPth(bool param_full, const wchar_t* arg_wcard);
+	
+	//Kills process with highest cpu load that has module which path matches one of wildcars (case-insensitive, with globbing)
+	//arg_wcard - wildcards to match (delimeted by semicolon)
+	//If param_full - uses full path, otherwise uses just name
+	bool KillByMod(bool param_full, const wchar_t* arg_wcard);
+	
+	//Kills process with highest cpu load which PID belongs to PID array
+	//PIDs are decimal (no prefix), hexadecimal ("0x"/"0X" prefix) or octal ("0" prefix) unsigned integers
+	//arg_parray - array of PIDs to match (delimeted by comma or semicolon, can include descending or ascending ranges)
+	bool KillByPid(const wchar_t* arg_parray);
+	
+	//Kills process with highest cpu load that uses DirectX (Direct3D)
+	//If param_simple - uses process modules names to find DirectX process
+	//If not param_simple - uses description of modules
+	//If param_soft - checks if software rendering is in use
+	bool KillByD3d(bool param_simple, bool param_soft);
+	
+	//Kills process with highest cpu load that uses OpenGL
+	//If param_simple - uses process modules names to find OpenGL process
+	//If not param_simple - uses description of modules
+	//If param_soft - checks if software rendering is in use
+	bool KillByOgl(bool param_simple, bool param_soft);
+	
+	//Kills process with highest cpu load that uses DirectDraw (2D Acceleration)
+	//N.B. Windowed 3D processes always use DirectDraw
+	//If param_simple - uses process modules names to find DirectDraw process
+	//If not param_simple - uses description of modules
+	//If param_strict - checks if DirectDraw is used exclusively, not with Direct3D, OpenGL or Glide
+	bool KillByD2d(bool param_simple, bool param_strict);
+	
+	//Kills process with highest cpu load that uses Glide (3Dfx)
+	//If param_simple - uses process modules names to find Glide process
+	//If not param_simple - uses description of modules
+	//If param_strict - checks if Glide is used directly, not through OpenGL
+	bool KillByGld(bool param_simple, bool param_strict);
+	
+	//Kills process with highest cpu load that doesn't respond (Is Not Responding)
+	//param_mode can be DEFAULT, MANUAL or VISTA
+	//If DEFAULT - checks applications with IsHungAppWindow()
+	//If MANUAL - checks applications with SendMessageTimeout() and 5 sec timeout
+	//If VISTA - checks applications with NtUserHungWindowFromGhostWindow(), available starting from Vista
+	bool KillByInr(InrMode param_mode);
+	
+	//Kills process with highest cpu load that is running in fullscreen
+	//Works with multi-monitor setups
+	//By default only exclusive fullscreen and borderless windowed processes are checked
+	//If param_anywnd - checks processes with any window
+	//If param_primary - checks only windows that belong to primary display
+	bool KillByFsc(bool param_anywnd, bool param_primary);
+	
+	//Kills process with highest cpu load which window is in foreground
+	bool KillByFgd();
 public:
 	Killers();
 };

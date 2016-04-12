@@ -1,44 +1,50 @@
+#include "Extras.h"
+#include "Common.h"
+#include "Killers.h"
+#include "Controller.h"
 #include <stdio.h>
 #include <iostream>
-#include <limits>
+#include <limits>	//numeric_limits
 #include <conio.h>
-#include "Controller.h"
 
-#define MUTEX_NAME			"Global\\MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
+#define MUTEX_NAME	L"Global\\MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
 
-#ifdef HIDDEN
-#include "ConRedirection.h"
-#endifs
+extern pWcoutMessageBox fnWcoutMessageBox;
 
-Controller::Controller():
-	Killers(), ModeIgnore(false), ModeVerbose(false), sec_mutex(NULL)
+template <typename ProcessesPolicy, typename KillersPolicy>	
+Controller<ProcessesPolicy, KillersPolicy>::Controller():
+	ProcessesPolicy(), KillersPolicy(), Vars{true}
 {}
 
-Controller::NoArgsAllowed(char* sw) 
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::NoArgsAllowed(const std::wstring &sw) 
 {
-	if (ArgsWcard) {
-		cerr<<"Warning: switch "<<sw<<" doesn't allow arguments ("<<ArgsWcard<<")!"<<endl;
-	}
+	if (!Vars.args.empty())
+		std::wcerr<<L"Warning: switch "<<sw<<L" doesn't allow arguments (\""<<Vars.args<<L"\")!"<<std::endl;
 }
 
-Controller::WaitForUserInput()
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput()
 {
-#ifndef HIDDEN
-	cout<<"Press ENTER to continue... "<<flush;
-	cin.ignore(numeric_limits<streamsize>::max(), '\n');	//Needs defined NOMINMAX
+#ifdef HIDDEN
+	if (fnWcoutMessageBox) {
+		std::wcout<<L"Press OK to continue... "<<std::endl;
+		fnWcoutMessageBox();
+	}
 #else
-	cout<<"Press OK to continue... "<<endl;
-	MessageBox(NULL, GetCoutBuf().c_str(), "Search and Kill", MB_ICONWARNING|MB_SETFOREGROUND);
+	std::wcout<<L"Press ENTER to continue... "<<std::flush;
+	std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
 #endif
 }
 
-Controller::SecuredExecution()
+template <typename ProcessesPolicy, typename KillersPolicy>	
+bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 {
 	SECURITY_ATTRIBUTES mutex_sa;
 	PSECURITY_DESCRIPTOR p_mutex_sd;
 	
-	if (sec_mutex) {
-		cout<<"Secured execution: this instance is already secured!"<<endl;
+	if (Vars.sec_mutex) {
+		std::wcout<<L"Secured execution: this instance is already secured!"<<std::endl;
 		return false;
 	}
 	
@@ -48,17 +54,17 @@ Controller::SecuredExecution()
 	mutex_sa.nLength=sizeof(SECURITY_ATTRIBUTES); 
 	mutex_sa.lpSecurityDescriptor=p_mutex_sd;
 	mutex_sa.bInheritHandle=false; 
-	sec_mutex = CreateMutex(&mutex_sa, false, MUTEX_NAME);
+	Vars.sec_mutex=CreateMutex(&mutex_sa, false, MUTEX_NAME);
 	LocalFree(p_mutex_sd);
 	
-	if (sec_mutex) {
+	if (Vars.sec_mutex) {
 		if (GetLastError()==ERROR_ALREADY_EXISTS) {
-			cout<<"Secured execution: another secured SnK instance is already running!"<<endl;
-			CloseHandle(sec_mutex);
-			sec_mutex=NULL;
+			std::wcout<<L"Secured execution: another secured SnK instance is already running!"<<std::endl;
+			CloseHandle(Vars.sec_mutex);
+			Vars.sec_mutex=NULL;
 			return true;
 		} else {
-			cout<<"Secured execution: SnK instance secured!"<<endl;
+			std::wcout<<L"Secured execution: SnK instance secured!"<<std::endl;
 			return false;
 		}
 	}
@@ -66,157 +72,188 @@ Controller::SecuredExecution()
 	return false;
 }
 
-Controller::MakeItDeadInternal(stack<char*> &In)
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::ClearParamsAndArgs()
+{
+	Vars.param_first=false;
+	Vars.param_second=false;
+	Vars.args.clear();
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
+bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<std::wstring> &In)
 {
 	bool Done=false;
-
+	
     if (In.empty()) return false;
 	
-	if (!strcmp("+t", In.top())) {
-		ModeBlank=true;
-	} else if (!strcmp("-t", In.top())) {
-		ModeBlank=false;
-	} else if (!strcmp("+i", In.top())) {
-		ModeIgnore=true;
-	} else if (!strcmp("-i", In.top())) {
-		ModeIgnore=false;
-	} else if (!strcmp("/cpu", In.top())) {
-		NoArgsAllowed(In.top());
-		Done=KillByCpu();
+	if (!In.top().compare(L"+t")) {
+		Vars.mode_blank=true;
+	} else if (!In.top().compare(L"-t")) {
+		Vars.mode_blank=false;
+	} else if (!In.top().compare(L"+i")) {
+		Vars.mode_ignore=true;
+	} else if (!In.top().compare(L"-i")) {
+		Vars.mode_ignore=false;
+	} else if (!In.top().compare(L"+v")) {
+		Vars.mode_verbose=true;
+	} else if (!In.top().compare(L"-v")) {
+		Vars.mode_verbose=false;
+	} else if (!In.top().compare(L"+a")) {
+		Vars.mode_all=true;
+	} else if (!In.top().compare(L"-a")) {
+		Vars.mode_all=false;
+	} else if (!In.top().compare(L"+l")) {
+		Vars.mode_loop=true;
+	} else if (!In.top().compare(L"-l")) {
+		Vars.mode_loop=false;
+	} else if (!In.top().compare(L"/blk:full")) {
+		Vars.param_full=true;
+	} else if (!In.top().compare(L"/blk:clear")) {
+		Vars.param_clear=true;
+	} else if (!In.top().compare(L"/blk")) {
+		if (Vars.param_clear) {
+			if (Vars.param_full) std::wcerr<<L"Warning: /blk:full parameter will be ignored!"<<std::endl;
+			NoArgsAllowed(L"/blk:clear");
+			ClearBlacklist();
+		} else
+			AddToBlacklist(Vars.param_full, Vars.args.c_str());
 		ClearParamsAndArgs();
-	} else if (!strcmp("+a", In.top())) {
-		ModeAll=true;
-	} else if (!strcmp("-a", In.top())) {
-		ModeAll=false;
-	} else if (!strcmp("+l", In.top())) {
-		ModeLoop=true;
-	} else if (!strcmp("-l", In.top())) {
-		ModeLoop=false;
-	} else if (!strcmp("/inr:ghost", In.top())) {
-		ParamMode='G';
-	} else if (!strcmp("/inr:manual", In.top())) {
-		ParamMode='M';
-	} else if (!strcmp("/inr", In.top())) {
-		NoArgsAllowed(In.top());
-		Done=KillByInr();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/blk:full", In.top())) {
-		ParamFull=true;
-	} else if (!strcmp("/blk:clear", In.top())) {
-		ParamClear=true;
-	} else if (!strcmp("/blk", In.top())) {
-		if (ParamClear) {
-			NoArgsAllowed("/blk:clear");
-		}
-		ModifyBlacklist();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/pth:full", In.top())) {
-		ParamFull=true;
-	} else if (!strcmp("/pth", In.top())) {
-		Done=KillByPth();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/ogl:simple", In.top())) {
-		ParamSimple=true;
-	} else if (!strcmp("/ogl:soft", In.top())) {
-		ParamSoft=true;
-	} else if (!strcmp("/ogl", In.top())) {
-		NoArgsAllowed(In.top());
-		Done=KillByOgl();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/d3d:simple", In.top())) {
-		ParamSimple=true;
-	} else if (!strcmp("/d3d:soft", In.top())) {
-		ParamSoft=true;
-	} else if (!strcmp("/d3d", In.top())) {
-		NoArgsAllowed(In.top());
-		Done=KillByD3d();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/d2d:simple", In.top())) {
-		ParamSimple=true;
-	} else if (!strcmp("/d2d:strict", In.top())) {
-		ParamStrict=true;
-	} else if (!strcmp("/d2d", In.top())) {
-		NoArgsAllowed(In.top());
-		Done=KillByD2d();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/gld:simple", In.top())) {
-		ParamSimple=true;
-	} else if (!strcmp("/gld:strict", In.top())) {
-		ParamStrict=true;
-	} else if (!strcmp("/gld", In.top())) {
-		NoArgsAllowed(In.top());
-		Done=KillByGld();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/fsc:strict", In.top())) {
-		ParamStrict=true;
-	} else if (!strcmp("/fsc:apps", In.top())) {
-		ParamApps=true;
-	} else if (!strcmp("/fsc", In.top())) {
-		NoArgsAllowed(In.top());
-		Done=KillByFsc();
-		ClearParamsAndArgs();
-	} else if (!strcmp("/bpp", In.top())) {
+	} else if (!In.top().compare(L"/bpp")) {
 		NoArgsAllowed(In.top());
 		MessageBeep(MB_ICONINFORMATION);
 		ClearParamsAndArgs();
-	} else if (!strcmp("/hlp", In.top())) {
+	} else if (!In.top().compare(L"/sec")) {
 		NoArgsAllowed(In.top());
-		PrintUsage();
-		Done=true;
-		ModeIgnore=false;
-#ifdef HIDDEN
-		ModeVerbose=true;
-#else
-		ModeVerbose=false;
-#endif
-		ClearParamsAndArgs();
-	} else if (!strcmp("/ver", In.top())) {
-		NoArgsAllowed(In.top());
-		PrintVersion();
-		Done=true;
-		ModeIgnore=false;
-#ifdef HIDDEN
-		ModeVerbose=true;
-#else
-		ModeVerbose=false;
-#endif
-		ClearParamsAndArgs();
-	} else if (!strcmp("+v", In.top())) {
-		ModeVerbose=true;
-	} else if (!strcmp("-v", In.top())) {
-		ModeVerbose=false;
-	} else if (!strcmp("/sec", In.top())) {
-		NoArgsAllowed(In.top());
-		while ((Done=SecuredExecution(RP.mutex))&&RP.loop) 
+		while ((Done=SecuredExecution())&&Vars.mode_loop) 
 			Sleep(1000);
 		ClearParamsAndArgs();
-	} else if (In.top()[0]=='=') {
-		ArgWcard=In.top()+1;
+	} else if (!In.top().compare(L"/hlp")) {
+		if (Vars.first_run) {
+			PrintUsage();
+			Done=true;
+#ifdef HIDDEN
+			Vars.mode_verbose=true;
+#endif
+		} else
+			std::wcerr<<L"Warning: /hlp switch will be ignored!"<<std::endl;
+	} else if (!In.top().compare(L"/ver")) {
+		if (Vars.first_run) {
+			PrintVersion();
+			Done=true;
+#ifdef HIDDEN
+			Vars.mode_verbose=true;
+#endif
+		} else
+			std::wcerr<<L"Warning: /ver switch will be ignored!"<<std::endl;
+	} else if (!In.top().compare(L"/cpu")) {
+		NoArgsAllowed(In.top());
+		Done=KillByCpu();
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/pth:full")) {
+		Vars.param_full=true;
+	} else if (!In.top().compare(L"/pth")) {
+		Done=KillByPth(Vars.param_full, Vars.args.c_str());
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/mod:full")) {
+		Vars.param_full=true;
+	} else if (!In.top().compare(L"/mod")) {
+		Done=KillByMod(Vars.param_full, Vars.args.c_str());
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/pid")) {
+		Done=KillByPid(Vars.args.c_str());
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/d3d:simple")) {
+		Vars.param_simple=true;
+	} else if (!In.top().compare(L"/d3d:soft")) {
+		Vars.param_soft=true;
+	} else if (!In.top().compare(L"/d3d")) {
+		NoArgsAllowed(In.top());
+		Done=KillByD3d(Vars.param_simple, Vars.param_soft);
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/ogl:simple")) {
+		Vars.param_simple=true;
+	} else if (!In.top().compare(L"/ogl:soft")) {
+		Vars.param_soft=true;
+	} else if (!In.top().compare(L"/ogl")) {
+		NoArgsAllowed(In.top());
+		Done=KillByOgl(Vars.param_simple, Vars.param_soft);
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/d2d:simple")) {
+		Vars.param_simple=true;
+	} else if (!In.top().compare(L"/d2d:strict")) {
+		Vars.param_strict=true;
+	} else if (!In.top().compare(L"/d2d")) {
+		NoArgsAllowed(In.top());
+		Done=KillByD2d(Vars.param_simple, Vars.param_strict);
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/gld:simple")) {
+		Vars.param_simple=true;
+	} else if (!In.top().compare(L"/gld:strict")) {
+		Vars.param_strict=true;
+	} else if (!In.top().compare(L"/gld")) {
+		NoArgsAllowed(In.top());
+		Done=KillByGld(Vars.param_simple, Vars.param_strict);
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/inr:vista")) {
+		if (Vars.param_mode==InrMode::DEFAULT)
+			Vars.param_mode=InrMode::VISTA;
+		else
+			std::wcerr<<L"Warning: /inr:vista parameter will be ignored!"<<std::endl;
+	} else if (!In.top().compare(L"/inr:manual")) {
+		if (Vars.param_mode==InrMode::DEFAULT)
+			Vars.param_mode=InrMode::MANUAL;
+		else
+			std::wcerr<<L"Warning: /inr:manual parameter will be ignored!"<<std::endl;
+	} else if (!In.top().compare(L"/inr")) {
+		NoArgsAllowed(In.top());
+		Done=KillByInr(Vars.param_mode);
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/fsc:anywnd")) {
+		Vars.param_anywnd=true;
+	} else if (!In.top().compare(L"/fsc:primary")) {
+		Vars.param_primary=true;
+	} else if (!In.top().compare(L"/fsc")) {
+		NoArgsAllowed(In.top());
+		Done=KillByFsc(Vars.param_anywnd, Vars.param_primary);
+		ClearParamsAndArgs();
+	} else if (!In.top().compare(L"/fgd")) {
+		NoArgsAllowed(In.top());
+		Done=KillByFgd();
+		ClearParamsAndArgs();
+	} else if (In.top().front()==L'=') {
+		Vars.args=In.top().substr(1);
 	} else {
-		if (In.top()[0]=='+'||In.top()[0]=='-') {
-			cerr<<"Warning: unknown setting "<<In.top()<<"!"<<endl;
+		if (In.top().front()==L'+'||In.top().front()==L'-') {
+			std::wcerr<<L"Warning: unknown setting "<<In.top()<<L"!"<<std::endl;
 		} else {
-			if (strchr(In.top(), ':')) {
-				cerr<<"Warning: unknown parameter "<<In.top()<<"!"<<endl;
+			if (In.top().find(L':')!=std::wstring::npos) {
+				std::wcerr<<L"Warning: unknown parameter "<<In.top()<<L"!"<<std::endl;
 			} else {
-				cerr<<"Warning: unknown switch "<<In.top()<<"!"<<endl;
-				if (ArgWcard) {
-					cerr<<"Warning: no arguments allowed for unknown switch ("<<RP.arg<<")!"<<endl;
-					ArgWcard=NULL;
+				std::wcerr<<L"Warning: unknown switch "<<In.top()<<L"!"<<std::endl;
+				if (!Vars.args.empty()) {
+					std::wcerr<<L"Warning: no arguments allowed for unknown switch (\""<<Vars.args<<L"\")!"<<std::endl;
+					Vars.args.clear();
 				}
 			}
 		}
 	}
 
 	In.pop();
-	return !In.empty()&&(!Done||ModeIgnore);
+	Vars.first_run=false;
+	return !In.empty()&&(!Done||Vars.mode_ignore);
 }
 
-Controller::MakeItDead(stack<char*> &In)
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstring> &In)
 {
 	while (MakeItDeadInternal(In));
 	
-	if (ModeVerbose) WaitForUserInput();
+	if (Vars.mode_verbose) WaitForUserInput();
 	
-	if (sec_mutex) CloseHandle(sec_mutex);
+	if (Vars.sec_mutex) CloseHandle(Vars.sec_mutex);
+	
+	Vars={true};
 }
+
+template class Controller<Processes, Killers>;
