@@ -21,15 +21,15 @@ typedef struct {
 extern int _CRT_glob;
 extern "C" void __wgetmainargs(int*, wchar_t***, wchar_t***, int, _startupinfo*);
 
-int main() {
+int main()
 	wchar_t **enpv, **argv;
 	int argc;
 	_startupinfo si;
 	__wgetmainargs(&argc, &argv, &enpv, _CRT_glob, &si);
 #else
-extern "C" int wmain(int argc, wchar_t* argv[]) {
+extern "C" int wmain(int argc, wchar_t* argv[])
 #endif
-
+{
 #ifdef HIDDEN
 	Extras::MakeInstance(true, L"Search and Kill");
 #else

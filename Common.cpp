@@ -7,7 +7,8 @@
 //Original WildcardCmp: 
 //Written by Jack Handy <jakkhandy@hotmail.com>
 //http://www.codeproject.com/Articles/1088/Wildcard-string-compare-globbing
-bool WildcardCmp(const wchar_t* wild, const wchar_t* string) {
+bool WildcardCmp(const wchar_t* wild, const wchar_t* string) 
+{
 	const wchar_t *cp=NULL, *mp=NULL;
 
 	while ((*string)&&(*wild!=L'*')) {
@@ -48,7 +49,8 @@ bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string) {
 	return false;
 }
 
-HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMandatory) {
+HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMandatory) 
+{
 	//If OpenProcess with provided dwDesiredAccess succeeded - return resulting hProcess
 	if (HANDLE hProcess=OpenProcess(dwDesiredAccess, FALSE, dwProcessId))
 		return hProcess;
@@ -78,7 +80,8 @@ HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMan
 	return OpenProcessWrapper(dwProcessId, dwDesiredAccess, dwMandatory);
 }
 
-bool CheckIfFileExists(const wchar_t* fpath) {
+bool CheckIfFileExists(const wchar_t* fpath) 
+{
 	if (!fpath||fpath[0]==L'\0'||(				//We don't need NULL or empty paths
 		(fpath[0]!=L'\\'||fpath[1]!=L'\\')&&	//We interested in UNC and...
 		(fpath[1]!=L':'||fpath[2]!=L'\\')		//...absolute paths
@@ -106,7 +109,8 @@ bool CheckIfFileExists(const wchar_t* fpath) {
 		return false;
 }
 
-void PrintUsage() {
+void PrintUsage() 
+{
 #ifndef HIDDEN
 	Hout::Separator(L"Usage: SnK [settings_block|swith[:parametres][=argument]] ...");
 	Hout::EmptyLine();
@@ -182,7 +186,8 @@ void PrintUsage() {
 #endif
 }
 
-void PrintVersion() {
+void PrintVersion() 
+{
 #ifndef HIDDEN
 #ifdef _WIN64
 	Hout::Separator(L"Search and Kill (x64) " SNK_VERSION);

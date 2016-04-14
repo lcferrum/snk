@@ -35,7 +35,8 @@ extern template std::_Setfill<wchar_t> std::setfill(wchar_t);	//caused by use of
 Killers::Killers()
 {}
 
-void Killers::KillProcess(DWORD PID, const std::wstring &name) {
+void Killers::KillProcess(DWORD PID, const std::wstring &name) 
+{
 	if (ModeBlank()) {
 		std::wcout<<L"Troublemaker process: "<<PID<<L" ("<<name<<L")!"<<std::endl;
 	} else {
@@ -53,7 +54,8 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name) {
 	}
 }
 
-bool Killers::KillByCpu() {
+bool Killers::KillByCpu() 
+{
 	bool found=ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
 		std::wcout<<L"Process with highest cpu usage FOUND!"<<std::endl;
 		KillProcess(PID, name);
@@ -68,7 +70,8 @@ bool Killers::KillByCpu() {
 	}
 }
 
-bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard) {
+bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard) 
+{
 	if (!arg_wcard)
 		arg_wcard=L"";
 	
@@ -89,7 +92,8 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard) {
 	}
 }
 
-bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard) {
+bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard) 
+{
 	if (!arg_wcard)
 		arg_wcard=L"";
 	
@@ -120,7 +124,8 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard) {
 	}
 }
 
-bool Killers::KillByPid(const wchar_t* arg_parray) {
+bool Killers::KillByPid(const wchar_t* arg_parray) 
+{
 	if (!arg_parray)
 		arg_parray=L"";
 
@@ -195,7 +200,8 @@ bool Killers::KillByPid(const wchar_t* arg_parray) {
 //If you want to check if ITEM simply exists - pass empty DESC
 //const wchar_t* desc_str[]={"I1_str1 OR", NULL, "(I1_str2A AND", "I1_str2B)", NULL, NULL,		"I2A_str1", NULL, NULL, 	"I2B_str1", NULL, NULL};
 //const wchar_t* item_str[]={"Item1 OR", NULL,													"(Item2A AND",				"Item2B)", NULL, NULL};
-bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str) {
+bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str) 
+{
 	enum MatchState:char {IN_PROGRESS, CLAUSE_FAILED, ARRAY_MATCHED};
 	MatchState item_matched=IN_PROGRESS;	
 	MatchState desc_matched=IN_PROGRESS;
@@ -258,21 +264,24 @@ bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str
 	return item_matched==ARRAY_MATCHED;
 }
 
-bool Killers::CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard) {
+bool Killers::CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard) 
+{
 	for (const std::pair<std::wstring, std::wstring> &module: mlist)
 		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str())) return true;
 	
 	return false;
 }
 
-bool Killers::CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str) {
+bool Killers::CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str) 
+{
 	for (const std::pair<std::wstring, std::wstring> &module: mlist)
 		if (CheckStringFileInfo(module.second.c_str(), item_str, desc_str)) return true;
 	
 	return false;
 }
 
-bool Killers::KillByD3d(bool param_simple) {
+bool Killers::KillByD3d(bool param_simple) 
+{
 	//"DirectX Driver" - rare case used in description of
 	//3Dfx (and it's vendors) driver bundle
 	const wchar_t* descA[]={L"Direct3D", NULL, L"DirectX Driver", NULL, NULL};
@@ -307,7 +316,8 @@ bool Killers::KillByD3d(bool param_simple) {
 	}
 }
 
-bool Killers::KillByOgl(bool param_simple) {
+bool Killers::KillByOgl(bool param_simple) 
+{
 	const wchar_t* descA[]={L"OpenGL", NULL, L"MiniGL", NULL, NULL,	L"http://www.mesa3d.org", NULL, NULL};
 	const wchar_t* itemA[]={L"FileDescription", NULL,				L"Contact", NULL, NULL};
 	
@@ -340,7 +350,8 @@ bool Killers::KillByOgl(bool param_simple) {
 	}
 }
 
-bool Killers::KillByGld(bool param_simple) {
+bool Killers::KillByGld(bool param_simple) 
+{
 	const wchar_t* descA[]={L"Glide", L"3Dfx Interactive", NULL, NULL};
 	const wchar_t* itemA[]={L"FileDescription", NULL, NULL};
 	
@@ -387,7 +398,8 @@ bool Killers::WithinRect(const RECT &outer, const RECT &inner)
 	return inner.left>=outer.left&&inner.top>=outer.top&&inner.right<=outer.right&&inner.bottom<=outer.bottom;
 }
 
-bool Killers::KillByInr(InrMode param_mode) {
+bool Killers::KillByInr(InrMode param_mode) 
+{
 	std::vector<DWORD> dw_array;
 
 #if DEBUG>=2
@@ -424,7 +436,8 @@ bool Killers::KillByInr(InrMode param_mode) {
 	}
 }
 
-BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam) {
+BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam) 
+{
 	InrMode mode=std::get<0>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
 	std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
 	ATOM ghost_atom=std::get<2>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
@@ -477,7 +490,8 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam) {
 	return true;
 }
 
-bool Killers::KillByFsc(bool param_anywnd, bool param_primary) {
+bool Killers::KillByFsc(bool param_anywnd, bool param_primary) 
+{
 	std::vector<DWORD> dw_array;
 	std::vector<RECT> disp_array;
 	
@@ -548,7 +562,8 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary) {
 //Don't make tons of empty vector checks - this callback is called for a lot of windows
 //Just don't call EnumWindows at first place if display vector is empty
 //This will also guarantee that display vector is non-empty in this callback
-BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam) {
+BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam) 
+{
 	bool any_wnd=std::get<0>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
 	bool pri_disp=std::get<1>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
 	std::vector<DWORD> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);

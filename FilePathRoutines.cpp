@@ -152,7 +152,8 @@ namespace FPRoutines {
 	bool GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath);
 }
 
-void FPRoutines::FillDriveMap() {
+void FPRoutines::FillDriveMap() 
+{
 	DriveMap.clear();
 	
 	if (!fnNtOpenSymbolicLinkObject) {
@@ -202,7 +203,8 @@ void FPRoutines::FillDriveMap() {
 		}
 }
 
-void FPRoutines::FillServiceMap() {
+void FPRoutines::FillServiceMap() 
+{
 	ServiceMap.clear();
 	
 	SC_HANDLE schSCMgr;
@@ -299,7 +301,8 @@ void FPRoutines::FillServiceMap() {
 	CloseServiceHandle(schSCMgr);
 }
 
-bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath) {
+bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath) 
+{
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": Converting \""<<krn_fpath<<L"\"..."<<std::endl;
 #endif
@@ -416,7 +419,8 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath) 
 	return !w32_fpath.empty();
 }
 
-bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath) {
+bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath) 
+{
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
@@ -455,7 +459,8 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 	return !fpath.empty();
 }
 
-bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) {
+bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) 
+{
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_QueryServiceConfig:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
@@ -470,7 +475,8 @@ bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) {
 	}
 }
 
-bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) {
+bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) 
+{
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_PEB:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
@@ -605,7 +611,8 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) {
 	return false;
 }
 
-bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpath) {
+bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpath) 
+{
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_SystemProcessIdInformation:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
@@ -647,7 +654,8 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	return !fpath.empty();
 }
 
-bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) {
+bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) 
+{
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
@@ -685,7 +693,8 @@ bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath
 	return !fpath.empty();
 }
 
-std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read) {
+std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read) 
+{
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Getting path for PID "<<(ULONG_PTR)PID<<L"..."<<std::endl;
 #endif
@@ -717,7 +726,8 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read) 
 }
 
 #define SELECTED_MODULE_LIST InMemoryOrderModuleList
-std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HANDLE hProcess) {
+std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HANDLE hProcess) 
+{
 	std::vector<std::pair<std::wstring, std::wstring>> mlist;
 	
 	if (!hProcess)
