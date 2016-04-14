@@ -22,11 +22,11 @@ AutoHotkey (http://www.autohotkey.com/).
 You can compile SnK by yourself (refer to COMPILE.TXT that comes with the
 sources) or download binary distribution from Sourceforge:
 
-	https://sourceforge.net/projects/sandk/files/SnK/
-	
+    https://sourceforge.net/projects/sandk/files/SnK/
+    
 Main project homepage is at GitHub:
 
-	https://github.com/lcferrum/snk
+    https://github.com/lcferrum/snk
 
 4. Usage
 --------
@@ -70,119 +70,101 @@ Switches:
                               accidentiall subsequent execution of program.
 /blk(:clear|[:full]=WCARDS)     
                               Adds every process which name matches one of 
-							  wildcars (delimeted by semicolon) to blacklist.
-							  Matching is always case-insensitive. Blacklisted
-							  processes will be ignored by all other switches.
-							  If 'clear', will clear blacklist (ignoring any
-							  other parameter). If 'full', will use full
-							  process path instead of just name. Wildcards use
-							  standart wildcard characters '?' (exactly one
-							  unknown character) and  '*' (zero or more
-							  unknown characters).
+                              wildcars (delimeted by semicolon) to blacklist.
+                              Matching is always case-insensitive. Blacklisted
+                              processes will be ignored by all other switches.
+                              If 'clear', will clear blacklist (ignoring any
+                              other parameter). If 'full', will use full
+                              process path instead of just name. Wildcards use
+                              standart wildcard characters '?' (exactly one
+                              unknown character) and  '*' (zero or more
+                              unknown characters).
 /cpu                          
                               Kill process with highest cpu load. Will return
                               positive result if process was found. Can return
                               negative result only if there were no user
                               processes running and 'query all processes'
                               mode was turned off.
-/d3d[:simple][:soft]          
+/d3d[:simple]         
                               Kill process that uses Direct3D and has highest
                               cpu load. If 'simple', will use process modules
                               names to find Direct3D process. Otherwise, will
                               use description of modules. Simple method is
-                              somewhat less precise but faster. If 'soft', will
-                              kill only processes that use software rendering.
-                              Please check DetectMatrix.html for more
-                              information. Will return positive result if 
-                              process was found.
-/ogl[:simple][:soft]          
+                              somewhat less precise but faster. Please check 
+                              DetectMatrix.html for more information. Will 
+                              return positive result if process was found.
+/ogl[:simple]         
                               Kill process that uses OpenGL and has highest cpu
                               load. If 'simple', will use process modules names
                               to find OpenGL process. Otherwise, will use
                               description of modules. Simple method is somewhat
-                              less precise but faster. If 'soft', will kill
-                              only processes that use software rendering.
-                              Please check DetectMatrix.html for more
-                              information. Will return positive result if
-                              process was found.
-/d2d[:simple][:strict]                 
-                              Kill process that uses DirectDraw and has highest
-                              cpu load. If 'simple', will use process modules
-                              names to find DirectDraw process. Otherwise, will
-                              use description of modules. Simple method is
-                              somewhat less precise but faster. If 'strict',
-                              will kill only processes that use DirectDraw
-                              exclusively, and not together with OpenGL, 
-                              Direct3D or Glide. Please check DetectMatrix.html
-                              for more information. Will return positive result
-                              if process was found.
-/gld[:simple][:strict]        
+                              less precise but faster. Please check 
+                              DetectMatrix.html for more information. Will 
+                              return positive result if process was found.
+/gld[:simple]       
                               Kill process that uses Glide and has highest cpu
                               load. If 'simple', will use process modules names
                               to find Glide process. Otherwise, will use
                               description of modules. Simple method is somewhat
-                              less precise but faster. If 'strict', will kill
-                              only processes that use Glide exclusively, and
-                              not through OpenGL intermediate implementation.
-                              Please check DetectMatrix.html for more
-                              information. Will return positive result if
-                              process was found.
+                              less precise but faster. Please check 
+                              DetectMatrix.html for more information. Will 
+                              return positive result if process was found.
 /inr[:manual|:vista]          
                               Kill process that is not responding and has
                               highest cpu load. By default will use standard
                               Windows procedure (IsHungAppWindow) to check if
-							  application is hung. If 'manual', will check if
-							  window is pumping any messages through it's
-							  message loop to determine hung state. If 'vista', 
-							  will uses undocumented IsHungAppWindow analog
-							  from newer OS versions. Even if hung app not yet
-							  being marked as hung by Windows - default method
-							  will work most of the time, stick with it. Will 
-							  return positive result if process was found.
+                              application is hung. If 'manual', will check if
+                              window is pumping any messages through it's
+                              message loop to determine hung state. If 'vista', 
+                              will uses undocumented IsHungAppWindow analog
+                              from newer OS versions. Even if hung app not yet
+                              being marked as hung by Windows - default method
+                              will work most of the time, stick with it. Will 
+                              return positive result if process was found.
 /fsc[:anywnd][:primary]          
                               Kill process that is running in fullscreen and
                               has highest cpu load. Works with multi-monitor
-							  setups. By default only exclusive fullscreen and
-							  borderless windowed processes are checked. If 
-							  'anywnd', will check processes with any window
-							  type, borderless or not. If 'primary', will check
-							  only windows that belong to primary display. Will
-							  return positive result if process was found.
+                              setups. By default only exclusive fullscreen and
+                              borderless windowed processes are checked. If 
+                              'anywnd', will check processes with any window
+                              type, borderless or not. If 'primary', will check
+                              only windows that belong to primary display. Will
+                              return positive result if process was found.
 /fgd          
                               Kill process which window is in foreground. 
-							  Though there is always a foreground window, this
-							  switch may return nothing if foreground process
-							  has 'non-task' window (has no icon on the task
-							  bar) or doesn't belong to user and 'query all
-							  processes' mode was turned off. Will return 
-							  positive result if process was found.
+                              Though there is always a foreground window, this
+                              switch may return nothing if foreground process
+                              has 'non-task' window (has no icon on the task
+                              bar) or doesn't belong to user and 'query all
+                              processes' mode was turned off. Will return 
+                              positive result if process was found.
 /pth[:full]=WCARDS      
                               Kill process which name matches one of the 
-							  wildcards (delimeted by semicolon) and has
-							  highest cpu load. Matching is always 
-							  case-insensitive. If 'full', will use full
+                              wildcards (delimeted by semicolon) and has
+                              highest cpu load. Matching is always 
+                              case-insensitive. If 'full', will use full
                               process path instead of just name. Wildcards use
                               standart wildcard characters '?' (exactly one
                               unknown character) and  '*' (zero or more unknown
                               characters). Will return positive result if
-							  process was found.
+                              process was found.
 /mod[:full]=WCARDS      
                               Kill process that has a module which name matches
-							  one of the wildcards (delimeted by semicolon) and
-							  has highest cpu load. Matching is always 
-							  case-insensitive. If 'full', will use full
+                              one of the wildcards (delimeted by semicolon) and
+                              has highest cpu load. Matching is always 
+                              case-insensitive. If 'full', will use full
                               module path instead of just name. Wildcards use
                               standart wildcard characters '?' (exactly one
                               unknown character) and  '*' (zero or more unknown
                               characters). Will return positive result if
-							  process was found.
+                              process was found.
 /pid=PIDS      
                               Kill process which PID belongs to PID array and
-							  has highest cpu load. PID array consists of PIDs,
-							  delimeted by comma or semicolon, and can include
-							  descending or ascending ranges. PID must be 
-							  decimal (no prefix), hexadecimal ('0x'/'0X' 
-							  prefix) or octal ('0' prefix) unsigned integer.
+                              has highest cpu load. PID array consists of PIDs,
+                              delimeted by comma or semicolon, and can include
+                              descending or ascending ranges. PID must be 
+                              decimal (no prefix), hexadecimal ('0x'/'0X' 
+                              prefix) or octal ('0' prefix) unsigned integer.
                               Will return positive result if process was found.
 
 Settings:
@@ -202,19 +184,19 @@ Settings:
                               user processes.
 +l|-l
                               Will turn 'loop' mode on/off. While in this mode, 
-							  every switch will be looped until it finally 
-							  returns negative result. Overall result will be
-							  posistive if one of the iterations returned
-							  positive result.
+                              every switch will be looped until it finally 
+                              returns negative result. Overall result will be
+                              posistive if one of the iterations returned
+                              positive result.
 +i|-i
                               Will turn 'ignore' mode on/off. While in this 
-							  mode, even if switch returns positive result SnK
-							  execution continues.
+                              mode, even if switch returns positive result SnK
+                              execution continues.
 
 5. Usage example
 ----------------                              
 Example:
-       SnK /sec +vt /bpp /d3d /ogl:soft:simple -t /pth="*Skype*"
+       SnK /sec +vt /bpp /d3d /ogl:simple -t /pth="*Skype*"
        
 SnK will do the following in this example:
 
@@ -225,9 +207,9 @@ SnK will do the following in this example:
 3) Will make 'informational beep' and continue.
 4) Will search for Direct3D processes. Will continue if nothing was found.
    Will prompt user to press 'enter' if process was found and then exit.
-5) Will search for OpenGL processes with software rendering using 'simple'
-   method. Will continue if nothing was found. Will prompt user to press 
-   'enter' if process was found and then exit.
+5) Will search for OpenGL processes using 'simple' method. Will continue if
+   nothing was found. Will prompt user to press 'enter' if process was found
+   and then exit.
 6) Will turn test mode off.
 7) Will search for process with name similar to "Skype" using case-insensitive
    compare. Will prompt user to press 'enter' if nothing was found and then

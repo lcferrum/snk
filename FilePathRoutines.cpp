@@ -17,26 +17,26 @@
 
 //Version of PROCESS_BASIC_INFORMATION with x86_64 align
 typedef struct _PROCESS_BASIC_INFORMATION64 {
-    NTSTATUS ExitStatus;
-    POINTER_64(PPEB) PebBaseAddress;
-    POINTER_64(KAFFINITY) AffinityMask;
-    KPRIORITY BasePriority;
-    POINTER_64(ULONG_PTR) UniqueProcessId;
-    POINTER_64(ULONG_PTR) InheritedFromUniqueProcessId;
+	NTSTATUS ExitStatus;
+	PTR_64(PPEB) PebBaseAddress;
+	PTR_64(KAFFINITY) AffinityMask;
+	KPRIORITY BasePriority;
+	PTR_64(ULONG_PTR) UniqueProcessId;
+	PTR_64(ULONG_PTR) InheritedFromUniqueProcessId;
 } PROCESS_BASIC_INFORMATION64;
 
 //Version of UNICODE_STRING with x86 align
 typedef struct _UNICODE_STRING32 {
-	USHORT Length;        
+	USHORT Length;		
 	USHORT MaximumLength;
-	POINTER_32(PWSTR) Buffer;
+	PTR_32(PWSTR) Buffer;
 } UNICODE_STRING32;
 
 //Version of UNICODE_STRING with x86_64 align
 typedef struct _UNICODE_STRING64 {
-	USHORT Length;        
+	USHORT Length;		
 	USHORT MaximumLength;
-	POINTER_64(PWSTR) Buffer;
+	PTR_64(PWSTR) Buffer;
 } UNICODE_STRING64;
 
 //Cut-down version of RTL_USER_PROCESS_PARAMETERS with x86 align
@@ -72,8 +72,8 @@ typedef struct _LDR_DATA_TABLE_ENTRY32 {
 	LIST_ENTRY32 InLoadOrderModuleList;
 	LIST_ENTRY32 InMemoryOrderModuleList;
 	LIST_ENTRY32 InInitializationOrderModuleList;
-	POINTER_32(PVOID) DllBase;
-	POINTER_32(PVOID) EntryPoint;
+	PTR_32(PVOID) DllBase;
+	PTR_32(PVOID) EntryPoint;
 	ULONG SizeOfImage;
 	UNICODE_STRING32 FullDllName;
 	UNICODE_STRING32 BaseDllName;
@@ -84,8 +84,8 @@ typedef struct _LDR_DATA_TABLE_ENTRY64 {
 	LIST_ENTRY64 InLoadOrderModuleList;
 	LIST_ENTRY64 InMemoryOrderModuleList;
 	LIST_ENTRY64 InInitializationOrderModuleList;
-	POINTER_64(PVOID) DllBase;
-	POINTER_64(PVOID) EntryPoint;
+	PTR_64(PVOID) DllBase;
+	PTR_64(PVOID) EntryPoint;
 	ULONG SizeOfImage;
 	UNICODE_STRING64 FullDllName;
 	UNICODE_STRING64 BaseDllName;
@@ -93,23 +93,23 @@ typedef struct _LDR_DATA_TABLE_ENTRY64 {
 
 //Cut-down version of PEB with x86 align
 typedef struct _PEB32 {
-    BYTE Reserved[8];
-	POINTER_32(PVOID) ImageBaseAddress;
-	POINTER_32(PPEB_LDR_DATA) LdrData;
-    POINTER_32(PRTL_USER_PROCESS_PARAMETERS) ProcessParameters;
+	BYTE Reserved[8];
+	PTR_32(PVOID) ImageBaseAddress;
+	PTR_32(PPEB_LDR_DATA) LdrData;
+	PTR_32(PRTL_USER_PROCESS_PARAMETERS) ProcessParameters;
 } PEB32;
 
 //Cut-down version of PEB with x86_64 align
 typedef struct _PEB64 {
-    BYTE Reserved[16];
-	POINTER_64(PVOID) ImageBaseAddress;
-	POINTER_64(PPEB_LDR_DATA) LdrData;
-    POINTER_64(PRTL_USER_PROCESS_PARAMETERS) ProcessParameters;
+	BYTE Reserved[16];
+	PTR_64(PVOID) ImageBaseAddress;
+	PTR_64(PPEB_LDR_DATA) LdrData;
+	PTR_64(PRTL_USER_PROCESS_PARAMETERS) ProcessParameters;
 } PEB64;
 
 typedef struct _SYSTEM_PROCESS_ID_INFORMATION {
-    HANDLE ProcessId;
-    UNICODE_STRING ImageName;
+	HANDLE ProcessId;
+	UNICODE_STRING ImageName;
 } SYSTEM_PROCESS_ID_INFORMATION, *PSYSTEM_PROCESS_ID_INFORMATION;
 
 //Not using native RTL_USER_PROCESS_PARAMETERS, PEB_LDR_DATA, LDR_DATA_TABLE_ENTRY and PEB structures so to be sure in offset consistency
@@ -216,7 +216,7 @@ void FPRoutines::FillServiceMap() {
 	if (!fnPathFindOnPathW)
 		std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": PathFindOnPathW not found!"<<std::endl;
 #endif
-	    
+		
 	if (!(schSCMgr=OpenSCManager(NULL, NULL, STANDARD_RIGHTS_READ|SC_MANAGER_ENUMERATE_SERVICE)))	 // Simple read and enumerate rights are enough
 		return;
 		
@@ -372,10 +372,10 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath) 
 	DWORD buf_len=wcslen(krn_fpath)*2+1024;
 	BYTE oni_buf[buf_len];
 	OBJECT_NAME_INFORMATION *poni=(OBJECT_NAME_INFORMATION*)oni_buf;
-    if (!NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, poni, buf_len, NULL))) {
+	if (!NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, poni, buf_len, NULL))) {
 		CloseHandle(hFile);
 		return false;
-    }
+	}
 
 	//In contrast with NtQueryObject, NtQueryInformationFile is pretty predictable
 	//To get needed buffer size just supply buffer that holds FILE_NAME_INFORMATION structure and wait for STATUS_BUFFER_OVERFLOW (in this case it's just a status, don't worry)
@@ -386,10 +386,10 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath) 
 	buf_len=poni->Name.Length+sizeof(FILE_NAME_INFORMATION);
 	BYTE fni_buf[buf_len+2];	//Two bytes for the future NULL terminator
 	FILE_NAME_INFORMATION *pfni=(FILE_NAME_INFORMATION*)fni_buf;
-    if (!NT_SUCCESS(fnNtQueryInformationFile(hFile, &ioStatusBlock, pfni, buf_len, FileNameInformation))) {
+	if (!NT_SUCCESS(fnNtQueryInformationFile(hFile, &ioStatusBlock, pfni, buf_len, FileNameInformation))) {
 		CloseHandle(hFile);
 		return false;
-    }
+	}
 	
 	pfni->FileName[pfni->FileNameLength/sizeof(wchar_t)]=L'\0';	//Terminating FileNameInformation
 	CloseHandle(hFile);	//We don't need it anymore
@@ -430,24 +430,24 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 		return false;
 	}
 	
-    NTSTATUS st;
-    DWORD bufferSize=0;
+	NTSTATUS st;
+	DWORD bufferSize=0;
 	PUNICODE_STRING pusFileName=NULL;
 	
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
 	//This call works only on Vista and above and gets Win32 path
 	//Returned bufferSize doesn't include terminating NULL character, but we don't need to add NULL terminator because PUNICODE_STRING will be assigned using wstring.assign() 
-    if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
+	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
 		pusFileName=(PUNICODE_STRING)new BYTE[bufferSize];
 		st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, pusFileName, bufferSize, &bufferSize);
 	}
 	
-    if (!NT_SUCCESS(st)) {
+	if (!NT_SUCCESS(st)) {
 #if DEBUG>=2
-        if (st==STATUS_INVALID_INFO_CLASS)
+		if (st==STATUS_INVALID_INFO_CLASS)
 			std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileNameWin32) failed - information class not supported!"<<std::endl;
 #endif
-    } else {
+	} else {
 		fpath.assign(pusFileName->Buffer, pusFileName->Length/sizeof(wchar_t));
 	}
 	
@@ -485,7 +485,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) {
 	}
 
 	PROCESS_BASIC_INFORMATION proc_info={};
-    NTSTATUS st;
+	NTSTATUS st;
 	ULONG_PTR PebBaseAddress32=0;
 	PROCESS_BASIC_INFORMATION64 proc_info64={};
 	SIZE_T ret_len;
@@ -546,7 +546,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) {
 			return false;
 		}
 		
-		POINTER_32(PVOID) pRUPP32;
+		PTR_32(PVOID) pRUPP32;
 		//Requires PROCESS_VM_READ
 		//PebBaseAddress32, pRUPP32 and ImagePathName32.Buffer pointers are already casted to integers
 		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), &ret_len)) {
@@ -586,7 +586,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) {
 			return false;
 		}
 		
-		POINTER_64(PVOID) pRUPP64;
+		PTR_64(PVOID) pRUPP64;
 		//Requires PROCESS_VM_READ
 		//proc_info64.PebBaseAddress, pRUPP64 and ImagePathName64.Buffer pointers are already casted to integers
 		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), &ret_len64))) {
@@ -619,11 +619,11 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 		return false;
 	}
 	
-    NTSTATUS st;
-    SYSTEM_PROCESS_ID_INFORMATION processIdInfo;
-    processIdInfo.ProcessId=PID;
+	NTSTATUS st;
+	SYSTEM_PROCESS_ID_INFORMATION processIdInfo;
+	processIdInfo.ProcessId=PID;
 	processIdInfo.ImageName.Buffer=NULL;
-    processIdInfo.ImageName.Length=0;
+	processIdInfo.ImageName.Length=0;
 	processIdInfo.ImageName.MaximumLength=0;
 	
 	//NtQuerySystemInformation(SystemProcessIdInformation) doesn't return needed length in ImageName.MaximumLength
@@ -634,12 +634,12 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 		processIdInfo.ImageName.Buffer=(wchar_t*)new BYTE[(processIdInfo.ImageName.MaximumLength+=512)];  //each iteration buffer size is increased by 0.5 KB
 	} while ((st=fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))==STATUS_INFO_LENGTH_MISMATCH);
 	
-    if (!NT_SUCCESS(st)) {
+	if (!NT_SUCCESS(st)) {
 #if DEBUG>=2
 		if (st==STATUS_INVALID_INFO_CLASS)
 			std::wcerr<<L"" __FILE__ ":GetFP_SystemProcessIdInformation:"<<__LINE__<<L": NtQuerySystemInformation(SystemProcessIdInformation) failed - information class not supported!"<<std::endl;
 #endif
-    } else
+	} else
 		//Filepath is found, but we need to convert it to Win32 form
 		KernelToWin32Path(processIdInfo.ImageName.Buffer, fpath);
 	
@@ -661,23 +661,23 @@ bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath
 		return false;
 	}
 	
-    NTSTATUS st;
-    DWORD bufferSize=0;
+	NTSTATUS st;
+	DWORD bufferSize=0;
 	PUNICODE_STRING pusFileName=NULL;
 	
 	//If function succeed, returned UNICODE_STRING.Buffer already contains terminating NULL character
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-    if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
+	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
 		pusFileName=(PUNICODE_STRING)new BYTE[bufferSize];
 		st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, pusFileName, bufferSize, &bufferSize);
 	}
 	
-    if (!NT_SUCCESS(st)) {
+	if (!NT_SUCCESS(st)) {
 #if DEBUG>=2
 		if (st==STATUS_INVALID_INFO_CLASS)
 			std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileName) failed - information class not supported!"<<std::endl;
 #endif
-    } else
+	} else
 		//Filepath is found, but we need to convert it to Win32 form
 		KernelToWin32Path(pusFileName->Buffer, fpath);
 	
@@ -731,7 +731,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 	}
 
 	PROCESS_BASIC_INFORMATION proc_info={};
-    NTSTATUS st;
+	NTSTATUS st;
 	ULONG_PTR PebBaseAddress32=0;
 	PROCESS_BASIC_INFORMATION64 proc_info64={};
 	SIZE_T ret_len;

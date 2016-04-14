@@ -7,10 +7,8 @@
 #include <windows.h>
 #include <winternl.h>
 
-#undef POINTER_32
-#define POINTER_32(Type) ULONG
-#undef POINTER_64
-#define POINTER_64(Type) ULONGLONG
+#define PTR_32(Type) ULONG
+#define PTR_64(Type) ULONGLONG
 
 class Extras {
 private:
@@ -29,8 +27,8 @@ private:
 	Extras(bool hidden, const wchar_t* caption);
 public:
 	~Extras();
-    Extras(const Extras&)=delete;				//Get rid of default copy constructor
-    Extras& operator=(const Extras&)=delete;	//Get rid of default copy assignment operator
+	Extras(const Extras&)=delete;				//Get rid of default copy constructor
+	Extras& operator=(const Extras&)=delete;	//Get rid of default copy assignment operator
 	void WcoutMessageBox();						//Not making this static for the uniformity of calling extra functions (through extern "fn" pointers)
 	
 	static bool MakeInstance(bool hidden, const wchar_t* caption);	
@@ -45,7 +43,7 @@ typedef NTSTATUS (WINAPI *pNtQueryInformationFile)(HANDLE FileHandle, PIO_STATUS
 typedef NTSTATUS (WINAPI *pNtQueryObject)(HANDLE Handle, OBJECT_INFORMATION_CLASS ObjectInformationClass, PVOID ObjectInformation, ULONG ObjectInformationLength, PULONG ReturnLength);
 typedef NTSTATUS (WINAPI *pNtQueryInformationProcess)(HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONG ReturnLength);
 typedef NTSTATUS (WINAPI *pNtWow64QueryInformationProcess64)(HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONGLONG ReturnLength);
-typedef NTSTATUS (WINAPI *pNtWow64ReadVirtualMemory64)(HANDLE ProcessHandle, POINTER_64(PVOID) BaseAddress, PVOID Buffer, ULONGLONG BufferSize, PULONGLONG NumberOfBytesRead);
+typedef NTSTATUS (WINAPI *pNtWow64ReadVirtualMemory64)(HANDLE ProcessHandle, PTR_64(PVOID) BaseAddress, PVOID Buffer, ULONGLONG BufferSize, PULONGLONG NumberOfBytesRead);
 typedef BOOL (WINAPI *pIsWow64Process)(HANDLE hProcess, PBOOL Wow64Process);
 typedef BOOL (WINAPI *pPathFindOnPathW)(LPWSTR lpszFile, LPCWSTR* lppszOtherDirs);
 typedef BOOL (WINAPI *pWow64DisableWow64FsRedirection)(PVOID *OldValue);

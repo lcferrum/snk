@@ -215,27 +215,27 @@ DWORD Processes::EnumProcessTimes(bool first_time)
 	
 void Processes::EnableDebugPrivileges()
 {
-    HANDLE tokenHandle;
+	HANDLE tokenHandle;
 	
 	//Privileges similar to Process Explorer
 	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE};
 
-    if (NT_SUCCESS(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle))) {
-        PTOKEN_PRIVILEGES privileges=(PTOKEN_PRIVILEGES)new BYTE[offsetof(TOKEN_PRIVILEGES, Privileges)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
+	if (NT_SUCCESS(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle))) {
+		PTOKEN_PRIVILEGES privileges=(PTOKEN_PRIVILEGES)new BYTE[offsetof(TOKEN_PRIVILEGES, Privileges)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
 
-        privileges->PrivilegeCount=0;
-        for (DWORD priv: needed_privs) {
+		privileges->PrivilegeCount=0;
+		for (DWORD priv: needed_privs) {
 			privileges->Privileges[privileges->PrivilegeCount].Attributes=SE_PRIVILEGE_ENABLED;
-            privileges->Privileges[privileges->PrivilegeCount].Luid.HighPart=0;
+			privileges->Privileges[privileges->PrivilegeCount].Luid.HighPart=0;
 			privileges->Privileges[privileges->PrivilegeCount].Luid.LowPart=priv;
 			privileges->PrivilegeCount++;
-        }
+		}
 
-        AdjustTokenPrivileges(tokenHandle, FALSE, privileges, 0, NULL, NULL);
+		AdjustTokenPrivileges(tokenHandle, FALSE, privileges, 0, NULL, NULL);
 		
 		delete[] (BYTE*)privileges;
-        CloseHandle(tokenHandle);
-    }
+		CloseHandle(tokenHandle);
+	}
 }
 
 //User SID identifies user that launched process. But if process was launched with RunAs - it will have SID of the RunAs user.

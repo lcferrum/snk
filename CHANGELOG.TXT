@@ -1,3 +1,7 @@
+2016-04-13  Lcferrum <lcferrum@yandex.com>
+	
+	* Release 2.0
+
 2013-03-01  Lcferrum <lcferrum@yandex.com>
 	
 	* Release 1.1

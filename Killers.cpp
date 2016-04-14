@@ -272,20 +272,15 @@ bool Killers::CheckDescription(const std::vector<std::pair<std::wstring, std::ws
 	return false;
 }
 
-bool Killers::KillByD3d(bool param_simple, bool param_soft) {
+bool Killers::KillByD3d(bool param_simple) {
 	//"DirectX Driver" - rare case used in description of
 	//3Dfx (and it's vendors) driver bundle
 	const wchar_t* descA[]={L"Direct3D", NULL, L"DirectX Driver", NULL, NULL};
 	const wchar_t* itemA[]={L"FileDescription", NULL, NULL};
 	
-	const wchar_t* descB[]={L"Direct3D", NULL, NULL, 	L"SwiftShader", NULL, L"Reference", NULL, L"Rasterizer", NULL, NULL};
-	const wchar_t* itemB[]={L"FileDescription", 		L"FileDescription", NULL, NULL};
-	
 	const wchar_t* wcrdA=L"d3d*.dll";
 	
-	const wchar_t* wcrdB=L"d3d*ref.dll;d3d*warp.dll";
-	
-	bool found=ApplyToProcesses([this, param_soft, param_simple, &descA, &itemA, &descB, &itemB, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
@@ -296,9 +291,7 @@ bool Killers::KillByD3d(bool param_simple, bool param_soft) {
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_soft?
-			(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)):
-			(param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))) {
+		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
 			std::wcout<<L"Process that uses Direct3D FOUND!"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -314,21 +307,13 @@ bool Killers::KillByD3d(bool param_simple, bool param_soft) {
 	}
 }
 
-bool Killers::KillByOgl(bool param_simple, bool param_soft) {
+bool Killers::KillByOgl(bool param_simple) {
 	const wchar_t* descA[]={L"OpenGL", NULL, L"MiniGL", NULL, NULL,	L"http://www.mesa3d.org", NULL, NULL};
 	const wchar_t* itemA[]={L"FileDescription", NULL,				L"Contact", NULL, NULL};
 	
-	const wchar_t* descB[]={L"OpenGL", NULL, NULL,	L"SwiftShader", NULL, L"DLL", NULL, NULL};
-	const wchar_t* itemB[]={L"FileDescription", 	L"FileDescription", NULL, NULL};
-	
-	const wchar_t* descC[]={L"OpenGL", NULL, NULL,	L"Driver", NULL, L"ICD", NULL, L"MCD", NULL, NULL};
-	const wchar_t* itemC[]={L"FileDescription", 	L"FileDescription", NULL, NULL};
-	
 	const wchar_t* wcrdA=L"opengl*.dll;3dfx*gl*.dll";
 	
-	const wchar_t* wcrdB=L"osmesa32.dll";
-	
-	bool found=ApplyToProcesses([this, param_soft, param_simple, &descA, &itemA, &descB, &itemB, &descC, &itemC, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
@@ -339,9 +324,7 @@ bool Killers::KillByOgl(bool param_simple, bool param_soft) {
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_soft?
-			(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)&&!CheckDescription(mlist, itemC, descC)):
-			(param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))) {
+		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
 			std::wcout<<L"Process that uses OpenGL FOUND!"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -357,57 +340,13 @@ bool Killers::KillByOgl(bool param_simple, bool param_soft) {
 	}
 }
 
-bool Killers::KillByD2d(bool param_simple, bool param_strict) {
-	const wchar_t* descA[]={L"DirectDraw", NULL, NULL};
-	const wchar_t* itemA[]={L"FileDescription", NULL, NULL};
-	
-	const wchar_t* descB[]={L"OpenGL", NULL, L"Direct3D", NULL, L"DirectX Driver", NULL, L"Glide", L"3Dfx Interactive", NULL, NULL};
-	const wchar_t* itemB[]={L"FileDescription", NULL, NULL};
-	
-	const wchar_t* wcrdA=L"ddraw.dll";
-	
-	const wchar_t* wcrdB=L"opengl*.dll;3dfx*gl*.dll;d3d*.dll;glide*.dll";
-	
-	bool found=ApplyToProcesses([this, param_strict, param_simple, &descA, &itemA, &descB, &itemB, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
-		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
-		if (!hProcess) return false;
-		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
-		CloseHandle(hProcess);
-#if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":KillByD2d:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
-		for (const std::pair<std::wstring, std::wstring> &module: mlist)
-			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
-#endif
-		
-		if ((param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))&&
-			!(param_strict?(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)):false)) {
-			std::wcout<<L"Process that uses DirectDraw FOUND!"<<std::endl;
-			KillProcess(PID, name);
-			return true;
-		} else
-			return false;
-	});
-
-	if (found)
-		return true;
-	else {
-		std::wcout<<L"Process that uses DirectDraw NOT found!"<<std::endl;
-		return false;
-	}
-}
-
-bool Killers::KillByGld(bool param_simple, bool param_strict) {
+bool Killers::KillByGld(bool param_simple) {
 	const wchar_t* descA[]={L"Glide", L"3Dfx Interactive", NULL, NULL};
 	const wchar_t* itemA[]={L"FileDescription", NULL, NULL};
 	
-	const wchar_t* descB[]={L"OpenGL", NULL, L"MiniGL", NULL, L"Direct3D", NULL, NULL,	L"http://www.mesa3d.org", NULL, NULL};
-	const wchar_t* itemB[]={L"FileDescription", NULL,									L"Contact", NULL, NULL};
-	
 	const wchar_t* wcrdA=L"glide*.dll";
 	
-	const wchar_t* wcrdB=L"opengl*.dll;3dfx*gl*.dll;d3d*.dll";
-	
-	bool found=ApplyToProcesses([this, param_strict, param_simple, &descA, &itemA, &descB, &itemB, wcrdA, wcrdB](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
@@ -418,8 +357,7 @@ bool Killers::KillByGld(bool param_simple, bool param_strict) {
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if ((param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA))&&
-			!(param_strict?(param_simple?CheckName(mlist, false, wcrdB):CheckDescription(mlist, itemB, descB)):false)) {
+		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
 			std::wcout<<L"Process that uses Glide FOUND!"<<std::endl;
 			KillProcess(PID, name);
 			return true;

@@ -17,7 +17,6 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using KillersPolicy::KillByPid;
 	using KillersPolicy::KillByD3d;
 	using KillersPolicy::KillByOgl;
-	using KillersPolicy::KillByD2d;
 	using KillersPolicy::KillByGld;
 	using KillersPolicy::KillByInr;
 	using KillersPolicy::KillByFsc;
@@ -40,25 +39,23 @@ private:
 		union {
 			bool param_second;
 			bool param_clear;
-			bool param_soft;
-			bool param_strict;
 			bool param_primary;
 		}; 
 		std::wstring args;
 		HANDLE sec_mutex;
-	} Vars;
+	} ctrl_vars;
 	
 	void ClearParamsAndArgs();
 	void NoArgsAllowed(const std::wstring &sw);
 	void WaitForUserInput();
 	bool SecuredExecution();
-	bool MakeItDeadInternal(std::stack<std::wstring> &In);
+	bool MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
-	virtual bool ModeAll() { return Vars.mode_all; }
-	virtual bool ModeLoop() { return Vars.mode_loop; }
-	virtual bool ModeBlank() { return Vars.mode_blank; }
+	virtual bool ModeAll() { return ctrl_vars.mode_all; }
+	virtual bool ModeLoop() { return ctrl_vars.mode_loop; }
+	virtual bool ModeBlank() { return ctrl_vars.mode_blank; }
 public:
-	void MakeItDead(std::stack<std::wstring> &In);
+	void MakeItDead(std::stack<std::wstring> &rules);
 	Controller();
 };
 															

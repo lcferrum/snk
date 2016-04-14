@@ -47,20 +47,20 @@ extern "C" int wmain(int argc, wchar_t* argv[]) {
 		return 0;
 	}
 	
-	std::stack<std::wstring> Rules;
+	std::stack<std::wstring> rules;
 	wchar_t *head, *token;
 	while (argc-->1) switch (*argv[argc]) {
 		case L'/':
 			if ((token=wcschr(argv[argc], L'=')))
 				*token++=L'\0';
 		
-			Rules.push((head=wcstok(argv[argc], L":")));
+			rules.push((head=wcstok(argv[argc], L":")));
 			
 			if (token)
-				Rules.push(std::wstring(L"=")+token);
+				rules.push(std::wstring(L"=")+token);
 			
 			while ((token=wcstok(NULL, L":")))
-				Rules.push(head+std::wstring(L":")+token);
+				rules.push(head+std::wstring(L":")+token);
 			
 			continue;
 		case L'+':
@@ -68,7 +68,7 @@ extern "C" int wmain(int argc, wchar_t* argv[]) {
 			head=argv[argc];
 		
 			while (*++argv[argc]!=L'\0')
-				Rules.push({*head, *argv[argc]});
+				rules.push({*head, *argv[argc]});
 			
 			continue;
 		default:
@@ -78,18 +78,18 @@ extern "C" int wmain(int argc, wchar_t* argv[]) {
 
 #if DEBUG>=3
 	{
-		std::stack<std::wstring> _Rules=Rules;
+		std::stack<std::wstring> _rules=rules;
 		std::wcerr<<L"" __FILE__ ":main:"<<__LINE__<<L": Rules (unfolding stack)..."<<std::endl;
-		while (!_Rules.empty()) {
-			std::wcerr<<L"\t\t"<<_Rules.top()<<std::endl;
-			_Rules.pop();
+		while (!_rules.empty()) {
+			std::wcerr<<L"\t\t"<<_rules.top()<<std::endl;
+			_rules.pop();
 		}
 	}
 #endif
 
 	Controller<Processes, Killers> controller;
 	
-	controller.MakeItDead(Rules);
+	controller.MakeItDead(rules);
 	
 	return 0;
 }

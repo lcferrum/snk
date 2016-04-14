@@ -42,27 +42,17 @@ protected:
 	//Kills process with highest cpu load that uses DirectX (Direct3D)
 	//If param_simple - uses process modules names to find DirectX process
 	//If not param_simple - uses description of modules
-	//If param_soft - checks if software rendering is in use
-	bool KillByD3d(bool param_simple, bool param_soft);
+	bool KillByD3d(bool param_simple);
 	
 	//Kills process with highest cpu load that uses OpenGL
 	//If param_simple - uses process modules names to find OpenGL process
 	//If not param_simple - uses description of modules
-	//If param_soft - checks if software rendering is in use
-	bool KillByOgl(bool param_simple, bool param_soft);
-	
-	//Kills process with highest cpu load that uses DirectDraw (2D Acceleration)
-	//N.B. Windowed 3D processes always use DirectDraw
-	//If param_simple - uses process modules names to find DirectDraw process
-	//If not param_simple - uses description of modules
-	//If param_strict - checks if DirectDraw is used exclusively, not with Direct3D, OpenGL or Glide
-	bool KillByD2d(bool param_simple, bool param_strict);
+	bool KillByOgl(bool param_simple);
 	
 	//Kills process with highest cpu load that uses Glide (3Dfx)
 	//If param_simple - uses process modules names to find Glide process
 	//If not param_simple - uses description of modules
-	//If param_strict - checks if Glide is used directly, not through OpenGL
-	bool KillByGld(bool param_simple, bool param_strict);
+	bool KillByGld(bool param_simple);
 	
 	//Kills process with highest cpu load that doesn't respond (Is Not Responding)
 	//param_mode can be DEFAULT, MANUAL or VISTA

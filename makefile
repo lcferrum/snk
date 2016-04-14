@@ -39,7 +39,7 @@ endif
 RM=rm -f
 UPX=upx
 CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX -DUNICODE -D_UNICODE $(DEBUG) $(USAGE_TIMEOUT) $(USE_CYCLE_TIME)
-LDFLAGS=-lpsapi -lversion -lole32 -static-libgcc -static-libstdc++ -s
+LDFLAGS=-lversion -lole32 -static-libgcc -static-libstdc++ -s
 COMMON_SRC=SnK.cpp Extras.cpp Common.cpp Hout.cpp Killers.cpp ProcessUsage.cpp FilePathRoutines.cpp Controller.cpp ConOut.cpp AsmPatches.S
 UPSTREAM_INC=/c/cygwin/usr/i686-w64-mingw32/sys-root/mingw/include/
 
@@ -58,7 +58,7 @@ endif
 # It's assumed that g++ (MinGW) version is 4.7.2, clang++ (LLVM) version is 3.6.2 and includes are from MinGW-w64 4.9.2
 ifeq ($(CC),clang++)
 	INC=-I$(UPSTREAM_INC)
-	CFLAGS+=-target i386-pc-windows-gnu -march=i386 -Wno-ignored-attributes -Wno-deprecated-register -Wno-inconsistent-dllimport -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
+	CFLAGS+=-target i486-pc-windows-gnu -march=i486 -Wno-ignored-attributes -Wno-deprecated-register -Wno-inconsistent-dllimport -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
 	WNDSUBSYS=-Wl,--subsystem,windows
 	ifndef DEBUG
 		CFLAGS+=-Wno-unused-value

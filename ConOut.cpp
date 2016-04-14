@@ -196,8 +196,8 @@ void Win32WcostreamBuf::SimulateEnterKey()
 
 void Win32WcostreamBuf::ClearScreen()
 {
-    DWORD ret_len;
-    CONSOLE_SCREEN_BUFFER_INFO csbi; 
+	DWORD ret_len;
+	CONSOLE_SCREEN_BUFFER_INFO csbi; 
 
 	if (GetConsoleScreenBufferInfo(hstdstream, &csbi))
 		if (FillConsoleOutputCharacter(hstdstream, L' ', csbi.dwSize.X*csbi.dwSize.Y, {0, 0}, &ret_len))					//Fill with blanks

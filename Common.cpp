@@ -140,16 +140,13 @@ void PrintUsage() {
 	Hout::Separator(L"/pid=PIDS", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load which PID belongs to PID array.",
 					4);
-	Hout::Separator(L"/d3d[:simple][:soft]", 2);
+	Hout::Separator(L"/d3d[:simple]", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load that uses DirectX (Direct3D).",
 					4);
-	Hout::Separator(L"/ogl[:simple][:soft]", 2);
+	Hout::Separator(L"/ogl[:simple]", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load that uses OpenGL.",
 					4);
-	Hout::Separator(L"/d2d[:simple][:strict]", 2);
-	Hout::Paragraph(L"Kill process with highest cpu load that uses DirectDraw (2D Acceleration).",
-					4);
-	Hout::Separator(L"/gld[:simple][:strict]", 2);
+	Hout::Separator(L"/gld[:simple]", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load that uses Glide (3Dfx).",
 					4);
 	Hout::Separator(L"/inr[:manual|:vista]", 2);
