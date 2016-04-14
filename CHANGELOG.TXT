@@ -1,6 +1,29 @@
-2016-04-13  Lcferrum <lcferrum@yandex.com>
+2016-04-14  Lcferrum <lcferrum@yandex.com>
 	
 	* Release 2.0
+	* Changed:
+		- Major refactoring, new object-oriented structure, moved to C++11 standard and UNICODE API
+		- Better process usage and killing algorithms
+		- Renamed 'ghost' parameter to 'vista' for /inr switch
+		- /fsc switch revamped, now works with multi-monitor setups and has new parameters
+		- Can now pass multiple wildcards to switches
+		- All path comparing is now case-insensitive
+	* Added:
+		- Windows NT4 support
+		- Clang compiler support
+		- Limited support for console output with windowless (hidden) version
+		- /fgd switch (kill process with foreground window)
+		- /pid switch (kill by PID)
+		- /blk switch (add to blacklist)
+		- /mod switch (kill by module name)
+		- +i/-i setting (ignore switch result and continue execution)
+		- +l/-l setting (loop switch)
+	* Removed:
+		- MSVC compiler support
+		- /d2d switch (kill DirectDraw process)
+		- 'strict' and 'soft' parameters from /ogl, /d3d and /gld switches
+		- 'lcase' parameter from /pth switch
+		- +k/-k setting (press any key, instead ENTER, on verbose)
 
 2013-03-01  Lcferrum <lcferrum@yandex.com>
 	
