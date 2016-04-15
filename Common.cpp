@@ -1,5 +1,6 @@
 #include "Hout.h"
 #include "Common.h"
+#include <algorithm>
 #include <iostream>
 
 #define SNK_VERSION L"v 2.0"
@@ -47,6 +48,63 @@ bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string) {
 		if (WildcardCmp(token, string)) return true;
 	
 	return false;
+}
+
+bool PidListCmp(const wchar_t* pid_list, std::vector<ULONG_PTR> *uptr_array, const ULONG_PTR *pid) 
+{
+	std::vector<ULONG_PTR> local_uptr_array;
+	
+	if (!uptr_array)
+		uptr_array=&local_uptr_array;
+	
+	if (pid_list) {
+		wchar_t buffer[wcslen(pid_list)+1];
+		wcscpy(buffer, pid_list);
+		
+		ULONG_PTR dw_pri, dw_sec, *pdw_cur=&dw_pri;
+		wchar_t* rtok;
+		bool cnv_err=false;
+		
+		for (wchar_t* token=wcstok(buffer, L",;"); token; token=wcstok(NULL, L",;")) {
+			for(;;) {
+				if (!*token||*token==L'-'||*token==L'+'||*token==L' ') {
+					cnv_err=true;
+					break;
+				}
+				*pdw_cur=wcstoul(token, &rtok, 0);
+				if ((*pdw_cur==0&&rtok==token)||(*pdw_cur==ULONG_MAX&&errno==ERANGE)||(*rtok&&(*rtok!=L'-'||pdw_cur!=&dw_pri))) {
+					cnv_err=true;
+					break;
+				}
+				if (*rtok) {
+					token=rtok+1;
+					pdw_cur=&dw_sec;
+				} else {
+					if (pdw_cur==&dw_sec) {
+						for (DWORD dw_i=dw_pri; uptr_array->push_back(dw_i), dw_i!=dw_sec; dw_pri<=dw_sec?dw_i++:dw_i--);
+						pdw_cur=&dw_pri;
+					} else
+						uptr_array->push_back(dw_pri);
+					break;
+				}
+			}
+			if (cnv_err) {
+				std::wcerr<<L"Warning: PID list \""<<pid_list<<L"\" is malformed, error in token \""<<token<<L"\"!"<<std::endl;
+				uptr_array->clear();
+				return false;
+			}
+		}
+		
+		//All this hassle with sorting, erasing and following binary_search is to speed up performance with big PID arrays
+		//Because intended use for this function is mass PID killing or killing single PIDs from vaguely known range
+		std::sort(uptr_array->begin(), uptr_array->end());
+		uptr_array->erase(std::unique(uptr_array->begin(), uptr_array->end()), uptr_array->end());
+	}
+	
+	if (pid)
+		return std::binary_search(uptr_array->begin(), uptr_array->end(), *pid);
+	else
+		return true;
 }
 
 HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMandatory) 

@@ -116,11 +116,11 @@ Switches:
                               application is hung. If 'manual', will check if
                               window is pumping any messages through it's
                               message loop to determine hung state. If 'vista', 
-                              will uses undocumented IsHungAppWindow analog
-                              from newer OS versions. Even if hung app not yet
-                              being marked as hung by Windows - default method
-                              will work most of the time, stick with it. Will 
-                              return positive result if process was found.
+                              will use undocumented IsHungAppWindow analog from
+                              newer OS versions. Even if hung app not yet being
+                              marked as hung by Windows - default method will
+                              work most of the time, stick with it. Will return 
+                              positive result if process was found.
 /fsc[:anywnd][:primary]          
                               Kill process that is running in fullscreen and
                               has highest cpu load. Works with multi-monitor

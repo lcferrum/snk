@@ -8,7 +8,8 @@
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 class Controller: private ProcessesPolicy, private KillersPolicy {
-	using ProcessesPolicy::AddToBlacklist;
+	using ProcessesPolicy::AddPathToBlacklist;
+	using ProcessesPolicy::AddPidToBlacklist;
 	using ProcessesPolicy::ClearBlacklist;
 	typedef typename KillersPolicy::InrMode InrMode;
 	using KillersPolicy::KillByCpu;
@@ -22,6 +23,7 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using KillersPolicy::KillByFsc;
 	using KillersPolicy::KillByFgd;
 private:
+	enum BlkMode:char {DEFAULT=0, FULL, PID, CLEAR};
 	struct {
 		bool first_run;
 		bool mode_blank;
@@ -32,13 +34,13 @@ private:
 		union {
 			bool param_first;
 			InrMode param_mode;
+			BlkMode param_blk_mode;
 			bool param_full;
 			bool param_simple;
 			bool param_anywnd;
 		};
 		union {
 			bool param_second;
-			bool param_clear;
 			bool param_primary;
 		}; 
 		std::wstring args;

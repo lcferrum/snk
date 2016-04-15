@@ -105,16 +105,28 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 	} else if (!rules.top().compare(L"-l")) {
 		ctrl_vars.mode_loop=false;
 	} else if (!rules.top().compare(L"/blk:full")) {
-		ctrl_vars.param_full=true;
+		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
+			ctrl_vars.param_blk_mode=BlkMode::FULL;
+		else
+			std::wcerr<<L"Warning: /blk:full parameter discarded!"<<std::endl;
 	} else if (!rules.top().compare(L"/blk:clear")) {
-		ctrl_vars.param_clear=true;
+		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
+			ctrl_vars.param_blk_mode=BlkMode::CLEAR;
+		else
+			std::wcerr<<L"Warning: /blk:clear parameter discarded!"<<std::endl;
+	} else if (!rules.top().compare(L"/blk:pid")) {
+		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
+			ctrl_vars.param_blk_mode=BlkMode::PID;
+		else
+			std::wcerr<<L"Warning: /blk:pid parameter discarded!"<<std::endl;
 	} else if (!rules.top().compare(L"/blk")) {
-		if (ctrl_vars.param_clear) {
-			if (ctrl_vars.param_full) std::wcerr<<L"Warning: /blk:full parameter will be ignored!"<<std::endl;
+		if (ctrl_vars.param_blk_mode==BlkMode::CLEAR) {
 			NoArgsAllowed(L"/blk:clear");
 			ClearBlacklist();
-		} else
-			AddToBlacklist(ctrl_vars.param_full, ctrl_vars.args.c_str());
+		} else if (ctrl_vars.param_blk_mode==BlkMode::PID)
+			AddPidToBlacklist(ctrl_vars.args.c_str());
+		else
+			AddPathToBlacklist(ctrl_vars.param_blk_mode==BlkMode::FULL, ctrl_vars.args.c_str());
 		ClearParamsAndArgs();
 	} else if (!rules.top().compare(L"/bpp")) {
 		NoArgsAllowed(rules.top());

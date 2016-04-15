@@ -46,7 +46,8 @@ bool Win32WcostreamBuf::Activate()
 		if (filetype==FILE_TYPE_UNKNOWN) {	
 			//Stdstream is going nowhere (or not valid) - try to attach parent console
 			if (!console_attached&&fnAttachConsole&&fnAttachConsole(ATTACH_PARENT_PROCESS)) {
-				console_attached++;		//Console attached but maybe unusable
+				//Console attached but maybe unusable
+				console_attached++;
 				if (GetConsoleMode(hstdstream, &conmode)) {
 					//We are the first to succesfully attach console so clear the screen and things will look prettier
 					ClearScreen();

@@ -96,14 +96,39 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 	return applied;
 }
 
-void Processes::AddToBlacklist(bool param_full, const wchar_t* arg_wcard)
+void Processes::AddPathToBlacklist(bool param_full, const wchar_t* arg_wcard)
 {
-	for (PData &data: CAN)
-		if (!data.GetBlacklisted()&&MultiWildcardCmp(arg_wcard, param_full?data.GetPath().c_str():data.GetName().c_str()))	
-			data.SetBlacklisted(true);
+	if (!arg_wcard)
+		arg_wcard=L"";
+	
+	if (wcslen(arg_wcard))
+		for (PData &data: CAN)
+			if (!data.GetBlacklisted()&&MultiWildcardCmp(arg_wcard, param_full?data.GetPath().c_str():data.GetName().c_str()))	
+				data.SetBlacklisted(true);		
 		
 #if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":AddToBlacklist:"<<__LINE__<<L": Dumping processes right after AddToBlacklist("<<(param_full?L"true":L"false")<<L", \""<<arg_wcard<<L"\")..."<<std::endl;
+	std::wcerr<<L"" __FILE__ ":AddPathToBlacklist:"<<__LINE__<<L": Dumping processes right after AddPathToBlacklist("<<(param_full?L"true":L"false")<<L", \""<<arg_wcard<<L"\")..."<<std::endl;
+	DumpProcesses();
+#endif
+}
+
+void Processes::AddPidToBlacklist(const wchar_t* arg_parray)
+{
+	std::vector<ULONG_PTR> uptr_array;
+	
+	if (arg_parray&&PidListCmp(arg_parray, uptr_array))	{
+		if (!uptr_array.empty())
+			for (PData &data: CAN)
+				if (!data.GetBlacklisted()&&PidListCmp(uptr_array, data.GetPID()))	
+					data.SetBlacklisted(true);
+	} else
+		arg_parray=L"";
+		
+#if DEBUG>=3
+	std::wcerr<<L"" __FILE__ ":AddPidToBlacklist:"<<__LINE__<<L": Dumping generated PID list for \""<<arg_parray<<L"\"..."<<std::endl;
+	for (ULONG_PTR &uptr_i: uptr_array)
+		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
+	std::wcerr<<L"" __FILE__ ":AddPidToBlacklist:"<<__LINE__<<L": Dumping processes right after AddPidToBlacklist(\""<<arg_parray<<L"\")..."<<std::endl;
 	DumpProcesses();
 #endif
 }

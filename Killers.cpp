@@ -126,60 +126,19 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 
 bool Killers::KillByPid(const wchar_t* arg_parray) 
 {
-	if (!arg_parray)
+	std::vector<ULONG_PTR> uptr_array;
+	
+	if (!arg_parray||!PidListCmp(arg_parray, uptr_array))
 		arg_parray=L"";
-
-	wchar_t buffer[wcslen(arg_parray)+1];
-	wcscpy(buffer, arg_parray);
-	
-	std::vector<DWORD> dw_array;
-	DWORD dw_pri, dw_sec, *pdw_cur=&dw_pri;
-	wchar_t* rtok;
-	bool cnv_err=false;
-	
-	for (wchar_t* token=wcstok(buffer, L",;"); token; token=wcstok(NULL, L",;")) {
-		for(;;) {
-			if (!*token||*token==L'-'||*token==L'+'||*token==L' ') {
-				cnv_err=true;
-				break;
-			}
-			*pdw_cur=wcstoul(token, &rtok, 0);
-			if ((*pdw_cur==0&&rtok==token)||(*pdw_cur==ULONG_MAX&&errno==ERANGE)||(*rtok&&(*rtok!=L'-'||pdw_cur!=&dw_pri))) {
-				cnv_err=true;
-				break;
-			}
-			if (*rtok) {
-				token=rtok+1;
-				pdw_cur=&dw_sec;
-			} else {
-				if (pdw_cur==&dw_sec) {
-					for (DWORD dw_i=dw_pri; dw_array.push_back(dw_i), dw_i!=dw_sec; dw_pri<=dw_sec?dw_i++:dw_i--);
-					pdw_cur=&dw_pri;
-				} else
-					dw_array.push_back(dw_pri);
-				break;
-			}
-		}
-		if (cnv_err) {
-			std::wcerr<<L"Warning: PID list \""<<arg_parray<<L"\" is malformed, error in token \""<<token<<L"\"!"<<std::endl;
-			dw_array.clear();
-			break;
-		}
-	}
-	
-	//All this hassle with sorting, erasing and following binary_search is to speed up performance with big PID arrays
-	//Because intended use for this function is mass PID killing or killing single PIDs from vaguely known range
-	std::sort(dw_array.begin(), dw_array.end());
-	dw_array.erase(std::unique(dw_array.begin(), dw_array.end()), dw_array.end());
 	
 #if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":KillByPid:"<<__LINE__<<L": Dumping generated PID list for \""<<(cnv_err?L"":arg_parray)<<L"\"..."<<std::endl;
-	for (DWORD &dw_i: dw_array)
-		std::wcerr<<L"\t\t"<<dw_i<<std::endl;
+	std::wcerr<<L"" __FILE__ ":KillByPid:"<<__LINE__<<L": Dumping generated PID list for \""<<arg_parray<<L"\"..."<<std::endl;
+	for (ULONG_PTR &uptr_i: uptr_array)
+		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
 #endif
 	
-	bool found=!dw_array.empty()&&ApplyToProcesses([this, arg_parray, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
-		if (std::binary_search(dw_array.begin(), dw_array.end(), PID)) {
+	bool found=!uptr_array.empty()&&ApplyToProcesses([this, arg_parray, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		if (PidListCmp(uptr_array, PID)) {
 			std::wcout<<L"Process that matches PID(s) \""<<arg_parray<<L"\" FOUND!"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -190,7 +149,7 @@ bool Killers::KillByPid(const wchar_t* arg_parray)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process that matches PID(s) \""<<(cnv_err?L"":arg_parray)<<L"\" NOT found"<<std::endl;
+		std::wcout<<L"Process that matches PID(s) \""<<arg_parray<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -400,7 +359,7 @@ bool Killers::WithinRect(const RECT &outer, const RECT &inner)
 
 bool Killers::KillByInr(InrMode param_mode) 
 {
-	std::vector<DWORD> dw_array;
+	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
 
 #if DEBUG>=2
 	if (!fnNtUserHungWindowFromGhostWindow) {
@@ -492,7 +451,7 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 
 bool Killers::KillByFsc(bool param_anywnd, bool param_primary) 
 {
-	std::vector<DWORD> dw_array;
+	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
 	std::vector<RECT> disp_array;
 	
 	//So what's the deal with EnumDisplayDevicesWrapper and intersecting switch/while?

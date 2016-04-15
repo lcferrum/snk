@@ -76,9 +76,12 @@ protected:
 	//If mode_loop - ignores return result and loops till the end of CAN (disabled processes are still marked)
 	bool ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&)> mutator);
 
-	//Adds processes that are forbidden to kill to blacklist
+	//Adds processes that are forbidden to kill to blacklist using path
 	//If param_full - uses full process path instead just name
-	void AddToBlacklist(bool param_full, const wchar_t* arg_wcard);	
+	void AddPathToBlacklist(bool param_full, const wchar_t* arg_wcard);	
+	
+	//Adds processes that are forbidden to kill to blacklist using PID
+	void AddPidToBlacklist(const wchar_t* arg_parray);
 
 	//Clears blacklist of untouchable processes
 	void ClearBlacklist();
