@@ -49,7 +49,6 @@ typedef BOOL (WINAPI *pPathFindOnPathW)(LPWSTR lpszFile, LPCWSTR* lppszOtherDirs
 typedef BOOL (WINAPI *pWow64DisableWow64FsRedirection)(PVOID *OldValue);
 typedef BOOL (WINAPI *pWow64RevertWow64FsRedirection)(PVOID OldValue);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
-typedef UINT (WINAPI *pSendInput)(UINT nInputs, LPINPUT pInputs, int cbSize);
 typedef std::function<void(void)> pWcoutMessageBox;
 
 #endif //EXTRA_H

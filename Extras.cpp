@@ -16,7 +16,6 @@ pPathFindOnPathW fnPathFindOnPathW=NULL;
 pWow64DisableWow64FsRedirection fnWow64DisableWow64FsRedirection=NULL;
 pWow64RevertWow64FsRedirection fnWow64RevertWow64FsRedirection=NULL;
 pAttachConsole fnAttachConsole=NULL;
-pSendInput fnSendInput=NULL;
 pWcoutMessageBox fnWcoutMessageBox;
 
 std::unique_ptr<Extras> Extras::instance;
@@ -35,7 +34,7 @@ Extras::Extras(bool hidden, const wchar_t* caption):
 	} else {
 		CONSOLE_SCREEN_BUFFER_INFO csbi; 
 		HANDLE hstdout;
-		if ((hstdout=GetStdHandle(STD_OUTPUT_HANDLE))!=INVALID_HANDLE_VALUE)	//STD_OUTPUT_HANDLE - because Hout will ootput to std::wcout
+		if ((hstdout=GetStdHandle(STD_OUTPUT_HANDLE))!=INVALID_HANDLE_VALUE)	//STD_OUTPUT_HANDLE - because Hout will output to std::wcout
 			if (GetConsoleScreenBufferInfo(hstdout, &csbi))
 				Hout::SetTerminalSize(csbi.dwSize.X);
 	}
@@ -70,7 +69,6 @@ void Extras::LoadFunctions()
 
 	if (hUser32) {
 		fnNtUserHungWindowFromGhostWindow=(pNtUserHungWindowFromGhostWindow)GetProcAddress(hUser32, "HungWindowFromGhostWindow");
-		fnSendInput=(pSendInput)GetProcAddress(hUser32, "SendInput");
 	}
 	
 	if (hNtDll) {

@@ -5,7 +5,6 @@
 #include <iostream>
 
 extern pAttachConsole fnAttachConsole;
-extern pSendInput fnSendInput;
 
 int Win32WcostreamBuf::console_attached=0;
 
@@ -187,12 +186,11 @@ bool Win32WcostreamBuf::WriteBuffer()
 
 void Win32WcostreamBuf::SimulateEnterKey()
 {
-	if (!fnSendInput)
-		return;
-	
-	INPUT ip={INPUT_KEYBOARD};
-	ip.ki={VK_RETURN, (WORD)MapVirtualKeyEx(VK_RETURN, MAPVK_VK_TO_VSC, GetKeyboardLayout(0))};
-	fnSendInput(1, &ip, sizeof(INPUT));
+	//Unfortunately, can't use SendInput here because it sends keystrokes not to app's own window but to currently active window
+	LPARAM lParam=MapVirtualKeyEx(VK_RETURN, MAPVK_VK_TO_VSC, GetKeyboardLayout(0))<<16&0x00FF0000;
+	PostMessage(GetConsoleWindow(), WM_KEYDOWN, VK_RETURN, lParam|0x00000001);
+	Sleep(0);	//This will force current thread to relinquish the remainder of it's time slice so WM_KEYUP will not be send in the same time slice as WM_KEYDOWN
+	PostMessage(GetConsoleWindow(), WM_KEYUP, VK_RETURN, lParam|0xC0000001);
 }
 
 void Win32WcostreamBuf::ClearScreen()
