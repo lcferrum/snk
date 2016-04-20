@@ -72,7 +72,20 @@ bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 template <typename ProcessesPolicy, typename KillersPolicy>	
 void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath)
 {
-	//std::wcout<<L"Loading additional commands from \""<<arg_cmdpath<<"\"."<<std::endl;
+	//No point in using wifstream
+	//First, filename parameter for constructor and open() is const char*, not const wchar_t*
+	//Second, it reads file BYTE by BYTE, putting every single BYTE in separate wchar_t (even if file is in Unicode)
+	//Third, it completely ignores BOM treating them as ordinary characters
+	//Win32 ReadFile is the way here
+	
+	//TODO:
+	//Process 4 cases:
+	//First 2 bytes is UTF-16 LE BOM
+	//First 2 bytes is UTF-16 BE BOM
+	//First 3 bytes is UTF-8 BOM
+	//No BOM found in first 3 bytes - ANSI using default CP
+	//Convert to wchar_t (UTF-16 LE)
+	//EOL in all cases is CR+LF (\r\n)
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
