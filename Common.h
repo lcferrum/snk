@@ -2,12 +2,18 @@
 #define HELP_H
 
 #include <vector>
+#include <stack>
+#include <string>
 #include <windows.h>
 
 void PrintUsage();
 void PrintVersion();
 
+
 bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string);
+
+//Will irreversibly destroy ARGV and ARGC
+void MakeRulesFromArgv(int &argc, wchar_t** &argv, std::stack<std::wstring> &rules);
 
 //Returns compare result (PID found in list or not) or list processing result (without errors or not)
 //If pid_list=NULL - won't process list and will use supplied uptr_array

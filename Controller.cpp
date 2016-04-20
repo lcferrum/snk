@@ -13,7 +13,7 @@ extern pWcoutMessageBox fnWcoutMessageBox;
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 Controller<ProcessesPolicy, KillersPolicy>::Controller():
-	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}
+	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, sec_mutex(NULL)
 {}
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -40,7 +40,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput()
 template <typename ProcessesPolicy, typename KillersPolicy>	
 bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 {
-	if (ctrl_vars.sec_mutex) {
+	if (sec_mutex) {
 		std::wcout<<L"Secured execution: this instance is already secured!"<<std::endl;
 		return false;
 	}
@@ -51,14 +51,14 @@ bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 	if (!SetSecurityDescriptorDacl(p_mutex_sd, true, (PACL)NULL, true)) return false;
 	
 	SECURITY_ATTRIBUTES mutex_sa={sizeof(SECURITY_ATTRIBUTES), p_mutex_sd, false};
-	ctrl_vars.sec_mutex=CreateMutex(&mutex_sa, false, MUTEX_NAME);
+	sec_mutex=CreateMutex(&mutex_sa, false, MUTEX_NAME);
 	LocalFree(p_mutex_sd);
 	
-	if (ctrl_vars.sec_mutex) {
+	if (sec_mutex) {
 		if (GetLastError()==ERROR_ALREADY_EXISTS) {
 			std::wcout<<L"Secured execution: another secured SnK instance is already running!"<<std::endl;
-			CloseHandle(ctrl_vars.sec_mutex);
-			ctrl_vars.sec_mutex=NULL;
+			CloseHandle(sec_mutex);
+			sec_mutex=NULL;
 			return true;
 		} else {
 			std::wcout<<L"Secured execution: SnK instance secured!"<<std::endl;
@@ -67,6 +67,12 @@ bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 	}
 	
 	return false;
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath)
+{
+	//std::wcout<<L"Loading additional commands from \""<<arg_cmdpath<<"\"."<<std::endl;
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -79,47 +85,49 @@ void Controller<ProcessesPolicy, KillersPolicy>::ClearParamsAndArgs()
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<std::wstring> &rules)
-{
-	bool done=false;
-	
+{	
 	if (rules.empty()) return false;
 	
-	if (!rules.top().compare(L"+t")) {
+	bool done=false;
+	std::wstring top_rule=std::move(rules.top());
+	rules.pop();
+	
+	if (!top_rule.compare(L"+t")) {
 		ctrl_vars.mode_blank=true;
-	} else if (!rules.top().compare(L"-t")) {
+	} else if (!top_rule.compare(L"-t")) {
 		ctrl_vars.mode_blank=false;
-	} else if (!rules.top().compare(L"+i")) {
+	} else if (!top_rule.compare(L"+i")) {
 		ctrl_vars.mode_ignore=true;
-	} else if (!rules.top().compare(L"-i")) {
+	} else if (!top_rule.compare(L"-i")) {
 		ctrl_vars.mode_ignore=false;
-	} else if (!rules.top().compare(L"+v")) {
+	} else if (!top_rule.compare(L"+v")) {
 		ctrl_vars.mode_verbose=true;
-	} else if (!rules.top().compare(L"-v")) {
+	} else if (!top_rule.compare(L"-v")) {
 		ctrl_vars.mode_verbose=false;
-	} else if (!rules.top().compare(L"+a")) {
+	} else if (!top_rule.compare(L"+a")) {
 		ctrl_vars.mode_all=true;
-	} else if (!rules.top().compare(L"-a")) {
+	} else if (!top_rule.compare(L"-a")) {
 		ctrl_vars.mode_all=false;
-	} else if (!rules.top().compare(L"+l")) {
+	} else if (!top_rule.compare(L"+l")) {
 		ctrl_vars.mode_loop=true;
-	} else if (!rules.top().compare(L"-l")) {
+	} else if (!top_rule.compare(L"-l")) {
 		ctrl_vars.mode_loop=false;
-	} else if (!rules.top().compare(L"/blk:full")) {
+	} else if (!top_rule.compare(L"/blk:full")) {
 		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
 			ctrl_vars.param_blk_mode=BlkMode::FULL;
 		else
 			std::wcerr<<L"Warning: /blk:full parameter discarded!"<<std::endl;
-	} else if (!rules.top().compare(L"/blk:clear")) {
+	} else if (!top_rule.compare(L"/blk:clear")) {
 		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
 			ctrl_vars.param_blk_mode=BlkMode::CLEAR;
 		else
 			std::wcerr<<L"Warning: /blk:clear parameter discarded!"<<std::endl;
-	} else if (!rules.top().compare(L"/blk:pid")) {
+	} else if (!top_rule.compare(L"/blk:pid")) {
 		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
 			ctrl_vars.param_blk_mode=BlkMode::PID;
 		else
 			std::wcerr<<L"Warning: /blk:pid parameter discarded!"<<std::endl;
-	} else if (!rules.top().compare(L"/blk")) {
+	} else if (!top_rule.compare(L"/blk")) {
 		if (ctrl_vars.param_blk_mode==BlkMode::CLEAR) {
 			NoArgsAllowed(L"/blk:clear");
 			ClearBlacklist();
@@ -128,16 +136,19 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		else
 			AddPathToBlacklist(ctrl_vars.param_blk_mode==BlkMode::FULL, ctrl_vars.args.c_str());
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/bpp")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/bpp")) {
+		NoArgsAllowed(top_rule);
 		MessageBeep(MB_ICONINFORMATION);
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/sec")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/sec")) {
+		NoArgsAllowed(top_rule);
 		while ((done=SecuredExecution())&&ctrl_vars.mode_loop) 
 			Sleep(1000);
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/hlp")) {
+	} else if (!top_rule.compare(L"/cmd")) {
+		ProcessCmdFile(rules, ctrl_vars.args.c_str());
+		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/hlp")) {
 		if (ctrl_vars.first_run) {
 			PrintUsage();
 			done=true;
@@ -146,7 +157,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 #endif
 		} else
 			std::wcerr<<L"Warning: /hlp switch will be ignored!"<<std::endl;
-	} else if (!rules.top().compare(L"/ver")) {
+	} else if (!top_rule.compare(L"/ver")) {
 		if (ctrl_vars.first_run) {
 			PrintVersion();
 			done=true;
@@ -155,77 +166,77 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 #endif
 		} else
 			std::wcerr<<L"Warning: /ver switch will be ignored!"<<std::endl;
-	} else if (!rules.top().compare(L"/cpu")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/cpu")) {
+		NoArgsAllowed(top_rule);
 		done=KillByCpu();
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/pth:full")) {
+	} else if (!top_rule.compare(L"/pth:full")) {
 		ctrl_vars.param_full=true;
-	} else if (!rules.top().compare(L"/pth")) {
+	} else if (!top_rule.compare(L"/pth")) {
 		done=KillByPth(ctrl_vars.param_full, ctrl_vars.args.c_str());
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/mod:full")) {
+	} else if (!top_rule.compare(L"/mod:full")) {
 		ctrl_vars.param_full=true;
-	} else if (!rules.top().compare(L"/mod")) {
+	} else if (!top_rule.compare(L"/mod")) {
 		done=KillByMod(ctrl_vars.param_full, ctrl_vars.args.c_str());
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/pid")) {
+	} else if (!top_rule.compare(L"/pid")) {
 		done=KillByPid(ctrl_vars.args.c_str());
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/d3d:simple")) {
+	} else if (!top_rule.compare(L"/d3d:simple")) {
 		ctrl_vars.param_simple=true;
-	} else if (!rules.top().compare(L"/d3d")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/d3d")) {
+		NoArgsAllowed(top_rule);
 		done=KillByD3d(ctrl_vars.param_simple);
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/ogl:simple")) {
+	} else if (!top_rule.compare(L"/ogl:simple")) {
 		ctrl_vars.param_simple=true;
-	} else if (!rules.top().compare(L"/ogl")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/ogl")) {
+		NoArgsAllowed(top_rule);
 		done=KillByOgl(ctrl_vars.param_simple);
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/gld:simple")) {
+	} else if (!top_rule.compare(L"/gld:simple")) {
 		ctrl_vars.param_simple=true;
-	} else if (!rules.top().compare(L"/gld")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/gld")) {
+		NoArgsAllowed(top_rule);
 		done=KillByGld(ctrl_vars.param_simple);
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/inr:vista")) {
+	} else if (!top_rule.compare(L"/inr:vista")) {
 		if (ctrl_vars.param_mode==InrMode::DEFAULT)
 			ctrl_vars.param_mode=InrMode::VISTA;
 		else
 			std::wcerr<<L"Warning: /inr:vista parameter will be ignored!"<<std::endl;
-	} else if (!rules.top().compare(L"/inr:manual")) {
+	} else if (!top_rule.compare(L"/inr:manual")) {
 		if (ctrl_vars.param_mode==InrMode::DEFAULT)
 			ctrl_vars.param_mode=InrMode::MANUAL;
 		else
 			std::wcerr<<L"Warning: /inr:manual parameter will be ignored!"<<std::endl;
-	} else if (!rules.top().compare(L"/inr")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/inr")) {
+		NoArgsAllowed(top_rule);
 		done=KillByInr(ctrl_vars.param_mode);
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/fsc:anywnd")) {
+	} else if (!top_rule.compare(L"/fsc:anywnd")) {
 		ctrl_vars.param_anywnd=true;
-	} else if (!rules.top().compare(L"/fsc:primary")) {
+	} else if (!top_rule.compare(L"/fsc:primary")) {
 		ctrl_vars.param_primary=true;
-	} else if (!rules.top().compare(L"/fsc")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/fsc")) {
+		NoArgsAllowed(top_rule);
 		done=KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary);
 		ClearParamsAndArgs();
-	} else if (!rules.top().compare(L"/fgd")) {
-		NoArgsAllowed(rules.top());
+	} else if (!top_rule.compare(L"/fgd")) {
+		NoArgsAllowed(top_rule);
 		done=KillByFgd();
 		ClearParamsAndArgs();
-	} else if (rules.top().front()==L'=') {
-		ctrl_vars.args=rules.top().substr(1);
+	} else if (top_rule.front()==L'=') {
+		ctrl_vars.args=top_rule.substr(1);
 	} else {
-		if (rules.top().front()==L'+'||rules.top().front()==L'-') {
-			std::wcerr<<L"Warning: unknown setting "<<rules.top()<<L"!"<<std::endl;
+		if (top_rule.front()==L'+'||top_rule.front()==L'-') {
+			std::wcerr<<L"Warning: unknown setting "<<top_rule<<L"!"<<std::endl;
 		} else {
-			if (rules.top().find(L':')!=std::wstring::npos) {
-				std::wcerr<<L"Warning: unknown parameter "<<rules.top()<<L"!"<<std::endl;
+			if (top_rule.find(L':')!=std::wstring::npos) {
+				std::wcerr<<L"Warning: unknown parameter "<<top_rule<<L"!"<<std::endl;
 			} else {
-				std::wcerr<<L"Warning: unknown switch "<<rules.top()<<L"!"<<std::endl;
+				std::wcerr<<L"Warning: unknown switch "<<top_rule<<L"!"<<std::endl;
 				if (!ctrl_vars.args.empty()) {
 					std::wcerr<<L"Warning: no arguments allowed for unknown switch (\""<<ctrl_vars.args<<L"\")!"<<std::endl;
 					ctrl_vars.args.clear();
@@ -234,9 +245,8 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		}
 	}
 
-	rules.pop();
 	ctrl_vars.first_run=false;
-	return !rules.empty()&&(!done||ctrl_vars.mode_ignore);
+	return !done||ctrl_vars.mode_ignore;
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -246,7 +256,10 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 	
 	if (ctrl_vars.mode_verbose) WaitForUserInput();
 	
-	if (ctrl_vars.sec_mutex) CloseHandle(ctrl_vars.sec_mutex);
+	if (sec_mutex) { 
+		CloseHandle(sec_mutex);
+		sec_mutex=NULL;
+	}
 	
 	ctrl_vars={true};
 }

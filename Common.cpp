@@ -40,7 +40,8 @@ bool WildcardCmp(const wchar_t* wild, const wchar_t* string)
 	return !*wild;
 }
 
-bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string) {
+bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string) 
+{
 	wchar_t buffer[wcslen(wild)+1];
 	wcscpy(buffer, wild);
 	
@@ -48,6 +49,45 @@ bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string) {
 		if (WildcardCmp(token, string)) return true;
 	
 	return false;
+}
+
+void MakeRulesFromArgv(int &argc, wchar_t** &argv, std::stack<std::wstring> &rules)
+{
+	wchar_t *head, *token;
+	while (argc-->1) switch (*argv[argc]) {
+		case L'/':
+			if ((token=wcschr(argv[argc], L'=')))
+				*token++=L'\0';
+		
+			rules.push((head=wcstok(argv[argc], L":")));
+			
+			if (token)
+				rules.push(std::wstring(L"=")+token);
+			
+			while ((token=wcstok(NULL, L":")))
+				rules.push(head+std::wstring(L":")+token);
+			
+			continue;
+		case L'+':
+		case L'-':
+			head=argv[argc];
+		
+			while (*++argv[argc]!=L'\0')
+				rules.push({*head, *argv[argc]});
+			
+			continue;
+		default:
+			std::wcerr<<L"Warning: unknown input: "<<argv[argc]<<std::endl;
+	}
+	
+#if DEBUG>=3
+	std::stack<std::wstring> _rules=rules;
+	std::wcerr<<L"" __FILE__ ":MakeRulesFromArgv:"<<__LINE__<<L": Rules (unfolding stack)..."<<std::endl;
+	while (!_rules.empty()) {
+		std::wcerr<<L"\t\t"<<_rules.top()<<std::endl;
+		_rules.pop();
+	}
+#endif
 }
 
 bool PidListCmp(const wchar_t* pid_list, std::vector<ULONG_PTR> *uptr_array, const ULONG_PTR *pid) 

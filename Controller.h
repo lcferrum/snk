@@ -44,13 +44,15 @@ private:
 			bool param_primary;
 		}; 
 		std::wstring args;
-		HANDLE sec_mutex;
 	} ctrl_vars;
+	
+	HANDLE sec_mutex;
 	
 	void ClearParamsAndArgs();
 	void NoArgsAllowed(const std::wstring &sw);
 	void WaitForUserInput();
 	bool SecuredExecution();
+	void ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath);
 	bool MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
 	virtual bool ModeAll() { return ctrl_vars.mode_all; }
