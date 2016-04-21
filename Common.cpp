@@ -77,6 +77,7 @@ void MakeRulesFromArgv(int argc, wchar_t** argv, std::stack<std::wstring> &rules
 			
 			continue;
 		case L'#':
+		case L'\0':
 			continue;
 		default:
 			std::wcerr<<L"Warning: unknown input: "<<argv[argc]<<std::endl;

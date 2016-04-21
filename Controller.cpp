@@ -95,8 +95,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 		BYTE bom_sz;
 		
 		if (ReadFile(h_cmdfile, &bom, 3, &buf_len, NULL)) {
-			
-			//This function requires 2-byte NULL-terminated array, no matter what actual coding is
+			//This function requires 2-byte-NULL-terminated array, no matter what actual coding is
 			//It converts BYTE array to NULL-terminated wchar_t array
 			std::function<void(BYTE* &cmdline)> fnConvertCmdline;
 			
@@ -149,7 +148,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 			
 			//Not using lpFileSizeHigh for GetFileSize()
 			//Sorry guys, 4GB file limit - deal with it
-			//Also don't bother dealing with zero-length files
+			//Also don't bother processing zero-length files
 			if (SetFilePointer(h_cmdfile, bom_sz, NULL, FILE_BEGIN)!=INVALID_SET_FILE_POINTER&&(buf_len=GetFileSize(h_cmdfile, NULL))!=INVALID_FILE_SIZE&&(buf_len-=bom_sz)) {
 				//+2 bytes for the 2-byte NULL terminator (ConvertCmdline requirement)
 				BYTE *cmdfile_buf=new BYTE[buf_len+2];

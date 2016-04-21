@@ -12,8 +12,8 @@ void PrintVersion();
 
 bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string);
 
-//Will irreversibly destroy ARGV and ARGC
-//skip_argc - how many first ARGVs will be skipped
+//Warning: will corrupt ARGV beyond repair
+//skip_argc - how many ARGVs will be skipped (first ARGV is typically program path)
 void MakeRulesFromArgv(int argc, wchar_t** argv, std::stack<std::wstring> &rules, int skip_argc=1);
 
 //Returns compare result (PID found in list or not) or list processing result (without errors or not)
