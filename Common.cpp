@@ -51,10 +51,10 @@ bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string)
 	return false;
 }
 
-void MakeRulesFromArgv(int &argc, wchar_t** &argv, std::stack<std::wstring> &rules)
+void MakeRulesFromArgv(int argc, wchar_t** argv, std::stack<std::wstring> &rules, int skip_argc)
 {
 	wchar_t *head, *token;
-	while (argc-->1) switch (*argv[argc]) {
+	while (argc-->skip_argc) switch (*argv[argc]) {
 		case L'/':
 			if ((token=wcschr(argv[argc], L'=')))
 				*token++=L'\0';
@@ -75,6 +75,8 @@ void MakeRulesFromArgv(int &argc, wchar_t** &argv, std::stack<std::wstring> &rul
 			while (*++argv[argc]!=L'\0')
 				rules.push({*head, *argv[argc]});
 			
+			continue;
+		case L'#':
 			continue;
 		default:
 			std::wcerr<<L"Warning: unknown input: "<<argv[argc]<<std::endl;

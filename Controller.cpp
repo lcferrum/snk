@@ -4,6 +4,8 @@
 #include "Controller.h"
 #include <stdio.h>
 #include <iostream>
+#include <functional>
+#include <memory>
 #include <limits>	//numeric_limits
 #include <conio.h>
 
@@ -75,17 +77,110 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 	//No point in using wifstream
 	//First, filename parameter for constructor and open() is const char*, not const wchar_t*
 	//Second, it reads file BYTE by BYTE, putting every single BYTE in separate wchar_t (even if file is in Unicode)
-	//Third, it completely ignores BOM treating them as ordinary characters
+	//Third, it completely ignores BOM treating it as set of ordinary characters
 	//Win32 ReadFile is the way here
 	
-	//TODO:
-	//Process 4 cases:
-	//First 2 bytes is UTF-16 LE BOM
-	//First 2 bytes is UTF-16 BE BOM
-	//First 3 bytes is UTF-8 BOM
-	//No BOM found in first 3 bytes - ANSI using default CP
-	//Convert to wchar_t (UTF-16 LE)
-	//EOL in all cases is CR+LF (\r\n)
+	//Word on limit of cmdline
+	//Raymond Chen has a good blog post on this: https://blogs.msdn.microsoft.com/oldnewthing/20031210-00/?p=41553/
+	//Short answer: "it depends"
+	//Depends on the method which was used to launch a program
+	//The best you can get is 32767 (char/wchar_t) using CreateProcess()
+	//CommandLineToArgvW doesn't have any pre-set limitations
+	//It is only limited by internal variable sizes for ARGV buffer size and number of arguments (ARGC) - all are INTs (signed 4-byte integers)
+	//So any cmdline that won't cause overflow of mentioned vars is good to go
+	
+	HANDLE h_cmdfile;
+	if ((h_cmdfile=CreateFile(arg_cmdpath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL|FILE_FLAG_SEQUENTIAL_SCAN, NULL))!=INVALID_HANDLE_VALUE) {
+		DWORD buf_len, bom=0;	//Initialize BOM with 0 so unread bytes won't be filled with garbage
+		BYTE bom_sz;
+		
+		if (ReadFile(h_cmdfile, &bom, 3, &buf_len, NULL)) {
+			
+			//This function requires 2-byte NULL-terminated array, no matter what actual coding is
+			//It converts BYTE array to NULL-terminated wchar_t array
+			std::function<void(BYTE* &cmdline)> fnConvertCmdline;
+			
+			if ((bom&0xFFFF)==0xFEFF) {				//UTF16 LE (ordinary Windows Unicode)
+				fnConvertCmdline=[](BYTE* &cmdline){
+					//Nothing to be done here, cmdline is already NULL-terminated wchar_t array, just type cast it
+				};
+				bom_sz=2;
+			} else if ((bom&0xFFFF)==0xFFFE) {		//UTF16 BE
+				fnConvertCmdline=[](BYTE* &cmdline){
+					//Already NULL-terminated, just need to reverse BYTE pairs to make it wchar_t array
+					wchar_t* wcmdline=(wchar_t*)cmdline;
+					while (*wcmdline) {
+						*wcmdline=*wcmdline>>8&0xFF|*wcmdline<<8;	//Signedness of wchar_t is implementation defined so don't expect right shift to be padded with zeroes
+						wcmdline++;
+					}
+				};
+				bom_sz=2;
+			} else if ((bom&0xFFFFFF)==0xBFBBEF) {	//UTF8
+				fnConvertCmdline=[](BYTE* &cmdline){
+					//Need to convert from UTF8 to wchar_t
+					if (int wchars_num=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, NULL, 0)) {
+						BYTE *wcmdline=new BYTE[wchars_num*2];
+						if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, (wchar_t*)wcmdline, wchars_num)) {
+							delete[] cmdline;
+							cmdline=wcmdline;
+							return;
+						}
+						delete[] wcmdline;
+					}
+					*(wchar_t*)cmdline=L'\0';
+				};
+				bom_sz=3;
+			} else {								//ANSI
+				fnConvertCmdline=[](BYTE* &cmdline){
+					//Need to convert from ANSI to wchar_t
+					if (int wchars_num=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, NULL, 0)) {
+						BYTE *wcmdline=new BYTE[wchars_num*2];
+						if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, (wchar_t*)wcmdline, wchars_num)) {
+							delete[] cmdline;
+							cmdline=wcmdline;
+							return;
+						}
+						delete[] wcmdline;
+					}
+					*(wchar_t*)cmdline=L'\0';
+				};
+				bom_sz=0;
+			}
+			
+			//Not using lpFileSizeHigh for GetFileSize()
+			//Sorry guys, 4GB file limit - deal with it
+			//Also don't bother dealing with zero-length files
+			if (SetFilePointer(h_cmdfile, bom_sz, NULL, FILE_BEGIN)!=INVALID_SET_FILE_POINTER&&(buf_len=GetFileSize(h_cmdfile, NULL))!=INVALID_FILE_SIZE&&(buf_len-=bom_sz)) {
+				//+2 bytes for the 2-byte NULL terminator (ConvertCmdline requirement)
+				BYTE *cmdfile_buf=new BYTE[buf_len+2];
+				//Yep, reading whole file in one pass
+				if (ReadFile(h_cmdfile, cmdfile_buf, buf_len, &buf_len, NULL)) {
+					*(wchar_t*)(cmdfile_buf+buf_len)=L'\0';
+					fnConvertCmdline(cmdfile_buf);
+					
+					//Changing all \n and \r symbols to spaces
+					wchar_t* wcmdfile_buf=(wchar_t*)cmdfile_buf;
+					while (*wcmdfile_buf) {
+						if (*wcmdfile_buf==L'\r'||*wcmdfile_buf==L'\n')
+							*wcmdfile_buf=L' ';
+						wcmdfile_buf++;
+					}
+					
+					//Getting ARGV/ARGC and pushing them to rules stack
+					wchar_t** cmd_argv;
+					int cmd_argc;
+					if ((cmd_argv=CommandLineToArgvW((wchar_t*)cmdfile_buf, &cmd_argc))) {
+						MakeRulesFromArgv(cmd_argc, cmd_argv, rules, 0);
+						LocalFree(cmd_argv);
+					}
+				}
+				delete[] cmdfile_buf;
+			}				
+		}
+		
+		CloseHandle(h_cmdfile);
+	} else
+		std::wcerr<<L"Warning: failed to open \""<<arg_cmdpath<<L"\" for command processing!"<<std::endl;
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
