@@ -215,6 +215,12 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		ctrl_vars.mode_all=true;
 	} else if (!top_rule.compare(L"-a")) {
 		ctrl_vars.mode_all=false;
+	} else if (!top_rule.compare(L"+r")) {
+		ctrl_vars.mode_recent=true;
+		SortByRecentlyCreated();
+	} else if (!top_rule.compare(L"-r")) {
+		ctrl_vars.mode_recent=false;
+		SortByCpuUsage();
 	} else if (!top_rule.compare(L"+l")) {
 		ctrl_vars.mode_loop=true;
 	} else if (!top_rule.compare(L"-l")) {

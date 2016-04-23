@@ -31,6 +31,7 @@ public:
 	
 	ULONG_PTR GetPID() const { return pid; }
 	ULONGLONG GetDelta() const { return prc_time_dlt; }
+	ULONGLONG GetCrtTime() const { return crt_time; }
 	bool GetOddEnum() const { return odd_enum; }
 	bool GetSystem() const { return system; }
 	bool GetDisabled() const { return disabled; }
@@ -85,6 +86,12 @@ protected:
 
 	//Clears blacklist of untouchable processes
 	void ClearBlacklist();
+	
+	//Sorts processes list by CPU usage
+	void SortByCpuUsage();
+	
+	//Sorts processes list by creation time
+	void SortByRecentlyCreated();
 	
 	//Prints content of CAN 
 	//Mainly for DEBUG

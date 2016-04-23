@@ -57,7 +57,7 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name)
 bool Killers::KillByCpu() 
 {
 	bool found=ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
-		std::wcout<<L"Process with highest cpu usage FOUND!"<<std::endl;
+		std::wcout<<(ModeRecent()?L"Most recently created process FOUND!":L"Process with highest cpu usage FOUND!")<<std::endl;
 		KillProcess(PID, name);
 		return true;
 	});
@@ -65,7 +65,7 @@ bool Killers::KillByCpu()
 	if (found) {
 		return true;
 	} else {
-		std::wcout<<L"Process with highest cpu usage NOT found!"<<std::endl;
+		std::wcout<<(ModeRecent()?L"Most recently created process NOT found!":L"Process with highest cpu usage NOT found!")<<std::endl;
 		return false;
 	}
 }

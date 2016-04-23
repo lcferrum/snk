@@ -18,6 +18,7 @@ private:
 	static BOOL CALLBACK EnumWndFsc(HWND hwnd, LPARAM lParam);
 	
 	virtual bool ModeBlank()=0;
+	virtual bool ModeRecent()=0;
 protected:	
 	//Kills process with highest cpu load
 	bool KillByCpu();

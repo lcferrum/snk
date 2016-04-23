@@ -60,11 +60,6 @@ Processes::Processes():
 	CoInitialize(NULL);			//COM is needed for GetLongPathName implementation from newapis.h
 		
 	EnumProcessUsage();
-	
-#ifdef DEBUG
-	std::wcerr<<L"" __FILE__ ":Processes:"<<__LINE__<<L": Dumping processes right after EnumProcessUsage..."<<std::endl;
-	DumpProcesses();
-#endif
 }
 
 Processes::~Processes()
@@ -128,6 +123,8 @@ void Processes::AddPidToBlacklist(const wchar_t* arg_parray)
 	std::wcerr<<L"" __FILE__ ":AddPidToBlacklist:"<<__LINE__<<L": Dumping generated PID list for \""<<arg_parray<<L"\"..."<<std::endl;
 	for (ULONG_PTR &uptr_i: uptr_array)
 		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
+#endif
+#ifdef DEBUG
 	std::wcerr<<L"" __FILE__ ":AddPidToBlacklist:"<<__LINE__<<L": Dumping processes right after AddPidToBlacklist(\""<<arg_parray<<L"\")..."<<std::endl;
 	DumpProcesses();
 #endif
@@ -147,12 +144,36 @@ void Processes::EnumProcessUsage()
 	
 	EnumProcessTimes(false);
 	
-	//PIDs were added to the CAN in the creation order (last created PIDs are at the end of the list)
-	//Using stable_sort we preserve this original order for PIDs with equal CPU load
+	SortByCpuUsage();
+}
+
+void Processes::SortByCpuUsage()
+{
+	//This is default sorting
+	//In EnumProcessTimes PIDs are added to the CAN in the creation order (last created PIDs are at the end of the list)
+	//SortByRecentlyCreated also sorts PIDs in creation order using process creation time
+	//Using stable_sort we preserve this order for PIDs with equal CPU load
 	//Compare function sorts PIDs in ascending order so reverse iterator is used for accessing PIDs
 	//Considering sorting order and stable sort algorithm we will first get PIDs with highest CPU load
-	//and, in the case of equal CPU load, last created PID will be selected
+	//And, in the case of equal CPU load, last created PID will be selected
 	std::stable_sort(CAN.begin(), CAN.end());
+	
+#ifdef DEBUG
+	std::wcerr<<L"" __FILE__ ":SortByCpuUsage:"<<__LINE__<<L": Dumping processes after CPU usage sort..."<<std::endl;
+	DumpProcesses();
+#endif
+}
+
+void Processes::SortByRecentlyCreated()
+{
+	//Sort PIDs in creation order using process creation time
+	//Conforming to reverse accessing of CAN, PIDs are sorted in ascending order so last created PIDs are at the end of the list
+	std::sort(CAN.begin(), CAN.end(), [](const PData &left, const PData &right){ return left.GetCrtTime()<right.GetCrtTime(); });
+	
+#ifdef DEBUG
+	std::wcerr<<L"" __FILE__ ":SortByRecentlyCreated:"<<__LINE__<<L": Dumping processes after recently created sort..."<<std::endl;
+	DumpProcesses();
+#endif
 }
 
 DWORD Processes::EnumProcessTimes(bool first_time)

@@ -11,6 +11,8 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using ProcessesPolicy::AddPathToBlacklist;
 	using ProcessesPolicy::AddPidToBlacklist;
 	using ProcessesPolicy::ClearBlacklist;
+	using ProcessesPolicy::SortByCpuUsage;
+	using ProcessesPolicy::SortByRecentlyCreated;
 	using KillersPolicy::KillByCpu;
 	using KillersPolicy::KillByPth;
 	using KillersPolicy::KillByMod;
@@ -30,6 +32,7 @@ private:
 		bool mode_all;
 		bool mode_loop;
 		bool mode_verbose;
+		bool mode_recent;
 		union {
 			bool param_first;
 			bool param_plus;
@@ -57,6 +60,7 @@ private:
 	virtual bool ModeAll() { return ctrl_vars.mode_all; }
 	virtual bool ModeLoop() { return ctrl_vars.mode_loop; }
 	virtual bool ModeBlank() { return ctrl_vars.mode_blank; }
+	virtual bool ModeRecent() { return ctrl_vars.mode_recent; }
 public:
 	void MakeItDead(std::stack<std::wstring> &rules);
 	Controller();
