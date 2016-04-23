@@ -308,19 +308,11 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		NoArgsAllowed(top_rule);
 		done=KillByGld(ctrl_vars.param_simple);
 		ClearParamsAndArgs();
-	} else if (!top_rule.compare(L"/inr:vista")) {
-		if (ctrl_vars.param_mode==InrMode::DEFAULT)
-			ctrl_vars.param_mode=InrMode::VISTA;
-		else
-			std::wcerr<<L"Warning: /inr:vista parameter will be ignored!"<<std::endl;
-	} else if (!top_rule.compare(L"/inr:manual")) {
-		if (ctrl_vars.param_mode==InrMode::DEFAULT)
-			ctrl_vars.param_mode=InrMode::MANUAL;
-		else
-			std::wcerr<<L"Warning: /inr:manual parameter will be ignored!"<<std::endl;
+	} else if (!top_rule.compare(L"/inr:plus")) {
+		ctrl_vars.param_plus=true;
 	} else if (!top_rule.compare(L"/inr")) {
 		NoArgsAllowed(top_rule);
-		done=KillByInr(ctrl_vars.param_mode);
+		done=KillByInr(ctrl_vars.param_plus);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/fsc:anywnd")) {
 		ctrl_vars.param_anywnd=true;
@@ -330,9 +322,11 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		NoArgsAllowed(top_rule);
 		done=KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary);
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/fgd:anywnd")) {
+		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/fgd")) {
 		NoArgsAllowed(top_rule);
-		done=KillByFgd();
+		done=KillByFgd(ctrl_vars.param_anywnd);
 		ClearParamsAndArgs();
 	} else if (top_rule.front()==L'=') {
 		ctrl_vars.args=top_rule.substr(1);

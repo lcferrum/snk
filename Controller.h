@@ -11,7 +11,6 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using ProcessesPolicy::AddPathToBlacklist;
 	using ProcessesPolicy::AddPidToBlacklist;
 	using ProcessesPolicy::ClearBlacklist;
-	typedef typename KillersPolicy::InrMode InrMode;
 	using KillersPolicy::KillByCpu;
 	using KillersPolicy::KillByPth;
 	using KillersPolicy::KillByMod;
@@ -33,7 +32,7 @@ private:
 		bool mode_verbose;
 		union {
 			bool param_first;
-			InrMode param_mode;
+			bool param_plus;
 			BlkMode param_blk_mode;
 			bool param_full;
 			bool param_simple;

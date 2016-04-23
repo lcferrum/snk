@@ -357,9 +357,9 @@ bool Killers::WithinRect(const RECT &outer, const RECT &inner)
 	return inner.left>=outer.left&&inner.top>=outer.top&&inner.right<=outer.right&&inner.bottom<=outer.bottom;
 }
 
-bool Killers::KillByInr(InrMode param_mode) 
+bool Killers::KillByInr(bool param_plus) 
 {
-	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
+	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId returns PID as DWORD
 
 #if DEBUG>=2
 	if (!fnNtUserHungWindowFromGhostWindow) {
@@ -372,7 +372,7 @@ bool Killers::KillByInr(InrMode param_mode)
 	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
 	//At least we can use tuples so not to litter class definition with structs
 	WNDCLASS dummy_wnd;
-	std::tuple<InrMode, std::vector<DWORD>&, ATOM> enum_wnd_tuple(param_mode, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
+	std::tuple<bool, std::vector<DWORD>&, ATOM> enum_wnd_tuple(param_plus, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
 	//The trick with GetClassInfo is described by Raymond Chen in his blog http://blogs.msdn.com/b/oldnewthing/archive/2004/10/11/240744.aspx
 	//Undocumented side of GetClassInfo is that it returns ATOM for the queried window class
 	//By passing NULL as HINSTANCE we can get ATOM for the system "Ghost" class
@@ -397,52 +397,41 @@ bool Killers::KillByInr(InrMode param_mode)
 
 BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam) 
 {
-	InrMode mode=std::get<0>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
-	std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
-	ATOM ghost_atom=std::get<2>(*(std::tuple<InrMode, std::vector<DWORD>&, ATOM>*)lParam);
+	bool plus_version=std::get<0>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
+	std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
+	ATOM ghost_atom=std::get<2>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
 					
-	if (IsTaskWindow(hwnd)) {
+	if (IsTaskWindow(hwnd)) {	//Filtering out non-task windows because they can be erroneously reported as hung
 		DWORD pid;
-		switch (mode) {
-			case DEFAULT:	
-				//This is the way Windows checks if application is hung - using IsHungAppWindow
-				//Mechanism behind IsHungAppWindow considers window hung if it's thread:
-				//	isn't waiting for input
-				//	isn't in startup processing
-				//	hasn't called PeekMessage() within some time interval (5 sec for IsHungAppWindow)
-				//The trick is that IsHungAppWindow will return true for both app's own window and it's "ghost" window (that belongs to dwm or explorer)
-				//IsHungAppWindow fails to detect apps that were specifically made to be hung (using SuspendThread)
-				//But outside test environment it's almost impossible case
-				if (IsHungAppWindow(hwnd))
-					//Check that hung window is not "ghost" window
-					//Comparing class name with "Ghost" can be unreliable - application can register it's own local class with that name
-					//But outside of enum function we already got ATOM of the actual system "Ghost" class
-					//So all we have to do is just compare window class ATOM with "Ghost" class ATOM
-					if (GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom)
-						if (GetWindowThreadProcessId(hwnd, &pid))
-							dw_array.push_back(pid);
-				break;					
-			case MANUAL:
-				//Pretty straightforward method that is suggested by MS https://support.microsoft.com/kb/231844
-				//Just wait for SendMessageTimeout to fail - because of abort (if app is hung) or actual timeout
-				//This method perfectly detects SuspendThread test apps 
-				//It doesn't trigger on "ghost" windows
-				//But ironically fails to detect some normal hung apps that trigger IsHungAppWindow
-				//That's because internally SMTO_ABORTIFHUNG uses the same mechanism of checking hung windows as IsHungAppWindow but with different time constants
-				//While IsHungAppWindow checks if PeekMessage() hasn't been called within 5 sec interval, for SMTO_ABORTIFHUNG this interval is 20 sec
-				if (!SendMessageTimeout(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG|SMTO_BLOCK, INR_TIMEOUT, NULL))
-					if (GetWindowThreadProcessId(hwnd, &pid))
-						dw_array.push_back(pid);
-				break;
-			case VISTA:
-				//Undocumented function that is available starting from Vista
-				//In contrast with IsHungAppWindow it triggers only on "ghost" windows
-				//And returns HWND of the actual hung window
-				//So in the end it is more convenient than IsHungAppWindow
-				if (fnNtUserHungWindowFromGhostWindow&&(hwnd=fnNtUserHungWindowFromGhostWindow(hwnd)))
-					if (GetWindowThreadProcessId(hwnd, &pid))
-						dw_array.push_back(pid);
-				break;
+
+		//This is the way Windows checks if application is hung - using IsHungAppWindow
+		//Mechanism behind IsHungAppWindow considers window hung if it's thread:
+		//	isn't waiting for input
+		//	isn't in startup processing
+		//	hasn't called PeekMessage() within some time interval (5 sec for IsHungAppWindow)
+		//The trick is that IsHungAppWindow will return true for both app's own window and it's "ghost" window (that belongs to dwm or explorer)
+		//IsHungAppWindow fails to detect apps that were specifically made to be hung (using SuspendThread)
+		//But outside test environment it's almost impossible case
+		if (IsHungAppWindow(hwnd)) {
+			//Check that hung window is not "ghost" window
+			//Comparing class name with "Ghost" can be unreliable - application can register it's own local class with that name
+			//But outside of enum function we already got ATOM of the actual system "Ghost" class
+			//So all we have to do is just compare window class ATOM with "Ghost" class ATOM
+			if (GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom)
+				if (GetWindowThreadProcessId(hwnd, &pid))
+					dw_array.push_back(pid);
+		} else if (plus_version) {
+			//Pretty straightforward method that is suggested by MS https://support.microsoft.com/kb/231844
+			//Just wait for SendMessageTimeout to fail - because of abort (if app is hung) or actual timeout
+			//This method perfectly detects SuspendThread test apps 
+			//It doesn't trigger on "ghost" windows
+			//But ironically fails to detect some normal hung apps that trigger IsHungAppWindow
+			//That's because internally SMTO_ABORTIFHUNG uses the same mechanism of checking hung windows as IsHungAppWindow but with different time constants
+			//While IsHungAppWindow checks if PeekMessage() hasn't been called within 5 sec interval, for SMTO_ABORTIFHUNG this interval is 20 sec
+			//So this method is used here as optional supplement for IsHungAppWindow
+			if (!SendMessageTimeout(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG|SMTO_BLOCK, INR_TIMEOUT, NULL))
+				if (GetWindowThreadProcessId(hwnd, &pid))
+					dw_array.push_back(pid);
 		}
 	}
 	
@@ -528,7 +517,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 	std::vector<DWORD> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
 	std::vector<RECT> &disp_array=std::get<3>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
 	
-	if (IsTaskWindow(hwnd)) {
+	if (IsTaskWindow(hwnd)) {	//Filtering out non-task windows to speed up the search
 		RECT client_rect;
 		RECT window_rect;
 		if (GetClientRect(hwnd, &client_rect)&&GetWindowRect(hwnd, &window_rect)) {
@@ -571,12 +560,26 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 	return true;
 }
 
-bool Killers::KillByFgd()
+bool Killers::KillByFgd(bool param_anywnd)
 {
 	DWORD pid;
-	HWND hwnd;
+	WNDCLASS dummy_wnd;
+	HWND hwnd=GetForegroundWindow();
+	
+	//Same thing with "Ghost" class ATOM as in KillByInr
+	//In case of foreground app is hung, code below will ensure that we won't accidentially kill actual "ghost" window owner (dwm or explorer)
+	if (hwnd&&GetClassLongPtr(hwnd, GCW_ATOM)==GetClassInfo(NULL, L"Ghost", &dummy_wnd)) {
+		//Undocumented function that is available starting from Vista
+		//Returns HWND of the hung window from "ghost" HWND
+		if (fnNtUserHungWindowFromGhostWindow)
+			hwnd=fnNtUserHungWindowFromGhostWindow(hwnd);
+		else
+			hwnd=NULL;
+	}
 
-	bool found=(hwnd=GetForegroundWindow())&&IsTaskWindow(hwnd)&&GetWindowThreadProcessId(hwnd, &pid)&&
+	//IsTaskWindow() limits the scope and prevents from triggering on dialogs belonging to task-windows
+	//But it also protects from accidentially killing explorer or other unrelated background app
+	bool found=hwnd&&(param_anywnd||IsTaskWindow(hwnd))&&GetWindowThreadProcessId(hwnd, &pid)&&
 		ApplyToProcesses([this, pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
 			if (pid==PID) {
 				std::wcout<<L"Process with foreground window FOUND!"<<std::endl;

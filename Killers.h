@@ -19,8 +19,6 @@ private:
 	
 	virtual bool ModeBlank()=0;
 protected:	
-	enum InrMode:char {DEFAULT=0, MANUAL, VISTA};
-
 	//Kills process with highest cpu load
 	bool KillByCpu();
 	
@@ -55,11 +53,9 @@ protected:
 	bool KillByGld(bool param_simple);
 	
 	//Kills process with highest cpu load that doesn't respond (Is Not Responding)
-	//param_mode can be DEFAULT, MANUAL or VISTA
-	//If DEFAULT - checks applications with IsHungAppWindow()
-	//If MANUAL - checks applications with SendMessageTimeout() and 5 sec timeout
-	//If VISTA - checks applications with NtUserHungWindowFromGhostWindow(), available starting from Vista
-	bool KillByInr(InrMode param_mode);
+	//By default checks applications with IsHungAppWindow()
+	//If param_plus - also checks applications with SendMessageTimeout() and 5 sec timeout
+	bool KillByInr(bool param_plus);
 	
 	//Kills process with highest cpu load that is running in fullscreen
 	//Works with multi-monitor setups
@@ -69,7 +65,9 @@ protected:
 	bool KillByFsc(bool param_anywnd, bool param_primary);
 	
 	//Kills process with highest cpu load which window is in foreground
-	bool KillByFgd();
+	//By default filters out windows that doesn't show in task bar
+	//If param_anywnd - doesn't apply task bar filter
+	bool KillByFgd(bool param_anywnd);
 public:
 	Killers();
 };
