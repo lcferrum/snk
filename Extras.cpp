@@ -60,12 +60,14 @@ void Extras::WcoutMessageBox()
 	wcout_win32.ShowMessageBox();
 }
 
+//Checking if DLLs are alredy loaded before LoadLibrary is cool but redundant
+//This method is private and called (and designed to be called) only once - in constructor before everything else
 void Extras::LoadFunctions() 
 {
-	if (!hUser32) hUser32=LoadLibrary(L"user32.dll");
-	if (!hNtDll) hNtDll=LoadLibrary(L"ntdll.dll");
-	if (!hKernel32) hKernel32=LoadLibrary(L"kernel32.dll");
-	if (!hShlwapi) hShlwapi=LoadLibrary(L"shlwapi.dll");
+	hUser32=LoadLibrary(L"user32.dll");
+	hNtDll=LoadLibrary(L"ntdll.dll");
+	hKernel32=LoadLibrary(L"kernel32.dll");
+	hShlwapi=LoadLibrary(L"shlwapi.dll");
 
 	if (hUser32) {
 		fnNtUserHungWindowFromGhostWindow=(pNtUserHungWindowFromGhostWindow)GetProcAddress(hUser32, "HungWindowFromGhostWindow");
@@ -95,6 +97,7 @@ void Extras::LoadFunctions()
 	}
 }
 
+//And here we are testing for NULLs because LoadLibrary can fail in method above
 void Extras::UnloadFunctions() 
 {
 	if (hUser32) FreeLibrary(hUser32);
