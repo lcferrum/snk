@@ -35,29 +35,57 @@ extern template std::_Setfill<wchar_t> std::setfill(wchar_t);	//caused by use of
 Killers::Killers()
 {}
 
+void Killers::PrintCommonKillPrefix(bool omit_trailing_space)
+{
+	if (ModeLoop()) {
+		if (ModeAll())
+			std::wcout<<L"Processes";
+		else
+			std::wcout<<L"User processes";	
+	} else {
+		if (ModeRecent()&&ModeAll())
+			std::wcout<<L"Recently created process";
+		else if (ModeAll())
+			std::wcout<<L"Process with highest CPU usage";
+		else if (ModeRecent())
+			std::wcout<<L"Recently created user process";
+		else
+			std::wcout<<L"User process with highest CPU usage";
+	}
+	
+	if (!omit_trailing_space) std::wcout<<L" ";
+}
+
 void Killers::KillProcess(DWORD PID, const std::wstring &name) 
 {
 	if (ModeBlank()) {
-		std::wcout<<L"Troublemaker process: "<<PID<<L" ("<<name<<L")!"<<std::endl;
+		std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
 	} else {
 		//PROCESS_TERMINATE is needed for TerminateProcess
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE);
 									
 		if (!hProcess) {
-			std::wcout<<L"Troublemaker process: "<<PID<<L" ("<<name<<L") - process can't be terminated!"<<std::endl;
+			std::wcout<<PID<<L" ("<<name<<L") - can't be terminated"<<std::endl;
 			return;
 		}
 		
 		TerminateProcess(hProcess, 1);
-		std::wcout<<L"Process "<<PID<<L" ("<<name<<L") killed!"<<std::endl;
+		std::wcout<<PID<<L" ("<<name<<L") - killed"<<std::endl;
 		CloseHandle(hProcess);
 	}
 }
 
 bool Killers::KillByCpu() 
 {
-	bool found=ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
-		std::wcout<<(ModeRecent()?L"Most recently created process FOUND!":L"Process with highest cpu usage FOUND!")<<std::endl;
+	PrintCommonKillPrefix(true);
+	if (ModeLoop()) {
+		if (ModeRecent())
+			std::wcout<<L" (recently created first)";	
+		else
+			std::wcout<<L" (with highest CPU usage first)";
+	}
+	bool found=ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+		if (!applied) std::wcout<<L":"<<std::endl;
 		KillProcess(PID, name);
 		return true;
 	});
@@ -65,7 +93,7 @@ bool Killers::KillByCpu()
 	if (found) {
 		return true;
 	} else {
-		std::wcout<<(ModeRecent()?L"Most recently created process NOT found!":L"Process with highest cpu usage NOT found!")<<std::endl;
+		std::wcout<<L": NONE"<<std::endl;
 		return false;
 	}
 }
@@ -75,9 +103,15 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 	if (!arg_wcard)
 		arg_wcard=L"";
 	
-	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	if (ModeLoop())
+		std::wcout<<L"that match wildcard(s) ";
+	else
+		std::wcout<<L"that matches wildcard(s) ";
+	
+	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str())) {
-			std::wcout<<L"Process that matches wildcard(s) \""<<arg_wcard<<L"\" FOUND!"<<std::endl;
+			if (!applied)  std::wcout<<L"\""<<arg_wcard<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -87,7 +121,7 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process that matches wildcard(s) \""<<arg_wcard<<L"\" NOT found"<<std::endl;
+		std::wcout<<L"\""<<arg_wcard<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -97,7 +131,10 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 	if (!arg_wcard)
 		arg_wcard=L"";
 	
-	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	std::wcout<<L"having modules that match wildcard(s) ";
+	
+	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
@@ -109,7 +146,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 #endif
 
 		if (CheckName(mlist, param_full, arg_wcard)) {
-			std::wcout<<L"Process with module that matches wildcard(s) \""<<arg_wcard<<L"\" FOUND!"<<std::endl;
+			if (!applied) std::wcout<<L"\""<<arg_wcard<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -119,7 +156,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process with module that matches wildcard(s) \""<<arg_wcard<<L"\" NOT found"<<std::endl;
+		std::wcout<<L"\""<<arg_wcard<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -137,9 +174,15 @@ bool Killers::KillByPid(const wchar_t* arg_parray)
 		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
 #endif
 	
-	bool found=!uptr_array.empty()&&ApplyToProcesses([this, arg_parray, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	if (ModeLoop())
+		std::wcout<<L"that match PID(s) ";
+	else
+		std::wcout<<L"that matches PID(s) ";
+	
+	bool found=!uptr_array.empty()&&ApplyToProcesses([this, arg_parray, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (PidListCmp(uptr_array, PID)) {
-			std::wcout<<L"Process that matches PID(s) \""<<arg_parray<<L"\" FOUND!"<<std::endl;
+			if (!applied) std::wcout<<L"\""<<arg_parray<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -149,7 +192,7 @@ bool Killers::KillByPid(const wchar_t* arg_parray)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process that matches PID(s) \""<<arg_parray<<L"\" NOT found"<<std::endl;
+		std::wcout<<L"\""<<arg_parray<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -248,7 +291,13 @@ bool Killers::KillByD3d(bool param_simple)
 	
 	const wchar_t* wcrdA=L"d3d*.dll";
 	
-	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	if (ModeLoop())
+		std::wcout<<L"that use Direct3D ";
+	else
+		std::wcout<<L"that uses Direct3D ";
+	
+	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
@@ -260,7 +309,7 @@ bool Killers::KillByD3d(bool param_simple)
 #endif
 		
 		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
-			std::wcout<<L"Process that uses Direct3D FOUND!"<<std::endl;
+			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -270,7 +319,7 @@ bool Killers::KillByD3d(bool param_simple)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process that uses Direct3D NOT found!"<<std::endl;
+		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -282,7 +331,13 @@ bool Killers::KillByOgl(bool param_simple)
 	
 	const wchar_t* wcrdA=L"opengl*.dll;3dfx*gl*.dll";
 	
-	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	if (ModeLoop())
+		std::wcout<<L"that use OpenGL ";
+	else
+		std::wcout<<L"that uses OpenGL ";
+	
+	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
@@ -294,7 +349,7 @@ bool Killers::KillByOgl(bool param_simple)
 #endif
 		
 		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
-			std::wcout<<L"Process that uses OpenGL FOUND!"<<std::endl;
+			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -304,7 +359,7 @@ bool Killers::KillByOgl(bool param_simple)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process that uses OpenGL NOT found!"<<std::endl;
+		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -316,7 +371,13 @@ bool Killers::KillByGld(bool param_simple)
 	
 	const wchar_t* wcrdA=L"glide*.dll";
 	
-	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	if (ModeLoop())
+		std::wcout<<L"that use Glide ";
+	else
+		std::wcout<<L"that uses Glide ";
+	
+	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
@@ -328,7 +389,7 @@ bool Killers::KillByGld(bool param_simple)
 #endif
 		
 		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
-			std::wcout<<L"Process that uses Glide FOUND!"<<std::endl;
+			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -338,7 +399,7 @@ bool Killers::KillByGld(bool param_simple)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process that uses Glide NOT found!"<<std::endl;
+		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -378,9 +439,15 @@ bool Killers::KillByInr(bool param_plus)
 	//By passing NULL as HINSTANCE we can get ATOM for the system "Ghost" class
 	EnumWindows(EnumWndInr, (LPARAM)&enum_wnd_tuple);
 	
-	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	if (ModeLoop())
+		std::wcout<<L"that are not responding  ";
+	else
+		std::wcout<<L"that is not responding  ";
+	
+	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
-			std::wcout<<L"Process that is not responding FOUND!"<<std::endl;
+			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -390,7 +457,7 @@ bool Killers::KillByInr(bool param_plus)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process that is not responding NOT found"<<std::endl;
+		std::wcout<<L"that is not responding NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -490,9 +557,12 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary)
 		EnumWindows(EnumWndFsc, (LPARAM)&enum_wnd_tuple);
 	}
 	
-	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+	PrintCommonKillPrefix();
+	std::wcout<<L"running in fullscreen ";
+	
+	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
-			std::wcout<<L"Process running in fullscreen FOUND!"<<std::endl;
+			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -502,7 +572,7 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process running in fullscreen NOT found"<<std::endl;
+		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -577,12 +647,15 @@ bool Killers::KillByFgd(bool param_anywnd)
 			hwnd=NULL;
 	}
 
+	PrintCommonKillPrefix();
+	std::wcout<<L"which window is in foreground ";
+	
 	//IsTaskWindow() limits the scope and prevents from triggering on dialogs belonging to task-windows
 	//But it also protects from accidentially killing explorer or other unrelated background app
 	bool found=hwnd&&(param_anywnd||IsTaskWindow(hwnd))&&GetWindowThreadProcessId(hwnd, &pid)&&
-		ApplyToProcesses([this, pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path){
+		ApplyToProcesses([this, pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 			if (pid==PID) {
-				std::wcout<<L"Process with foreground window FOUND!"<<std::endl;
+				if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 				KillProcess(PID, name);
 				return true;
 			} else
@@ -592,7 +665,7 @@ bool Killers::KillByFgd(bool param_anywnd)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"Process with foreground window NOT found"<<std::endl;
+		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
 }

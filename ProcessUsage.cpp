@@ -75,13 +75,13 @@ void Processes::DumpProcesses()
 		std::wcerr<<data.GetPID()<<L" => "<<data.GetDelta()<<L" ("<<(data.GetBlacklisted()?L"b":L"_")<<(data.GetSystem()?L"s":L"_")<<(data.GetDisabled()?L"d) ":L"_) ")<<data.GetName()<<L" ["<<data.GetPath()<<L"]"<<std::endl;
 }
 
-bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&)> mutator)
+bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&, bool)> mutator)
 {
 	bool applied=false;
 	
 	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
 	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (!rit->GetDisabled()&&!rit->GetBlacklisted()&&!(ModeAll()?false:rit->GetSystem())&&mutator(rit->GetPID(), rit->GetName(), rit->GetPath())) {
+		if (!rit->GetDisabled()&&!rit->GetBlacklisted()&&!(ModeAll()?false:rit->GetSystem())&&mutator(rit->GetPID(), rit->GetName(), rit->GetPath(), applied)) {
 			applied=true;
 			rit->SetDisabled(true);
 			if (!ModeLoop()) break;

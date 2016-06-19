@@ -8,6 +8,7 @@
 class Killers: virtual protected ProcessesCrossBase {
 private:
 	void KillProcess(DWORD PID, const std::wstring &name);
+	void PrintCommonKillPrefix(bool omit_trailing_space=false);
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
 	bool CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
@@ -19,6 +20,8 @@ private:
 	
 	virtual bool ModeBlank()=0;
 	virtual bool ModeRecent()=0;
+	virtual bool ModeAll()=0;
+	virtual bool ModeLoop()=0;
 protected:	
 	//Kills process with highest cpu load
 	bool KillByCpu();

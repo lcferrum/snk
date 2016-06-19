@@ -43,7 +43,7 @@ template <typename ProcessesPolicy, typename KillersPolicy>
 bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 {
 	if (sec_mutex) {
-		std::wcout<<L"Secured execution: this instance is already secured!"<<std::endl;
+		std::wcout<<L"Secured execution - this instance is already secured"<<std::endl;
 		return false;
 	}
 	
@@ -58,12 +58,12 @@ bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 	
 	if (sec_mutex) {
 		if (GetLastError()==ERROR_ALREADY_EXISTS) {
-			std::wcout<<L"Secured execution: another secured SnK instance is already running!"<<std::endl;
+			std::wcout<<L"Secured execution - another secured SnK instance is already running"<<std::endl;
 			CloseHandle(sec_mutex);
 			sec_mutex=NULL;
 			return true;
 		} else {
-			std::wcout<<L"Secured execution: SnK instance secured!"<<std::endl;
+			std::wcout<<L"Secured execution - SnK instance secured"<<std::endl;
 			return false;
 		}
 	}
