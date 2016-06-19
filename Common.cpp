@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-#define SNK_VERSION L"v 2.0"
+#define SNK_VERSION L"v2.1"
 
 //Original WildcardCmp: 
 // Written by Jack Handy <jakkhandy@hotmail.com>
