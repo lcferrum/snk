@@ -35,25 +35,23 @@ extern template std::_Setfill<wchar_t> std::setfill(wchar_t);	//caused by use of
 Killers::Killers()
 {}
 
-void Killers::PrintCommonKillPrefix(bool omit_trailing_space)
+void Killers::PrintCommonKillPrefix()
 {
 	if (ModeLoop()) {
 		if (ModeAll())
-			std::wcout<<L"Processes";
+			std::wcout<<L"Processes ";
 		else
-			std::wcout<<L"User processes";	
+			std::wcout<<L"User processes ";	
 	} else {
 		if (ModeRecent()&&ModeAll())
-			std::wcout<<L"Recently created process";
+			std::wcout<<L"Recently created process ";
 		else if (ModeAll())
-			std::wcout<<L"Process with highest CPU usage";
+			std::wcout<<L"Process with highest CPU usage ";
 		else if (ModeRecent())
-			std::wcout<<L"Recently created user process";
+			std::wcout<<L"Recently created user process ";
 		else
-			std::wcout<<L"User process with highest CPU usage";
+			std::wcout<<L"User process with highest CPU usage ";
 	}
-	
-	if (!omit_trailing_space) std::wcout<<L" ";
 }
 
 void Killers::KillProcess(DWORD PID, const std::wstring &name) 
@@ -77,15 +75,9 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name)
 
 bool Killers::KillByCpu() 
 {
-	PrintCommonKillPrefix(true);
-	if (ModeLoop()) {
-		if (ModeRecent())
-			std::wcout<<L" (recently created first)";	
-		else
-			std::wcout<<L" (with highest CPU usage first)";
-	}
+	PrintCommonKillPrefix();
 	bool found=ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (!applied) std::wcout<<L":"<<std::endl;
+		if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 		KillProcess(PID, name);
 		return true;
 	});
@@ -93,7 +85,7 @@ bool Killers::KillByCpu()
 	if (found) {
 		return true;
 	} else {
-		std::wcout<<L": NONE"<<std::endl;
+		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -553,6 +545,7 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary)
 	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
 	//At least we can use tuples so not to litter class definition with structs
 	if (!disp_array.empty()) {
+		//Test if disp_array is empty before passing it to EnumWndFsc or some udefined behavior might happen!
 		std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&> enum_wnd_tuple(param_anywnd, param_primary, dw_array, disp_array);
 		EnumWindows(EnumWndFsc, (LPARAM)&enum_wnd_tuple);
 	}

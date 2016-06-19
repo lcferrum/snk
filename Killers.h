@@ -8,7 +8,7 @@
 class Killers: virtual protected ProcessesCrossBase {
 private:
 	void KillProcess(DWORD PID, const std::wstring &name);
-	void PrintCommonKillPrefix(bool omit_trailing_space=false);
+	void PrintCommonKillPrefix();
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
 	bool CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
