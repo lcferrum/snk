@@ -9,7 +9,7 @@
 void PrintUsage();
 void PrintVersion();
 
-bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string);
+bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, const wchar_t* del=L";");
 
 //Warning: will corrupt ARGV beyond repair
 //skip_argc - how many ARGVs will be skipped (first ARGV is typically program path)

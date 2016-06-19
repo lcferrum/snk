@@ -6,31 +6,35 @@
 #define SNK_VERSION L"v 2.0"
 
 //Original WildcardCmp: 
-//Written by Jack Handy <jakkhandy@hotmail.com>
-//http://www.codeproject.com/Articles/1088/Wildcard-string-compare-globbing
+// Written by Jack Handy <jakkhandy@hotmail.com>
+// http://www.codeproject.com/Articles/1088/Wildcard-string-compare-globbing
+//Changes made:
+// Uses wchar_t instead of char
+// Match is case-insensitive
+// Matches '\' (Windows path delimiter) in string only with '\' in wildcard ignoring '?' and '*'
 bool WildcardCmp(const wchar_t* wild, const wchar_t* string) 
 {
-	const wchar_t *cp=NULL, *mp=NULL;
-
-	while ((*string)&&(*wild!=L'*')) {
-		if ((towlower(*wild)!=towlower(*string))&&(*wild!=L'?'))
+	const wchar_t *cp, *mp;
+	
+	while (*string&&*wild!=L'*') {
+		if (towlower(*wild)!=towlower(*string)&&(*wild!=L'?'||*string==L'\\'))
 			return false;
 		wild++;
 		string++;
 	}
-
+	
 	while (*string) {
 		if (*wild==L'*') {
-			if (!*++wild)
-				return true;
-			mp=wild;
-			cp=string+1;
-		} else if ((towlower(*wild)==towlower(*string))||(*wild==L'?')) {
+			mp=++wild;
+			cp=string;
+		} else if (towlower(*wild)==towlower(*string)||(*wild==L'?'&&*string!=L'\\')) {
 			wild++;
 			string++;
+		} else if (*cp==L'\\') {
+			return false;
 		} else {
 			wild=mp;
-			string=cp++;
+			string=cp+++1;
 		}
 	}
 
@@ -40,12 +44,12 @@ bool WildcardCmp(const wchar_t* wild, const wchar_t* string)
 	return !*wild;
 }
 
-bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string) 
+bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, const wchar_t* del) 
 {
 	wchar_t buffer[wcslen(wild)+1];
 	wcscpy(buffer, wild);
 	
-	for (wchar_t* token=wcstok(buffer, L";"); token; token=wcstok(NULL, L";"))
+	for (wchar_t* token=wcstok(buffer, del); token; token=wcstok(NULL, del))
 		if (WildcardCmp(token, string)) return true;
 	
 	return false;
