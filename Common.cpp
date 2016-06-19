@@ -14,7 +14,7 @@
 // Matches '\' (Windows path delimiter) in string only with '\' in wildcard ignoring '?' and '*'
 bool WildcardCmp(const wchar_t* wild, const wchar_t* string) 
 {
-	const wchar_t *cp, *mp;
+	const wchar_t *cp=NULL, *mp=NULL;
 	
 	while (*string&&*wild!=L'*') {
 		if (towlower(*wild)!=towlower(*string)&&(*wild!=L'?'||*string==L'\\'))
