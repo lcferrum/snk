@@ -34,7 +34,7 @@ bool WildcardCmp(const wchar_t* wild, const wchar_t* string)
 			return false;
 		} else {
 			wild=mp;
-			string=cp+++1;
+			string=++cp;
 		}
 	}
 
