@@ -137,7 +137,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 
-		if (CheckName(mlist, param_full, arg_wcard)) {
+		if (CheckModListNames(mlist, param_full, arg_wcard)) {
 			if (!applied) std::wcout<<L"\""<<arg_wcard<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -258,7 +258,7 @@ bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str
 	return item_matched==ARRAY_MATCHED;
 }
 
-bool Killers::CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard) 
+bool Killers::CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard) 
 {
 	for (const std::pair<std::wstring, std::wstring> &module: mlist)
 		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str())) return true;
@@ -266,7 +266,7 @@ bool Killers::CheckName(const std::vector<std::pair<std::wstring, std::wstring>>
 	return false;
 }
 
-bool Killers::CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str) 
+bool Killers::CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str) 
 {
 	for (const std::pair<std::wstring, std::wstring> &module: mlist)
 		if (CheckStringFileInfo(module.second.c_str(), item_str, desc_str)) return true;
@@ -300,7 +300,7 @@ bool Killers::KillByD3d(bool param_simple)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -340,7 +340,7 @@ bool Killers::KillByOgl(bool param_simple)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -380,7 +380,7 @@ bool Killers::KillByGld(bool param_simple)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckName(mlist, false, wcrdA):CheckDescription(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;

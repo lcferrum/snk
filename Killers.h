@@ -10,8 +10,8 @@ private:
 	void KillProcess(DWORD PID, const std::wstring &name);
 	void PrintCommonKillPrefix();
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
-	bool CheckName(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
-	bool CheckDescription(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
+	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
+	bool CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
 	
 	static bool IsTaskWindow(HWND hwnd);
 	static bool WithinRect(const RECT &outer, const RECT &inner);

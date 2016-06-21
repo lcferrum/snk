@@ -11,8 +11,40 @@
 //Changes made:
 // Uses wchar_t instead of char
 // Match is case-insensitive
-// Matches '\' (Windows path delimiter) in string only with '\' in wildcard ignoring '?' and '*'
+// Optimized cp variable increment
+// "Path" version additionally matches '\' (Windows path delimiter) in string only with '\' in wildcard ignoring '?' and '*'
 bool WildcardCmp(const wchar_t* wild, const wchar_t* string) 
+{
+	const wchar_t *cp=NULL, *mp=NULL;
+
+	while ((*string)&&(*wild!=L'*')) {
+		if ((towlower(*wild)!=towlower(*string))&&(*wild!=L'?'))
+			return false;
+		wild++;
+		string++;
+	}
+
+	while (*string) {
+		if (*wild==L'*') {
+			if (!*++wild)
+				return true;
+			mp=wild;
+			cp=string;
+		} else if ((towlower(*wild)==towlower(*string))||(*wild==L'?')) {
+			wild++;
+			string++;
+		} else {
+			wild=mp;
+			string=++cp;
+		}
+	}
+
+	while (*wild==L'*')
+		wild++;
+	
+	return !*wild;
+}
+bool PathWildcardCmp(const wchar_t* wild, const wchar_t* string) 
 {
 	const wchar_t *cp=NULL, *mp=NULL;
 	
@@ -44,13 +76,13 @@ bool WildcardCmp(const wchar_t* wild, const wchar_t* string)
 	return !*wild;
 }
 
-bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, const wchar_t* del) 
+bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, const wchar_t* delim, bool is_path) 
 {
 	wchar_t buffer[wcslen(wild)+1];
 	wcscpy(buffer, wild);
 	
-	for (wchar_t* token=wcstok(buffer, del); token; token=wcstok(NULL, del))
-		if (WildcardCmp(token, string)) return true;
+	for (wchar_t* token=wcstok(buffer, delim); token; token=wcstok(NULL, delim))
+		if (is_path?PathWildcardCmp(token, string):WildcardCmp(token, string)) return true;
 	
 	return false;
 }
