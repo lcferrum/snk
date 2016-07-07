@@ -233,7 +233,7 @@ bool CheckIfFileExists(const wchar_t* fpath)
 	//They also have PathIsRelative funcion in shlwapi.dll (4.71+)
 	//In ReactOS/Wine PathIsRelative is reversed to the following algorithm (original Win NT algorithm is actually the same):
 	//If it starts from slash ('\') or second character is colon (':') then return false, otherwise return true
-	//Main thing to consider is Microsoft's definition of "relative path" - here it means "path relative to current directory and drive" (historically current directory path doesn't necessary include drive letter)
+	//Main thing to consider is Microsoft's definition of "relative path" - here it means "path relative to current directory of the current drive" (historically each drive letter has it's own current directory)
 	//So if PathIsRelative returns false it doesn't really mean that path is absolute - it simply means that path is not relative to current directory or drive
 	//E.g. "C:tmp.txt" (relative to current directory but not drive) and "\blah\blah.txt" (relative to current drive but not directory) causes PathIsRelative to return false
 	//So here is refined algorithm for CheckIfFileExists to check if file path is absolute in strict NT kernel terms: RtlPathTypeUncAbsolute or RtlPathTypeDriveAbsolute (see RtlDetermineDosPathNameType_U):
