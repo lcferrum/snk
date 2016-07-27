@@ -1,3 +1,20 @@
+2016-XX-XX  Lcferrum <lcferrum@yandex.com>
+	
+	* Release 2.1
+	* Changed:
+		- Redesigned /inr and /fgd switches
+		- Revamped output
+		- Arguments starting with '#' or '\0' are now ignored
+		- Path comparing now omits backslash from globbing
+	* Fixed:
+		- Fixed sending ENTER to wrong console for windowless (hidden) version
+	* Added:
+		- /cmd switch (load arguments from file)
+		- 'pid' parameter for /blk switch (add to blacklist by PID)
+		- +r/-r setting (recently added sorting)
+	* Removed:
+		- 
+
 2016-04-15  Lcferrum <lcferrum@yandex.com>
 	
 	* Release 2.0
