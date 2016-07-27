@@ -118,7 +118,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 				fnConvertCmdline=[](BYTE* &cmdline){
 					//Need to convert from UTF8 to wchar_t
 					if (int wchars_num=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, NULL, 0)) {
-						BYTE *wcmdline=new BYTE[wchars_num*2];
+						BYTE *wcmdline=new BYTE[wchars_num*sizeof(wchar_t)];
 						if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, (wchar_t*)wcmdline, wchars_num)) {
 							delete[] cmdline;
 							cmdline=wcmdline;
@@ -133,7 +133,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 				fnConvertCmdline=[](BYTE* &cmdline){
 					//Need to convert from ANSI to wchar_t
 					if (int wchars_num=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, NULL, 0)) {
-						BYTE *wcmdline=new BYTE[wchars_num*2];
+						BYTE *wcmdline=new BYTE[wchars_num*sizeof(wchar_t)];
 						if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, (wchar_t*)wcmdline, wchars_num)) {
 							delete[] cmdline;
 							cmdline=wcmdline;

@@ -372,7 +372,7 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath)
 	//We'll try something similar here: we already have kernel path, only portion of which may expand to something bigger
 	//So let's assume that [current path length in bytes + 1024] is a sane buffer size (1024 - most common buffer size that Windows passes to NtQueryObject)
 	//Returned path is NULL-terminated (MaximumLength is Length plus NULL-terminator, all in bytes)
-	DWORD buf_len=wcslen(krn_fpath)*2+1024;
+	DWORD buf_len=wcslen(krn_fpath)*sizeof(wchar_t)+1024;
 	BYTE oni_buf[buf_len];
 	OBJECT_NAME_INFORMATION *poni=(OBJECT_NAME_INFORMATION*)oni_buf;
 	if (!NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, poni, buf_len, NULL))) {
@@ -528,8 +528,8 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), &ret_len)) {
 			UNICODE_STRING ImagePathName;
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, ImagePathName)), &ImagePathName, sizeof(ImagePathName), &ret_len)) {
-				wchar_t buffer[ImagePathName.Length/2+1];
-				buffer[ImagePathName.Length/2]=L'\0';
+				wchar_t buffer[ImagePathName.Length/sizeof(wchar_t)+1];
+				buffer[ImagePathName.Length/sizeof(wchar_t)]=L'\0';
 				if (ReadProcessMemory(hProcess, ImagePathName.Buffer, &buffer, ImagePathName.Length, &ret_len))
 					//Filepath is found, but it can be in kernel form
 					return KernelToWin32Path(buffer, fpath);
@@ -558,8 +558,8 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), &ret_len)) {
 			UNICODE_STRING32 ImagePathName32;
 			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, ImagePathName)), &ImagePathName32, sizeof(ImagePathName32), &ret_len)) {
-				wchar_t buffer[ImagePathName32.Length/2+1];
-				buffer[ImagePathName32.Length/2]=L'\0';
+				wchar_t buffer[ImagePathName32.Length/sizeof(wchar_t)+1];
+				buffer[ImagePathName32.Length/sizeof(wchar_t)]=L'\0';
 				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ImagePathName32.Buffer, &buffer, ImagePathName32.Length, &ret_len))
 					//Filepath is found, but it can be in kernel form
 					return KernelToWin32Path(buffer, fpath);
@@ -598,8 +598,8 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), &ret_len64))) {
 			UNICODE_STRING64 ImagePathName64;
 			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, ImagePathName), &ImagePathName64, sizeof(ImagePathName64), &ret_len64))) {
-				wchar_t buffer[ImagePathName64.Length/2+1];
-				buffer[ImagePathName64.Length/2]=L'\0';
+				wchar_t buffer[ImagePathName64.Length/sizeof(wchar_t)+1];
+				buffer[ImagePathName64.Length/sizeof(wchar_t)]=L'\0';
 				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ImagePathName64.Buffer, &buffer, ImagePathName64.Length, &ret_len64)))
 					//Filepath is found, but it can be in kernel form
 					return KernelToWin32Path(buffer, fpath);
@@ -786,10 +786,10 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 						if (ldteXX.DllBase==pebXX.ImageBaseAddress)	//Skip process image entry
 							continue;
 						//Returned paths are all in Win32 form (except image path that is skipped)
-						wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/2];
+						wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
 						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, &ret_len)) 
 							break;
-						wchar_t buffer2[ldteXX.FullDllName.MaximumLength/2];						
+						wchar_t buffer2[ldteXX.FullDllName.MaximumLength/sizeof(wchar_t)];						
 						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, &ret_len))
 							break;
 						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
@@ -829,10 +829,10 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 						if (ldte32.DllBase==peb32.ImageBaseAddress)	//Skip process image entry
 							continue;
 						//Returned paths are all in Win32 form (except image path that is skipped)
-						wchar_t buffer1[ldte32.BaseDllName.MaximumLength/2];
+						wchar_t buffer1[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
 						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, &ret_len)) 
 							break;
-						wchar_t buffer2[ldte32.FullDllName.MaximumLength/2];						
+						wchar_t buffer2[ldte32.FullDllName.MaximumLength/sizeof(wchar_t)];						
 						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, &ret_len))
 							break;
 						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
@@ -882,10 +882,10 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 						if (ldte64.DllBase==peb64.ImageBaseAddress)	//Skip process image entry
 							continue;
 						//Returned paths are all in Win32 form (except image path that is skipped)
-						wchar_t buffer1[ldte64.BaseDllName.MaximumLength/2];
+						wchar_t buffer1[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
 						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, &ret_len64))) 
 							break;
-						wchar_t buffer2[ldte64.FullDllName.MaximumLength/2];						
+						wchar_t buffer2[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];						
 						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, &ret_len64)))
 							break;
 						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
