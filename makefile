@@ -29,10 +29,12 @@ ifdef DEBUG
 	override DEBUG:=-DDEBUG=$(DEBUG)
 endif
 
-ifeq ($(USE_CYCLE_TIME),1)
+ifdef USE_CYCLE_TIME
+ifneq ($(USE_CYCLE_TIME),0)
 	override USE_CYCLE_TIME=-DUSE_CYCLE_TIME
 else
 	override USE_CYCLE_TIME=
+endif
 endif
 
 # Common section
@@ -110,7 +112,7 @@ $(WND_EXE): $(WND_OBJ)
 	$(CC) -c -o $@ $< $(CFLAGS) $(WND_CFLAGS) $(INC)
 	
 upx:
-	$(UPX) *.exe
+	$(UPX) $(CMD_EXE) $(WND_EXE) ||:
 
 clean:
-	$(RM) *.exe
+	$(RM) $(CMD_EXE) $(CMD_OBJ) $(WND_EXE) $(WND_OBJ) ||:

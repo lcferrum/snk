@@ -387,7 +387,7 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath)
 	//NtQueryInformationFile(FileNameInformation) returns path relative to device
 	//Returned path is not NULL-terminated (FileNameLength is string length in bytes)
 	buf_len=poni->Name.Length+sizeof(FILE_NAME_INFORMATION);
-	BYTE fni_buf[buf_len+2];	//Two bytes for the future NULL terminator
+	BYTE fni_buf[buf_len+sizeof(wchar_t)];	//sizeof(wchar_t) bytes for the future NULL terminator
 	FILE_NAME_INFORMATION *pfni=(FILE_NAME_INFORMATION*)fni_buf;
 	if (!NT_SUCCESS(fnNtQueryInformationFile(hFile, &ioStatusBlock, pfni, buf_len, FileNameInformation))) {
 		CloseHandle(hFile);

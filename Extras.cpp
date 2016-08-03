@@ -17,17 +17,19 @@ pWow64DisableWow64FsRedirection fnWow64DisableWow64FsRedirection=NULL;
 pWow64RevertWow64FsRedirection fnWow64RevertWow64FsRedirection=NULL;
 pAttachConsole fnAttachConsole=NULL;
 pWcoutMessageBox fnWcoutMessageBox;
+pEnableWcout fnEnableWcout;
 
 std::unique_ptr<Extras> Extras::instance;
 
 Extras::Extras(bool hidden, const wchar_t* caption): 
-	wcout_win32(true), wcerr_win32(false),
+	wcout_win32(Win32WcostreamBuf::WCOUT), wcerr_win32(Win32WcostreamBuf::WCERR),
 	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL)
 {
 	LoadFunctions();
 	
 	wcout_win32.Activate();
 	wcerr_win32.Activate();
+	fnEnableWcout=std::bind(&Extras::EnableWcout, this, std::placeholders::_1);
 	if (hidden) {
 		wcout_win32.AttachMessageBox(caption?caption:L"");
 		fnWcoutMessageBox=std::bind(&Extras::WcoutMessageBox, this);
@@ -58,6 +60,11 @@ bool Extras::MakeInstance(bool hidden, const wchar_t* caption)
 void Extras::WcoutMessageBox()
 {
 	wcout_win32.ShowMessageBox();
+}
+
+void Extras::EnableWcout(bool value)
+{
+	wcout_win32.OutputEnabled(value);
 }
 
 //Checking if DLLs are alredy loaded before LoadLibrary is cool but redundant

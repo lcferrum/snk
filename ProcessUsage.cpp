@@ -39,7 +39,7 @@ bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONG
 //Assuming that UNICODE_STRING not necessary terminated
 //Complex expression in prc_time_dlt initialization is (paranoid) overflow check
 PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool odd_enum, UNICODE_STRING name, const std::wstring &path, bool system):
-	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), blacklisted(false), system(system), disabled(false), odd_enum(odd_enum)
+	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), odd_enum(odd_enum)
 {
 	//If path exists - extract name from it instead using supplied one
 	if (!this->path.empty()) {
@@ -71,8 +71,10 @@ Processes::~Processes()
 
 void Processes::DumpProcesses()
 {
+#if DEBUG>=1
 	for (PData &data: CAN)
-		std::wcerr<<data.GetPID()<<L" => "<<data.GetDelta()<<L" ("<<(data.GetBlacklisted()?L"b":L"_")<<(data.GetSystem()?L"s":L"_")<<(data.GetDisabled()?L"d) ":L"_) ")<<data.GetName()<<L" ["<<data.GetPath()<<L"]"<<std::endl;
+		std::wcerr<<data.GetPID()<<L" => "<<data.GetDelta()<<L" ("<<(data.GetSystem()?L"s":L"_")<<(data.GetDiscarded()?L"d":L"_")<<(data.GetDisabled()?L"D) ":L"_) ")<<data.GetName()<<L" ["<<data.GetPath()<<L"]"<<std::endl;
+#endif
 }
 
 bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&, bool)> mutator)
@@ -81,59 +83,67 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 	
 	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
 	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (!rit->GetDisabled()&&!rit->GetBlacklisted()&&!(ModeAll()?false:rit->GetSystem())&&mutator(rit->GetPID(), rit->GetName(), rit->GetPath(), applied)) {
+		if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())&&mutator(rit->GetPID(), rit->GetName(), rit->GetPath(), applied)) {
 			applied=true;
-			rit->SetDisabled(true);
+			if (!ModeBlank()) rit->SetDisabled(true);
+			if (ModeBlacklist()) rit->SetDiscarded(true);
+			if (ModeWhitelist()) rit->SetDiscarded(false);
 			if (!ModeLoop()) break;
+		} else {
+			if (ModeWhitelist()) rit->SetDiscarded(true);
 		}
 	}
 	
 	return applied;
 }
 
-void Processes::AddPathToBlacklist(bool param_full, const wchar_t* arg_wcard)
+void Processes::ManageProcessList(LstMode param_lst_mode)
 {
-	if (!arg_wcard)
-		arg_wcard=L"";
-	
-	if (wcslen(arg_wcard))
-		for (PData &data: CAN)
-			if (!data.GetBlacklisted()&&MultiWildcardCmp(arg_wcard, param_full?data.GetPath().c_str():data.GetName().c_str()))	
-				data.SetBlacklisted(true);		
-		
-#if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":AddPathToBlacklist:"<<__LINE__<<L": Dumping processes right after AddPathToBlacklist("<<(param_full?L"true":L"false")<<L", \""<<arg_wcard<<L"\")..."<<std::endl;
-	DumpProcesses();
+#if DEBUG>=1
+	if (param_lst_mode==LST_DEBUG) {
+		std::wcerr<<L"" __FILE__ ":ManageProcessList:"<<__LINE__<<L": Dumping processes for LST_DEBUG..."<<std::endl;
+		DumpProcesses();
+		return;
+	}
 #endif
-}
 
-void Processes::AddPidToBlacklist(const wchar_t* arg_parray)
-{
-	std::vector<ULONG_PTR> uptr_array;
-	
-	if (arg_parray&&PidListCmp(arg_parray, uptr_array))	{
-		if (!uptr_array.empty())
-			for (PData &data: CAN)
-				if (!data.GetBlacklisted()&&PidListCmp(uptr_array, data.GetPID()))	
-					data.SetBlacklisted(true);
-	} else
-		arg_parray=L"";
-		
-#if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":AddPidToBlacklist:"<<__LINE__<<L": Dumping generated PID list for \""<<arg_parray<<L"\"..."<<std::endl;
-	for (ULONG_PTR &uptr_i: uptr_array)
-		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
-#endif
-#ifdef DEBUG
-	std::wcerr<<L"" __FILE__ ":AddPidToBlacklist:"<<__LINE__<<L": Dumping processes right after AddPidToBlacklist(\""<<arg_parray<<L"\")..."<<std::endl;
-	DumpProcesses();
-#endif
-}
+	bool avail_found=false;
 
-void Processes::ClearBlacklist()
-{
-	for (PData &data: CAN)
-		data.SetBlacklisted(false);
+	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
+	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+		switch (param_lst_mode) {
+			case LST_SHOW:
+				if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())) {
+					if (!avail_found) {
+						if (ModeAll())
+							std::wcout<<L"Available processes:"<<std::endl;
+						else
+							std::wcout<<L"Available user processes:"<<std::endl;	
+						avail_found=true;
+					}
+					std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
+				}
+				break;
+			case INV_MASK:
+				if (rit->GetDiscarded())
+					rit->SetDiscarded(false);
+				else
+					rit->SetDiscarded(true);
+				break;
+			case CLR_MASK:
+				rit->SetDiscarded(false);
+				break;
+			default:	//Added to silence clang's -Wswitch warning
+				break;
+		}
+	}
+	
+	if (param_lst_mode==LST_SHOW&&!avail_found) {
+		if (ModeAll())
+			std::wcout<<L"No processes available"<<std::endl;
+		else
+			std::wcout<<L"No user processes available"<<std::endl;	
+	}
 }
 
 void Processes::EnumProcessUsage() 
@@ -158,7 +168,7 @@ void Processes::SortByCpuUsage()
 	//And, in the case of equal CPU load, last created PID will be selected
 	std::stable_sort(CAN.begin(), CAN.end());
 	
-#ifdef DEBUG
+#if DEBUG>=1
 	std::wcerr<<L"" __FILE__ ":SortByCpuUsage:"<<__LINE__<<L": Dumping processes after CPU usage sort..."<<std::endl;
 	DumpProcesses();
 #endif
@@ -170,7 +180,7 @@ void Processes::SortByRecentlyCreated()
 	//Conforming to reverse accessing of CAN, PIDs are sorted in ascending order so last created PIDs are at the end of the list
 	std::sort(CAN.begin(), CAN.end(), [](const PData &left, const PData &right){ return left.GetCrtTime()<right.GetCrtTime(); });
 	
-#ifdef DEBUG
+#if DEBUG>=1
 	std::wcerr<<L"" __FILE__ ":SortByRecentlyCreated:"<<__LINE__<<L": Dumping processes after recently created sort..."<<std::endl;
 	DumpProcesses();
 #endif

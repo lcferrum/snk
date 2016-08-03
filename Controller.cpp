@@ -1,6 +1,7 @@
 #include "Extras.h"
 #include "Common.h"
 #include "Killers.h"
+#include "ProcessUsage.h"
 #include "Controller.h"
 #include <stdio.h>
 #include <iostream>
@@ -12,6 +13,7 @@
 #define MUTEX_NAME		L"MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
 
 extern pWcoutMessageBox fnWcoutMessageBox;
+extern pEnableWcout fnEnableWcout;
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 Controller<ProcessesPolicy, KillersPolicy>::Controller():
@@ -95,7 +97,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 		BYTE bom_sz;
 		
 		if (ReadFile(h_cmdfile, &bom, 3, &buf_len, NULL)) {
-			//This function requires 2-byte-NULL-terminated array, no matter what actual coding is
+			//This function requires wchar_t-NULL-terminated (L'\0') array, no matter what actual coding is
 			//It converts BYTE array to NULL-terminated wchar_t array
 			std::function<void(BYTE* &cmdline)> fnConvertCmdline;
 			
@@ -109,7 +111,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 					//Already NULL-terminated, just need to reverse BYTE pairs to make it wchar_t array
 					wchar_t* wcmdline=(wchar_t*)cmdline;
 					while (*wcmdline) {
-						*wcmdline=*wcmdline>>8&0xFF|*wcmdline<<8;	//Signedness of wchar_t is implementation defined so don't expect right shift to be padded with zeroes
+						*wcmdline=(*wcmdline>>8&0xFF)|*wcmdline<<8;	//Signedness of wchar_t is implementation defined so don't expect right shift to be padded with zeroes
 						wcmdline++;
 					}
 				};
@@ -150,8 +152,8 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 			//Sorry guys, 4GB file limit - deal with it
 			//Also don't bother processing zero-length files
 			if (SetFilePointer(h_cmdfile, bom_sz, NULL, FILE_BEGIN)!=INVALID_SET_FILE_POINTER&&(buf_len=GetFileSize(h_cmdfile, NULL))!=INVALID_FILE_SIZE&&(buf_len-=bom_sz)) {
-				//+2 bytes for the 2-byte NULL terminator (ConvertCmdline requirement)
-				BYTE *cmdfile_buf=new BYTE[buf_len+2];
+				//+sizeof(wchar_t) bytes for the wchar_t-NULL terminator (ConvertCmdline requirement)
+				BYTE *cmdfile_buf=new BYTE[buf_len+sizeof(wchar_t)];
 				//Yep, reading whole file in one pass
 				if (ReadFile(h_cmdfile, cmdfile_buf, buf_len, &buf_len, NULL)) {
 					*(wchar_t*)(cmdfile_buf+buf_len)=L'\0';
@@ -185,6 +187,9 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 template <typename ProcessesPolicy, typename KillersPolicy>	
 void Controller<ProcessesPolicy, KillersPolicy>::ClearParamsAndArgs()
 {
+	//By C++ standard it is guaranteed that false is converted to 0 when type-casted to int
+	//So any non-bool variables in param_first and param_second unions will be assigned 0
+	//By design none of these union variables are greater in size than param_first/param_second so assignment won't leave any bytes unaffected
 	ctrl_vars.param_first=false;
 	ctrl_vars.param_second=false;
 	ctrl_vars.args.clear();
@@ -221,33 +226,43 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 	} else if (!top_rule.compare(L"-r")) {
 		ctrl_vars.mode_recent=false;
 		SortByCpuUsage();
+	} else if (!top_rule.compare(L"+m")) {
+		ctrl_vars.mode_mute=true;
+		if (fnEnableWcout) fnEnableWcout(false);
+	} else if (!top_rule.compare(L"-m")) {
+		ctrl_vars.mode_mute=false;
+		if (fnEnableWcout) fnEnableWcout(true);
 	} else if (!top_rule.compare(L"+l")) {
 		ctrl_vars.mode_loop=true;
 	} else if (!top_rule.compare(L"-l")) {
 		ctrl_vars.mode_loop=false;
-	} else if (!top_rule.compare(L"/blk:full")) {
-		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
-			ctrl_vars.param_blk_mode=BlkMode::FULL;
+	} else if (!top_rule.compare(L"+b")) {
+		ctrl_vars.mode_blacklist=true;
+	} else if (!top_rule.compare(L"-b")) {
+		ctrl_vars.mode_blacklist=false;
+	} else if (!top_rule.compare(L"+w")) {
+		ctrl_vars.mode_whitelist=true;
+	} else if (!top_rule.compare(L"-w")) {
+		ctrl_vars.mode_whitelist=false;
+#if DEBUG>=1
+	} else if (!top_rule.compare(L"/lst:debug")) {
+		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
+			ctrl_vars.param_lst_mode=LstMode::LST_DEBUG;
 		else
-			std::wcerr<<L"Warning: /blk:full parameter discarded!"<<std::endl;
-	} else if (!top_rule.compare(L"/blk:clear")) {
-		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
-			ctrl_vars.param_blk_mode=BlkMode::CLEAR;
+			std::wcerr<<L"Warning: /lst:debug parameter discarded!"<<std::endl;
+#endif
+	} else if (!top_rule.compare(L"/lst:clrmask")) {
+		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
+			ctrl_vars.param_lst_mode=LstMode::CLR_MASK;
 		else
-			std::wcerr<<L"Warning: /blk:clear parameter discarded!"<<std::endl;
-	} else if (!top_rule.compare(L"/blk:pid")) {
-		if (ctrl_vars.param_blk_mode==BlkMode::DEFAULT)
-			ctrl_vars.param_blk_mode=BlkMode::PID;
+			std::wcerr<<L"Warning: /lst:clrmask parameter discarded!"<<std::endl;
+	} else if (!top_rule.compare(L"/lst:invmask")) {
+		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
+			ctrl_vars.param_lst_mode=LstMode::INV_MASK;
 		else
-			std::wcerr<<L"Warning: /blk:pid parameter discarded!"<<std::endl;
-	} else if (!top_rule.compare(L"/blk")) {
-		if (ctrl_vars.param_blk_mode==BlkMode::CLEAR) {
-			NoArgsAllowed(L"/blk:clear");
-			ClearBlacklist();
-		} else if (ctrl_vars.param_blk_mode==BlkMode::PID)
-			AddPidToBlacklist(ctrl_vars.args.c_str());
-		else
-			AddPathToBlacklist(ctrl_vars.param_blk_mode==BlkMode::FULL, ctrl_vars.args.c_str());
+			std::wcerr<<L"Warning: /lst:invmask parameter discarded!"<<std::endl;
+	} else if (!top_rule.compare(L"/lst")) {
+		ManageProcessList(ctrl_vars.param_lst_mode);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/bpp")) {
 		NoArgsAllowed(top_rule);
@@ -255,8 +270,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/sec")) {
 		NoArgsAllowed(top_rule);
-		while ((done=SecuredExecution())&&ctrl_vars.mode_loop) 
-			Sleep(1000);
+		done=SecuredExecution();
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/cmd")) {
 		ProcessCmdFile(rules, ctrl_vars.args.c_str());
@@ -353,7 +367,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 	}
 
 	ctrl_vars.first_run=false;
-	return !done||ctrl_vars.mode_ignore;
+	return !done||ModeIgnore();
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	

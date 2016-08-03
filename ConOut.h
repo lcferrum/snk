@@ -22,6 +22,7 @@ private:
 	
 	wchar_t obuf[W32WBUF_OBUFLEN];
 	bool active;
+	bool enabled;
 	bool is_wcout;
 	int orig_mode;
 	std::wstreambuf *orig_buf;
@@ -38,11 +39,14 @@ private:
 	virtual int_type overflow(int_type ch);
 	virtual int sync();
 public:
-	Win32WcostreamBuf(bool is_wcout);
+	enum WCType:char {WCERR=0, WCOUT};
+	
+	Win32WcostreamBuf(WCType wc_type);
 	~Win32WcostreamBuf();
 	
 	bool Activate();
 	bool AttachMessageBox(const wchar_t* caption);
+	void OutputEnabled(bool value);
 	bool ShowMessageBox();
 	bool Deactivate();
 };

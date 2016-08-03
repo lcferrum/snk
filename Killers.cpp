@@ -57,7 +57,12 @@ void Killers::PrintCommonKillPrefix()
 void Killers::KillProcess(DWORD PID, const std::wstring &name) 
 {
 	if (ModeBlank()) {
-		std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
+		if (ModeBlacklist())
+			std::wcout<<PID<<L" ("<<name<<L") - blacklisted"<<std::endl;
+		else if (ModeWhitelist())
+			std::wcout<<PID<<L" ("<<name<<L") - whitelisted"<<std::endl;
+		else
+			std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
 	} else {
 		//PROCESS_TERMINATE is needed for TerminateProcess
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE);

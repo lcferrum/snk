@@ -15,7 +15,7 @@ private:
 	ULONGLONG prc_time_dlt;		//Process time delta = current kernel+user time - previous kernel+user time
 	bool odd_enum;				//Enum period when this PID was last updated (ODD or EVEN)
 	ULONG_PTR pid;				//In NT internal structures it is HANDLE aka PVOID (though public Win API function treat PID as DWORD), so cast it to ULONG_PTR like MS recommends
-	bool blacklisted;			//Indicates that process is now untouchable and will be omitted from any queries
+	bool discarded;				//Indicates that process is now untouchable and will be omitted from any queries
 	bool disabled;				//Indicates that process has already been killed (or at least was tried to be killed) and should be omitted from any further queries
 	bool system;				//Indicates that this is a system process (i.e. process that wasn't created by user)
 	std::wstring name;			//Name of the process executable
@@ -34,10 +34,10 @@ public:
 	ULONGLONG GetCrtTime() const { return crt_time; }
 	bool GetOddEnum() const { return odd_enum; }
 	bool GetSystem() const { return system; }
+	bool GetDiscarded() const { return discarded; }
+	void SetDiscarded(bool value) { discarded=value; }
 	bool GetDisabled() const { return disabled; }
 	void SetDisabled(bool value) { disabled=value; }
-	bool GetBlacklisted() const { return blacklisted; }
-	void SetBlacklisted(bool value) { blacklisted=value; }
 	std::wstring GetName() const { return name; }
 	std::wstring GetPath() const { return path; }
 
@@ -70,7 +70,12 @@ private:
 	
 	virtual bool ModeAll()=0;
 	virtual bool ModeLoop()=0;
+	virtual bool ModeBlank()=0;
+	virtual bool ModeBlacklist()=0;
+	virtual bool ModeWhitelist()=0;
 protected:
+	enum LstMode:char {LST_SHOW=0, LST_DEBUG, INV_MASK, CLR_MASK};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
+
 	//Applies function ("mutator") to processes from CAN that are not marked as system
 	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
 	//If mode_all - applies "mutator" to the whole CAN, including processes that are marked as system
@@ -79,13 +84,7 @@ protected:
 
 	//Adds processes that are forbidden to kill to blacklist using path
 	//If param_full - uses full process path instead just name
-	void AddPathToBlacklist(bool param_full, const wchar_t* arg_wcard);	
-	
-	//Adds processes that are forbidden to kill to blacklist using PID
-	void AddPidToBlacklist(const wchar_t* arg_parray);
-
-	//Clears blacklist of untouchable processes
-	void ClearBlacklist();
+	void ManageProcessList(LstMode param_lst_mode);	
 	
 	//Sorts processes list by CPU usage
 	void SortByCpuUsage();

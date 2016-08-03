@@ -8,9 +8,8 @@
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 class Controller: private ProcessesPolicy, private KillersPolicy {
-	using ProcessesPolicy::AddPathToBlacklist;
-	using ProcessesPolicy::AddPidToBlacklist;
-	using ProcessesPolicy::ClearBlacklist;
+	typedef typename ProcessesPolicy::LstMode LstMode;
+	using ProcessesPolicy::ManageProcessList;
 	using ProcessesPolicy::SortByCpuUsage;
 	using ProcessesPolicy::SortByRecentlyCreated;
 	using KillersPolicy::KillByCpu;
@@ -24,7 +23,6 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using KillersPolicy::KillByFsc;
 	using KillersPolicy::KillByFgd;
 private:
-	enum BlkMode:char {DEFAULT=0, FULL, PID, CLEAR};
 	struct {
 		bool first_run;
 		bool mode_blank;
@@ -33,10 +31,17 @@ private:
 		bool mode_loop;
 		bool mode_verbose;
 		bool mode_recent;
-		union {
+		bool mode_blacklist;
+		bool mode_whitelist;
+		bool mode_mute;
+		//We should be able to change values of all variables in union by assigning something to it's largest member (should be param_first/param_second)
+		//Don't expect bool (param_first/param_second type) to be the largest because size of bool is implementation defined 
+		//Test with static_assert for other types to be smaller or equal in size
+		union {						
 			bool param_first;
 			bool param_plus;
-			BlkMode param_blk_mode;
+			static_assert(sizeof(LstMode)<=sizeof(bool), L"sizeof(ProcessesPolicy::LstMode) should be less or equal sizeof(bool)");
+			LstMode param_lst_mode;
 			bool param_full;
 			bool param_simple;
 			bool param_anywnd;
@@ -57,10 +62,13 @@ private:
 	void ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath);
 	bool MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
-	virtual bool ModeAll() { return ctrl_vars.mode_all; }
-	virtual bool ModeLoop() { return ctrl_vars.mode_loop; }
-	virtual bool ModeBlank() { return ctrl_vars.mode_blank; }
+	virtual bool ModeAll() { return ctrl_vars.mode_all||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
+	virtual bool ModeLoop() { return ctrl_vars.mode_loop||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
+	virtual bool ModeIgnore() { return ctrl_vars.mode_ignore||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
+	virtual bool ModeBlank() { return ctrl_vars.mode_blank||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
 	virtual bool ModeRecent() { return ctrl_vars.mode_recent; }
+	virtual bool ModeBlacklist() { return ctrl_vars.mode_blacklist&&!ctrl_vars.mode_whitelist; }
+	virtual bool ModeWhitelist() { return ctrl_vars.mode_whitelist&&!ctrl_vars.mode_blacklist; }
 public:
 	void MakeItDead(std::stack<std::wstring> &rules);
 	Controller();

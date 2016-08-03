@@ -6,14 +6,19 @@
 		- Revamped output
 		- Arguments starting with '#' or '\0' are now ignored
 		- Path comparing now omits backslash from globbing
+		- /sec now indifferent to loop setting (+l/-l)
+		- Test setting (+t/-t) now doesn't mark result processes as killed
 	* Fixed:
 		- Fixed sending ENTER to wrong console for windowless (hidden) version
 	* Added:
 		- /cmd switch (load arguments from file)
-		- 'pid' parameter for /blk switch (add to blacklist by PID)
+		- /lst switch (show and manage process list)
 		- +r/-r setting (recently added sorting)
+		- +m/-m setting (mute stdout output)
+		- +b/-b setting (blacklist results)
+		- +w/-w setting (whitelist results)
 	* Removed:
-		- 
+		- /blk switch (use +b/-b setting instead)
 
 2016-04-15  Lcferrum <lcferrum@yandex.com>
 	

@@ -8,8 +8,8 @@ extern pAttachConsole fnAttachConsole;
 
 int Win32WcostreamBuf::console_attached=0;
 
-Win32WcostreamBuf::Win32WcostreamBuf(bool is_wcout):
-	obuf(), active(false), is_wcout(is_wcout), orig_mode(-1), orig_buf(NULL), stdstream_type(NONE), 
+Win32WcostreamBuf::Win32WcostreamBuf(WCType wc_type):
+	obuf(), active(false), enabled(true), is_wcout(wc_type==WCOUT), orig_mode(-1), orig_buf(NULL), stdstream_type(NONE), 
 	hstdstream(INVALID_HANDLE_VALUE), mb_buf(), mb_caption(), mb_attached(false)
 {
 	setp(obuf, obuf+W32WBUF_OBUFLEN);
@@ -32,6 +32,12 @@ Win32WcostreamBuf::int_type Win32WcostreamBuf::overflow(Win32WcostreamBuf::int_t
 int Win32WcostreamBuf::sync()
 {
 	return WriteBuffer()?0:-1;
+}
+
+void Win32WcostreamBuf::OutputEnabled(bool value)
+{
+	sync();
+	enabled=value;
 }
 
 bool Win32WcostreamBuf::Activate()
@@ -158,26 +164,28 @@ bool Win32WcostreamBuf::WriteBuffer()
 	//Not checking validness of pointers and data length because virtual members that can directly affect them are not implemented
 	size_t datalen=pptr()-pbase();
 	if (datalen) {
-		//Widechar console output causes a shitstorm of issues on Win32
-		//First of all, _O_U16TEXT mode is a must on stdout handle or wcout will fail on first unicode character
-		//But unfortunately even if wcout not failing now, output to console is crappy most time
-		//Unicode characters may be shown incorrectly, there may be spaces after each of output characters or only the very first character of all output will be displayed
-		//The only safe way to do widechar console output is using native Win32 function - WriteConsole
-		//For redirected output wcout is still ok and even better than WriteFile - it will not mangle new lines
-		if (stdstream_type==GUICON||stdstream_type==CON) {
-			DWORD written;		
-			//If GUICON/CON - hstdstream is guaranteed to be valid
-			if (!WriteConsole(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
-				return false;
-		} else {
-			//Using fwrite(stdout) instead of wcout
-			if (fwrite(pbase(), sizeof(wchar_t), datalen, is_wcout?stdout:stderr)!=datalen)
-				return false;
-			fflush(is_wcout?stdout:stderr);
+		if (enabled) {
+			//Widechar console output causes a shitstorm of issues on Win32
+			//First of all, _O_U16TEXT mode is a must on stdout handle or wcout will fail on first unicode character
+			//But unfortunately even if wcout not failing now, output to console is crappy most time
+			//Unicode characters may be shown incorrectly, there may be spaces after each of output characters or only the very first character of all output will be displayed
+			//The only safe way to do widechar console output is using native Win32 function - WriteConsole
+			//For redirected output wcout is still ok and even better than WriteFile - it will not mangle new lines
+			if (stdstream_type==GUICON||stdstream_type==CON) {
+				DWORD written;		
+				//If GUICON/CON - hstdstream is guaranteed to be valid
+				if (!WriteConsole(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
+					return false;
+			} else {
+				//Using fwrite(stdout) instead of wcout
+				if (fwrite(pbase(), sizeof(wchar_t), datalen, is_wcout?stdout:stderr)!=datalen)
+					return false;
+				fflush(is_wcout?stdout:stderr);
+			}
+			//If we have MessageBox output active - write data to it's buffer
+			if (mb_attached)
+				mb_buf.append(pbase(), datalen);
 		}
-		//If we have MessageBox output active - write data to it's buffer
-		if (mb_attached)
-			mb_buf.append(pbase(), datalen);
 		pbump(-datalen);
 	}
 
@@ -194,7 +202,7 @@ void Win32WcostreamBuf::SimulateEnterKey()
 }
 
 void Win32WcostreamBuf::ClearScreen()
-{
+{	
 	DWORD ret_len;
 	CONSOLE_SCREEN_BUFFER_INFO csbi; 
 

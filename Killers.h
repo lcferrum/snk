@@ -22,6 +22,8 @@ private:
 	virtual bool ModeRecent()=0;
 	virtual bool ModeAll()=0;
 	virtual bool ModeLoop()=0;
+	virtual bool ModeBlacklist()=0;
+	virtual bool ModeWhitelist()=0;
 protected:	
 	//Kills process with highest cpu load
 	bool KillByCpu();

@@ -30,6 +30,7 @@ public:
 	Extras(const Extras&)=delete;				//Get rid of default copy constructor
 	Extras& operator=(const Extras&)=delete;	//Get rid of default copy assignment operator
 	void WcoutMessageBox();						//Not making this static for the uniformity of calling extra functions (through extern "fn" pointers)
+	void EnableWcout(bool value);				//Not making this static for the uniformity of calling extra functions (through extern "fn" pointers)
 	
 	static bool MakeInstance(bool hidden, const wchar_t* caption);	
 };
@@ -50,5 +51,6 @@ typedef BOOL (WINAPI *pWow64DisableWow64FsRedirection)(PVOID *OldValue);
 typedef BOOL (WINAPI *pWow64RevertWow64FsRedirection)(PVOID OldValue);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
 typedef std::function<void(void)> pWcoutMessageBox;
+typedef std::function<void(bool)> pEnableWcout;
 
 #endif //EXTRA_H
