@@ -74,7 +74,38 @@ bool Controller<ProcessesPolicy, KillersPolicy>::SecuredExecution()
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath)
+DWORD Controller<ProcessesPolicy, KillersPolicy>::IsBOM(DWORD bom)
+{
+	//4-byte BOMs
+	if (bom==0x33953184||		//GB-18030
+		bom==0x736673DD||		//UTF-EBCDIC
+		bom==0x38762F2B||		//UTF-7
+		bom==0x39762F2B||		//UTF-7
+		bom==0x2B762F2B||		//UTF-7
+		bom==0x2F762F2B||		//UTF-7
+		bom==0x0000FEFF||		//UTF-32 LE
+		bom==0xFFFE0000)		//UTF-32 BE
+		return bom;
+		
+	//3-byte BOMs
+	bom&=0xFFFFFF;
+	if (bom==0xBFBBEF||			//UTF-8
+		bom==0x28EEFB||			//BOCU-1
+		bom==0x4C64F7||			//UTF-1
+		bom==0xFFFE0E)			//SCSU
+		return bom;
+		
+	//2-byte BOMs
+	bom&=0xFFFF;
+	if (bom==0xFEFF||			//UTF-16 LE
+		bom==0xFFFE)			//UTF-16 BE
+		return bom;
+
+	return 0x0;
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode)
 {
 	//No point in using wifstream
 	//First, filename parameter for constructor and open() is const char*, not const wchar_t*
@@ -96,19 +127,23 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 		DWORD buf_len, bom=0;	//Initialize BOM with 0 so unread bytes won't be filled with garbage
 		BYTE bom_sz;
 		
-		if (ReadFile(h_cmdfile, &bom, 3, &buf_len, NULL)) {
+		if (ReadFile(h_cmdfile, &bom, 4, &buf_len, NULL)) {
 			//This function requires wchar_t-NULL-terminated (L'\0') array, no matter what actual coding is
 			//It converts BYTE array to NULL-terminated wchar_t array
 			std::function<void(BYTE* &cmdline)> fnConvertCmdline;
 			
-			if ((bom&0xFFFF)==0xFEFF) {				//UTF16 LE (ordinary Windows Unicode)
+			bom=IsBOM(bom);
+			
+			if (bom==0xFEFF||				//UTF16 LE (ordinary Windows Unicode)
+				//Use this encoding if BOM is absent and CMDCP_UTF16 set
+				(!bom&&param_cmd_mode==CMDCP_UTF16)) {
 				fnConvertCmdline=[](BYTE* &cmdline){
-					//Nothing to be done here, cmdline is already NULL-terminated wchar_t array, just type cast it
+					//Nothing to be done here, cmdline is already NULL-terminated wchar_t (which is UTF16 LE on Windows) array, just type cast it
 				};
-				bom_sz=2;
-			} else if ((bom&0xFFFF)==0xFFFE) {		//UTF16 BE
+				bom_sz=bom?2:0;
+			} else if (bom==0xFFFE) {		//UTF16 BE
 				fnConvertCmdline=[](BYTE* &cmdline){
-					//Already NULL-terminated, just need to reverse BYTE pairs to make it wchar_t array
+					//Already NULL-terminated, just need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
 					wchar_t* wcmdline=(wchar_t*)cmdline;
 					while (*wcmdline) {
 						*wcmdline=(*wcmdline>>8&0xFF)|*wcmdline<<8;	//Signedness of wchar_t is implementation defined so don't expect right shift to be padded with zeroes
@@ -116,7 +151,9 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 					}
 				};
 				bom_sz=2;
-			} else if ((bom&0xFFFFFF)==0xBFBBEF) {	//UTF8
+			} else if (bom==0xBFBBEF||		//UTF8
+				//Use this encoding if BOM is absent and CMDCP_UTF8 set
+				(!bom&&param_cmd_mode==CMDCP_UTF8)) {
 				fnConvertCmdline=[](BYTE* &cmdline){
 					//Need to convert from UTF8 to wchar_t
 					if (int wchars_num=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, NULL, 0)) {
@@ -130,8 +167,19 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 					}
 					*(wchar_t*)cmdline=L'\0';
 				};
-				bom_sz=3;
-			} else {								//ANSI
+				bom_sz=bom?3:0;
+			} else if (bom) {				//UTF-32, UTF-7, UTF-1, UTF-EBCDIC, SCSU, BOCU-1, GB-18030
+				//Unsupported encodings
+				//These encodings are rarely used on Windows for plain text file encoding (if used at all)
+				CloseHandle(h_cmdfile);
+				std::wcerr<<L"Warning: \""<<arg_cmdpath<<L"\" have unsupported encoding!"<<std::endl;
+				return;
+			} else {						//ANSI
+				//BOM is not required for UTF-8 and rarely used on systems for which UTF-8 is native (which Windows is not)
+				//Sometimes BOM can be missing from encodings where it should be (e.g. redirecting wcout to file produces UTF-16 LE w/o BOM)
+				//Windows Notepad always saves non-ANSI encoded files with BOM
+				//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
+				//Otherwise missing BOM will be treated as ANSI encoding
 				fnConvertCmdline=[](BYTE* &cmdline){
 					//Need to convert from ANSI to wchar_t
 					if (int wchars_num=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, NULL, 0)) {
@@ -196,6 +244,17 @@ void Controller<ProcessesPolicy, KillersPolicy>::ClearParamsAndArgs()
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
+bool Controller<ProcessesPolicy, KillersPolicy>::IsDone(bool sw_res)
+{
+	if (ModeIgnore())
+		return false;
+	else if (ModeNegate())
+		return !sw_res;
+	else
+		return sw_res;
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
 bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<std::wstring> &rules)
 {	
 	if (rules.empty()) return false;
@@ -212,6 +271,10 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		ctrl_vars.mode_ignore=true;
 	} else if (!top_rule.compare(L"-i")) {
 		ctrl_vars.mode_ignore=false;
+	} else if (!top_rule.compare(L"+n")) {
+		ctrl_vars.mode_negate=true;
+	} else if (!top_rule.compare(L"-n")) {
+		ctrl_vars.mode_negate=false;
 	} else if (!top_rule.compare(L"+v")) {
 		ctrl_vars.mode_verbose=true;
 	} else if (!top_rule.compare(L"-v")) {
@@ -269,13 +332,25 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		MessageBeep(MB_ICONINFORMATION);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/sec")) {
+		//Not affected by ignore, loop and negate modes
 		NoArgsAllowed(top_rule);
 		done=SecuredExecution();
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/cmd:utf8")) {
+		if (ctrl_vars.param_cmd_mode==CMDCP_AUTO)
+			ctrl_vars.param_cmd_mode=CMDCP_UTF8;
+		else
+			std::wcerr<<L"Warning: /cmd:utf8 parameter discarded!"<<std::endl;
+	} else if (!top_rule.compare(L"/cmd:utf16")) {
+		if (ctrl_vars.param_cmd_mode==CMDCP_AUTO)
+			ctrl_vars.param_cmd_mode=CMDCP_UTF16;
+		else
+			std::wcerr<<L"Warning: /cmd:utf16 parameter discarded!"<<std::endl;
 	} else if (!top_rule.compare(L"/cmd")) {
-		ProcessCmdFile(rules, ctrl_vars.args.c_str());
+		ProcessCmdFile(rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/hlp")) {
+		//Usable only on first run
 		if (ctrl_vars.first_run) {
 			PrintUsage();
 			done=true;
@@ -285,6 +360,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		} else
 			std::wcerr<<L"Warning: /hlp switch will be ignored!"<<std::endl;
 	} else if (!top_rule.compare(L"/ver")) {
+		//Usable only on first run
 		if (ctrl_vars.first_run) {
 			PrintVersion();
 			done=true;
@@ -295,44 +371,44 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 			std::wcerr<<L"Warning: /ver switch will be ignored!"<<std::endl;
 	} else if (!top_rule.compare(L"/cpu")) {
 		NoArgsAllowed(top_rule);
-		done=KillByCpu();
+		done=IsDone(KillByCpu());
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/pth:full")) {
 		ctrl_vars.param_full=true;
 	} else if (!top_rule.compare(L"/pth")) {
-		done=KillByPth(ctrl_vars.param_full, ctrl_vars.args.c_str());
+		done=IsDone(KillByPth(ctrl_vars.param_full, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/mod:full")) {
 		ctrl_vars.param_full=true;
 	} else if (!top_rule.compare(L"/mod")) {
-		done=KillByMod(ctrl_vars.param_full, ctrl_vars.args.c_str());
+		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/pid")) {
-		done=KillByPid(ctrl_vars.args.c_str());
+		done=IsDone(KillByPid(ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/d3d:simple")) {
 		ctrl_vars.param_simple=true;
 	} else if (!top_rule.compare(L"/d3d")) {
 		NoArgsAllowed(top_rule);
-		done=KillByD3d(ctrl_vars.param_simple);
+		done=IsDone(KillByD3d(ctrl_vars.param_simple));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/ogl:simple")) {
 		ctrl_vars.param_simple=true;
 	} else if (!top_rule.compare(L"/ogl")) {
 		NoArgsAllowed(top_rule);
-		done=KillByOgl(ctrl_vars.param_simple);
+		done=IsDone(KillByOgl(ctrl_vars.param_simple));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/gld:simple")) {
 		ctrl_vars.param_simple=true;
 	} else if (!top_rule.compare(L"/gld")) {
 		NoArgsAllowed(top_rule);
-		done=KillByGld(ctrl_vars.param_simple);
+		done=IsDone(KillByGld(ctrl_vars.param_simple));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/inr:plus")) {
 		ctrl_vars.param_plus=true;
 	} else if (!top_rule.compare(L"/inr")) {
 		NoArgsAllowed(top_rule);
-		done=KillByInr(ctrl_vars.param_plus);
+		done=IsDone(KillByInr(ctrl_vars.param_plus));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/fsc:anywnd")) {
 		ctrl_vars.param_anywnd=true;
@@ -340,13 +416,13 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		ctrl_vars.param_primary=true;
 	} else if (!top_rule.compare(L"/fsc")) {
 		NoArgsAllowed(top_rule);
-		done=KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary);
+		done=IsDone(KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/fgd:anywnd")) {
 		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/fgd")) {
 		NoArgsAllowed(top_rule);
-		done=KillByFgd(ctrl_vars.param_anywnd);
+		done=IsDone(KillByFgd(ctrl_vars.param_anywnd));
 		ClearParamsAndArgs();
 	} else if (top_rule.front()==L'=') {
 		ctrl_vars.args=top_rule.substr(1);
@@ -367,7 +443,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 	}
 
 	ctrl_vars.first_run=false;
-	return !done||ModeIgnore();
+	return !done;
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	

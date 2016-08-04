@@ -6,7 +6,7 @@
 		- Revamped output
 		- Arguments starting with '#' or '\0' are now ignored
 		- Path comparing now omits backslash from globbing
-		- /sec now indifferent to loop setting (+l/-l)
+		- /sec now indifferent to loop (+l/-l) and ignore (+i/-i) settings
 		- Test setting (+t/-t) now doesn't mark result processes as killed
 	* Fixed:
 		- Fixed sending ENTER to wrong console for windowless (hidden) version
@@ -17,6 +17,7 @@
 		- +m/-m setting (mute stdout output)
 		- +b/-b setting (blacklist results)
 		- +w/-w setting (whitelist results)
+		- +n/-n setting (continue on negative)
 	* Removed:
 		- /blk switch (use +b/-b setting instead)
 

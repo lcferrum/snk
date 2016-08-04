@@ -23,10 +23,13 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using KillersPolicy::KillByFsc;
 	using KillersPolicy::KillByFgd;
 private:
+	enum CmdMode:char {CMDCP_AUTO=0, CMDCP_UTF8, CMDCP_UTF16};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
+	
 	struct {
 		bool first_run;
 		bool mode_blank;
 		bool mode_ignore;
+		bool mode_negate;
 		bool mode_all;
 		bool mode_loop;
 		bool mode_verbose;
@@ -42,6 +45,8 @@ private:
 			bool param_plus;
 			static_assert(sizeof(LstMode)<=sizeof(bool), L"sizeof(ProcessesPolicy::LstMode) should be less or equal sizeof(bool)");
 			LstMode param_lst_mode;
+			static_assert(sizeof(CmdMode)<=sizeof(bool), L"sizeof(Controller::CmdMode) should be less or equal sizeof(bool)");
+			CmdMode param_cmd_mode;
 			bool param_full;
 			bool param_simple;
 			bool param_anywnd;
@@ -59,12 +64,15 @@ private:
 	void NoArgsAllowed(const std::wstring &sw);
 	void WaitForUserInput();
 	bool SecuredExecution();
-	void ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath);
+	DWORD IsBOM(DWORD bom);
+	bool IsDone(bool sw_res);
+	void ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
 	bool MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
 	virtual bool ModeAll() { return ctrl_vars.mode_all||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
 	virtual bool ModeLoop() { return ctrl_vars.mode_loop||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
 	virtual bool ModeIgnore() { return ctrl_vars.mode_ignore||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
+	virtual bool ModeNegate() { return ctrl_vars.mode_negate; }
 	virtual bool ModeBlank() { return ctrl_vars.mode_blank||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
 	virtual bool ModeRecent() { return ctrl_vars.mode_recent; }
 	virtual bool ModeBlacklist() { return ctrl_vars.mode_blacklist&&!ctrl_vars.mode_whitelist; }
