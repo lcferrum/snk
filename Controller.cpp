@@ -28,6 +28,18 @@ void Controller<ProcessesPolicy, KillersPolicy>::NoArgsAllowed(const std::wstrin
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::DiscardedParam(const std::wstring &sw_param)
+{
+	std::wcerr<<L"Warning: "<<sw_param<<L" parameter discarded!"<<std::endl;
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::IgnoredSwitch(const std::wstring &sw)
+{
+	std::wcerr<<L"Warning: "<<sw<<L" switch will be ignored!"<<std::endl;
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
 void Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput()
 {
 #ifdef HIDDEN
@@ -312,18 +324,18 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
 			ctrl_vars.param_lst_mode=LstMode::LST_DEBUG;
 		else
-			std::wcerr<<L"Warning: /lst:debug parameter discarded!"<<std::endl;
+			DiscardedParam(top_rule);
 #endif
 	} else if (!top_rule.compare(L"/lst:clrmask")) {
 		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
 			ctrl_vars.param_lst_mode=LstMode::CLR_MASK;
 		else
-			std::wcerr<<L"Warning: /lst:clrmask parameter discarded!"<<std::endl;
+			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst:invmask")) {
 		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
 			ctrl_vars.param_lst_mode=LstMode::INV_MASK;
 		else
-			std::wcerr<<L"Warning: /lst:invmask parameter discarded!"<<std::endl;
+			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst")) {
 		ManageProcessList(ctrl_vars.param_lst_mode);
 		ClearParamsAndArgs();
@@ -340,12 +352,12 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		if (ctrl_vars.param_cmd_mode==CMDCP_AUTO)
 			ctrl_vars.param_cmd_mode=CMDCP_UTF8;
 		else
-			std::wcerr<<L"Warning: /cmd:utf8 parameter discarded!"<<std::endl;
+			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/cmd:utf16")) {
 		if (ctrl_vars.param_cmd_mode==CMDCP_AUTO)
 			ctrl_vars.param_cmd_mode=CMDCP_UTF16;
 		else
-			std::wcerr<<L"Warning: /cmd:utf16 parameter discarded!"<<std::endl;
+			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/cmd")) {
 		ProcessCmdFile(rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
 		ClearParamsAndArgs();
@@ -358,7 +370,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 			ctrl_vars.mode_verbose=true;
 #endif
 		} else
-			std::wcerr<<L"Warning: /hlp switch will be ignored!"<<std::endl;
+			IgnoredSwitch(top_rule);
 	} else if (!top_rule.compare(L"/ver")) {
 		//Usable only on first run
 		if (ctrl_vars.first_run) {
@@ -368,7 +380,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 			ctrl_vars.mode_verbose=true;
 #endif
 		} else
-			std::wcerr<<L"Warning: /ver switch will be ignored!"<<std::endl;
+			IgnoredSwitch(top_rule);
 	} else if (!top_rule.compare(L"/cpu")) {
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByCpu());

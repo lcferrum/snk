@@ -62,6 +62,8 @@ private:
 	
 	void ClearParamsAndArgs();
 	void NoArgsAllowed(const std::wstring &sw);
+	void DiscardedParam(const std::wstring &sw_param);
+	void IgnoredSwitch(const std::wstring &sw);
 	void WaitForUserInput();
 	bool SecuredExecution();
 	DWORD IsBOM(DWORD bom);
