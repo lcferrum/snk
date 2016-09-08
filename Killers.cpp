@@ -219,7 +219,7 @@ bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str
 						wchar_t *value;
 						UINT valuelen;
 						std::wstringstream qstr;
-						qstr<<std::nouppercase<<std::noshowbase<<std::hex<<L"\\StringFileInfo\\"<<std::setfill(L'0')<<std::setw(4)<<plcp->wLanguage<<std::setfill(L'0')<<std::setw(4)<<plcp->wCodePage<<L"\\"<<item_str[0];
+						qstr<<std::nouppercase<<std::noshowbase<<std::hex<<std::setfill(L'0')<<L"\\StringFileInfo\\"<<std::setw(4)<<plcp->wLanguage<<std::setw(4)<<plcp->wCodePage<<L"\\"<<item_str[0];
 						if (VerQueryValue((LPVOID)retbuf, qstr.str().c_str(), (LPVOID*)&value, &valuelen)) {
 #if DEBUG>=3
 							std::wcerr<<L"" __FILE__ ":CheckStringFileInfo:"<<__LINE__<<L": "<<fpath<<L":"<<qstr.str()<<L"=\""<<value<<L"\" matching..."<<std::endl;
