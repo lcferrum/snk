@@ -22,7 +22,7 @@ pEnableWcout fnEnableWcout;
 std::unique_ptr<Extras> Extras::instance;
 
 Extras::Extras(bool hidden, const wchar_t* caption): 
-	wcout_win32(Win32WcostreamBuf::WCOUT), wcerr_win32(Win32WcostreamBuf::WCERR),
+	wcout_win32(Win32WcostreamBuf::WCOUT), wcerr_win32(Win32WcostreamBuf::WCERR), mb_caption(caption),
 	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL)
 {
 	LoadFunctions();
@@ -31,7 +31,7 @@ Extras::Extras(bool hidden, const wchar_t* caption):
 	wcerr_win32.Activate();
 	fnEnableWcout=std::bind(&Extras::EnableWcout, this, std::placeholders::_1);
 	if (hidden) {
-		wcout_win32.AttachMessageBox(caption?caption:L"");
+		wcout_win32.AttachAdditionalOutput(std::bind(&Extras::MessageBoxCallback, this, std::placeholders::_1));
 		fnWcoutMessageBox=std::bind(&Extras::WcoutMessageBox, this);
 	} else {
 		CONSOLE_SCREEN_BUFFER_INFO csbi; 
@@ -59,12 +59,17 @@ bool Extras::MakeInstance(bool hidden, const wchar_t* caption)
 
 void Extras::WcoutMessageBox()
 {
-	wcout_win32.ShowMessageBox();
+	wcout_win32.CallAdditionalOutput();
 }
 
 void Extras::EnableWcout(bool value)
 {
 	wcout_win32.OutputEnabled(value);
+}
+
+void Extras::MessageBoxCallback(const std::wstring& mb_buffer)
+{
+	MessageBox(NULL, mb_buffer.c_str(), mb_caption.c_str(), MB_OK|MB_ICONWARNING|MB_SETFOREGROUND);
 }
 
 //Checking if DLLs are alredy loaded before LoadLibrary is cool but redundant

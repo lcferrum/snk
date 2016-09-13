@@ -5,10 +5,14 @@
 #include <string>
 #include <vector>
 #include <streambuf>
+#include <functional>
 
+//Buffer size for basic_streambuf in characters
+//Keep it reasonable - if it's nearing LONG_MAX you definetely doing it wrong
 #define W32WBUF_OBUFLEN 256
 
 class Win32WcostreamBuf: private std::basic_streambuf<wchar_t> {
+	typedef std::function<void(const std::wstring&)> AoutCallbackType;
 private:
 	enum OutType:char {NONE, REDIR, GEN, CON, GUICON, BADCON};
 	//NONE - we basically have nowhere to output stdstream
@@ -28,9 +32,8 @@ private:
 	std::wstreambuf *orig_buf;
 	OutType stdstream_type;
 	HANDLE hstdstream;
-	std::wstring mb_caption;
-	std::wstring mb_buf;
-	bool mb_attached;
+	AoutCallbackType aout_proc;
+	std::wstring aout_buf;
 	
 	bool WriteBuffer();
 	void ClearScreen();
@@ -45,9 +48,9 @@ public:
 	~Win32WcostreamBuf();
 	
 	bool Activate();
-	bool AttachMessageBox(const wchar_t* caption);
+	bool AttachAdditionalOutput(AoutCallbackType aout);
 	void OutputEnabled(bool value);
-	bool ShowMessageBox();
+	bool CallAdditionalOutput();
 	bool Deactivate();
 };
 

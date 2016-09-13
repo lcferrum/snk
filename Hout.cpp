@@ -4,18 +4,18 @@
 #include <iomanip>
 
 namespace Hout {
-	size_t terminal_size=79;		//Default terminal size for Win32 = 80 columns (79 characters + 1 new-line symbol)
+	std::wstring::size_type terminal_size=79;		//Default terminal size for Win32 = 80 columns (79 characters + 1 new-line symbol)
 }
 
-void Hout::Paragraph(const wchar_t* str, size_t indent, const wchar_t* padding)
+void Hout::Paragraph(const wchar_t* str, std::wstring::size_type indent, const wchar_t* padding)
 {
 	if (indent>=terminal_size) {
 		std::wcout<<(padding?padding:L"")<<str<<std::endl;
 		return;
 	}
 
-	size_t paragraph_width=terminal_size-indent;
-	size_t break_point;
+	std::wstring::size_type paragraph_width=terminal_size-indent;
+	std::wstring::size_type break_point;
 	std::wstring output=str;
 
 	for (;;) {
@@ -32,7 +32,7 @@ void Hout::Paragraph(const wchar_t* str, size_t indent, const wchar_t* padding)
 	}
 }
 
-void Hout::Separator(const wchar_t* str, size_t indent, wchar_t filler)
+void Hout::Separator(const wchar_t* str, std::wstring::size_type indent, wchar_t filler)
 {
 	if (indent>=terminal_size) {
 		std::wcout<<str<<std::endl;
@@ -50,7 +50,7 @@ void Hout::EmptyLine()
 	std::wcout<<std::endl;
 }
 
-void Hout::SetTerminalSize(size_t size)
+void Hout::SetTerminalSize(std::wstring::size_type size)
 {
 	//Windows console will move every characters that doesn't fit in console width to the next line, including new-line symbol
 	//So we should reserve one last character for the new-line symbol
@@ -60,7 +60,7 @@ void Hout::SetTerminalSize(size_t size)
 		terminal_size=0;		
 }
 
-size_t Hout::GetTerminalSize()
+std::wstring::size_type Hout::GetTerminalSize()
 {
 	return terminal_size;
 }

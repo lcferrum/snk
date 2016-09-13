@@ -16,6 +16,7 @@ private:
 	
 	Win32WcostreamBuf wcout_win32;
 	Win32WcostreamBuf wcerr_win32;
+	std::wstring mb_caption;
 	HMODULE hUser32;
 	HMODULE hNtDll;
 	HMODULE hKernel32;
@@ -23,6 +24,7 @@ private:
 	
 	void LoadFunctions();
 	void UnloadFunctions();
+	void MessageBoxCallback(const std::wstring& mb_buffer);
 	
 	Extras(bool hidden, const wchar_t* caption);
 public:

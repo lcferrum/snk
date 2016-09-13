@@ -255,13 +255,13 @@ void FPRoutines::FillServiceMap()
 					for (int i=0; i<nArgs; i++) {
 						//Sequentially combine command line arguments and try to interpret it as a module name
 						combined_path+=szArglist[i];
-						wchar_t abs_path[std::max((size_t)MAX_PATH, combined_path.length()+5)];	//Intermidiate string for PathFindOnPath function (5 is: extension length plus NULL)
+						wchar_t abs_path[combined_path.length()+5];	//Intermidiate string for PathFindOnPath function (5 is ".exe" extension length in characters plus '\0')
 						wcscpy(abs_path, combined_path.c_str());
 						
 						//Exe extension may be omitted - check if it's the case
-						wchar_t ext[_MAX_EXT];
-						_wsplitpath(abs_path, NULL, NULL, NULL, ext);
-						if (!wcslen(ext)) 
+						//Using this simple algorithm instead of calling _wsplitpath and checking returned extension length
+						std::wstring::size_type ext=combined_path.find_last_of(L"\\.");
+						if (ext==std::wstring::npos||combined_path[ext]==L'\\')
 							wcscat(abs_path, L".exe");
 		
 						//Check if resulting path is already fully qualified or try to make it such with PathFindOnPath
@@ -346,7 +346,6 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath)
 	//If device name resolves to local drive - it's in DriveMap container
 	//If it's not - just create UNC path from relative path (prepend it with slash) and test it for existence
 	//This way is a lot easier than enumerating all the network providers and comparing them to device name
-	//The downside is that if network path is mapped to local drive - we won't get it's local path, just UNC 
 
 	HANDLE hFile;
 	OBJECT_ATTRIBUTES objAttribs;	

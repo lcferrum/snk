@@ -10,7 +10,7 @@ int Win32WcostreamBuf::console_attached=0;
 
 Win32WcostreamBuf::Win32WcostreamBuf(WCType wc_type):
 	obuf(), active(false), enabled(true), is_wcout(wc_type==WCOUT), orig_mode(-1), orig_buf(NULL), stdstream_type(NONE), 
-	hstdstream(INVALID_HANDLE_VALUE), mb_buf(), mb_caption(), mb_attached(false)
+	hstdstream(INVALID_HANDLE_VALUE), aout_buf(), aout_proc()
 {
 	setp(obuf, obuf+W32WBUF_OBUFLEN);
 }
@@ -98,8 +98,8 @@ bool Win32WcostreamBuf::Deactivate()
 	if (!active)
 		return false;
 	
-	mb_attached=false;
-	mb_buf.clear();
+	aout_proc=nullptr;
+	aout_buf.clear();
 	
 	sync();
 	
@@ -133,25 +133,24 @@ bool Win32WcostreamBuf::Deactivate()
 	return true;
 }
 
-bool Win32WcostreamBuf::AttachMessageBox(const wchar_t* caption)
+bool Win32WcostreamBuf::AttachAdditionalOutput(AoutCallbackType aout)
 {
-	if (!caption||mb_attached)
+	if (!aout||aout_proc)
 		return false;
 	
-	mb_caption=caption;
-	mb_attached=true;
+	aout_proc=aout;
 	
 	return true;
 }
 
-bool Win32WcostreamBuf::ShowMessageBox()
+bool Win32WcostreamBuf::CallAdditionalOutput()
 {
-	if (!mb_attached||!active)
+	if (!aout_proc||!active)
 		return false;
 	
 	sync();
-	MessageBox(NULL, mb_buf.c_str(), mb_caption.c_str(), MB_OK|MB_ICONWARNING|MB_SETFOREGROUND);
-	mb_buf.clear();
+	aout_proc(aout_buf);
+	aout_buf.clear();
 	
 	return true;
 }
@@ -162,7 +161,7 @@ bool Win32WcostreamBuf::WriteBuffer()
 		return false;
 	
 	//Not checking validness of pointers and data length because virtual members that can directly affect them are not implemented
-	size_t datalen=pptr()-pbase();
+	ptrdiff_t datalen=pptr()-pbase();
 	if (datalen) {
 		if (enabled) {
 			//Widechar console output causes a shitstorm of issues on Win32
@@ -182,9 +181,9 @@ bool Win32WcostreamBuf::WriteBuffer()
 					return false;
 				fflush(is_wcout?stdout:stderr);
 			}
-			//If we have MessageBox output active - write data to it's buffer
-			if (mb_attached)
-				mb_buf.append(pbase(), datalen);
+			//If we have additional output active - write data to it's buffer
+			if (aout_proc)
+				aout_buf.append(pbase(), datalen);
 		}
 		pbump(-datalen);
 	}
