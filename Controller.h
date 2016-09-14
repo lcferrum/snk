@@ -35,6 +35,7 @@ private:
 		bool mode_all;
 		bool mode_loop;
 		bool mode_verbose;
+		bool mode_expand;
 		bool mode_recent;
 		bool mode_blacklist;
 		bool mode_whitelist;
@@ -72,7 +73,7 @@ private:
 	bool SecuredExecution();
 	DWORD IsBOM(DWORD bom);
 	bool IsDone(bool sw_res);
-	void ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
+	bool ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
 	MIDStatus MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
 	virtual bool ModeAll() { return ctrl_vars.mode_all||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }

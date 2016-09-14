@@ -140,37 +140,56 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 		BYTE bom_sz;
 		
 		if (ReadFile(h_cmdfile, &bom, 4, &buf_len, NULL)) {
-			//This function requires wchar_t-NULL-terminated (L'\0') and wchar_t-whitespace-padded (L' ') array, no matter what actual coding is
-			//It converts BYTE array to NULL-terminated wchar_t array
-			std::function<void(BYTE* &cmdline)> fnConvertCmdline;
+			//This function takes care of converting raw data bytes read from file to NULL-terminated wchar_t array padded with whitespace
+			//See comments on CommandLineToArgvW below
+			std::function<void(BYTE*&, DWORD)> fnConvertCmdline;
 			
 			bom=IsBOM(bom);
 			
 			if (bom==0xFEFF||				//UTF16 LE (ordinary Windows Unicode)
 				//Use this encoding if BOM is absent and CMDCP_UTF16 set
 				(!bom&&param_cmd_mode==CMDCP_UTF16)) {
-				fnConvertCmdline=[](BYTE* &cmdline){
-					//Nothing to be done here, cmdline is already NULL-terminated and whitespace padded wchar_t (which is UTF16 LE on Windows) array, just type cast it
+				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
+					//Nothing to be done here, cmdline is already wchar_t (which is UTF16 LE on Windows) array
+					//Just terminate it with NULL and pad with whitespace
+					BYTE *wcmdline=new BYTE[buf_len+sizeof(wchar_t)*2]; //+sizeof(wchar_t)*2 for whitespace prefix and NULL-terminator
+					*(wchar_t*)wcmdline=L' ';
+					*(wchar_t*)(wcmdline+buf_len+sizeof(wchar_t))=L'\0';
+					while (buf_len--)
+						wcmdline[buf_len+sizeof(wchar_t)]=cmdline[buf_len];
+					delete[] cmdline;
+					cmdline=wcmdline;
 				};
 				bom_sz=bom?2:0;
 			} else if (bom==0xFFFE) {		//UTF16 BE
-				fnConvertCmdline=[](BYTE* &cmdline){
-					//Already NULL-terminated and whitespace padded, just need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
-					wchar_t* wcmdline=(wchar_t*)(cmdline+sizeof(wchar_t));	//Skipping ehitespace prefix (see comments on CommandLineToArgvW below)
-					while (*wcmdline) {
-						*wcmdline=(*wcmdline>>8&0xFF)|*wcmdline<<8;	//Signedness of wchar_t is implementation defined so don't expect right shift to be padded with zeroes
-						wcmdline++;
+				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
+					//Need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
+					BYTE *wcmdline=new BYTE[buf_len+sizeof(wchar_t)*2]; //+sizeof(wchar_t)*2 for whitespace prefix and NULL-terminator
+					if (buf_len%2) {	
+						//Odd buffer length indicate that something is not alright
+						*(wchar_t*)wcmdline=L'\0';
+					} else {
+						//Though even buffer length doesn't guarantee that buffer contains something meaningful
+						//But at least algorithm won't corrupt terminating NULL in this case
+						*(wchar_t*)wcmdline=L' ';
+						*(wchar_t*)(wcmdline+buf_len+sizeof(wchar_t))=L'\0';
+						while (buf_len--)
+							buf_len%2?wcmdline[buf_len+sizeof(wchar_t)-1]:wcmdline[buf_len+sizeof(wchar_t)+1]=cmdline[buf_len];
 					}
+					delete[] cmdline;
+					cmdline=wcmdline;
 				};
 				bom_sz=2;
 			} else if (bom==0xBFBBEF||		//UTF8
 				//Use this encoding if BOM is absent and CMDCP_UTF8 set
 				(!bom&&param_cmd_mode==CMDCP_UTF8)) {
-				fnConvertCmdline=[](BYTE* &cmdline){
+				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
 					//Need to convert from UTF8 to wchar_t
-					if (int wchars_num=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, NULL, 0)) {
-						BYTE *wcmdline=new BYTE[wchars_num*sizeof(wchar_t)*2]; //+sizeof(wchar_t) for whitespace prefix and NULL-terminator
-						if (MultiByteToWideChar(CP_UTF8, 0, (const char*)(cmdline+sizeof(wchar_t)), -1, (wchar_t*)(wcmdline+sizeof(wchar_t)), wchars_num)) {
+					if (int wchars_num=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, buf_len, NULL, 0)) {
+						BYTE *wcmdline=new BYTE[wchars_num+sizeof(wchar_t)*2]; //+sizeof(wchar_t) for whitespace prefix and NULL-terminator
+						if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, buf_len, (wchar_t*)(wcmdline+sizeof(wchar_t)), wchars_num)) {
+							*(wchar_t*)wcmdline=L' ';
+							*(wchar_t*)(wcmdline+buf_len+sizeof(wchar_t))=L'\0';
 							delete[] cmdline;
 							cmdline=wcmdline;
 							return;
@@ -192,7 +211,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 				//Windows Notepad always saves non-ANSI encoded files with BOM
 				//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
 				//Otherwise missing BOM will be treated as ANSI encoding
-				fnConvertCmdline=[](BYTE* &cmdline){
+				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
 					//Need to convert from ANSI to wchar_t
 					if (int wchars_num=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, NULL, 0)) {
 						BYTE *wcmdline=new BYTE[wchars_num*sizeof(wchar_t)];
@@ -212,14 +231,10 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 			//Sorry guys, 4GB file limit - deal with it
 			//Also don't bother processing zero-length files
 			if (SetFilePointer(h_cmdfile, bom_sz, NULL, FILE_BEGIN)!=INVALID_SET_FILE_POINTER&&(buf_len=GetFileSize(h_cmdfile, NULL))!=INVALID_FILE_SIZE&&(buf_len-=bom_sz)) {
-				//First +sizeof(wchar_t) bytes for the wchar_t-NULL terminator (ConvertCmdline requirement)
-				//And another +sizeof(wchar_t) bytes for wchar_t whitespace prefix (see comments on CommandLineToArgvW below)
-				BYTE *cmdfile_buf=new BYTE[buf_len+sizeof(wchar_t)*2]; 
+				BYTE *cmdfile_buf=new BYTE[buf_len]; 
 				//Yep, reading whole file in one pass
-				if (ReadFile(h_cmdfile, cmdfile_buf+sizeof(wchar_t), buf_len, &buf_len, NULL)) {
-					*(wchar_t*)cmdfile_buf=L' ';
-					*(wchar_t*)(cmdfile_buf+buf_len)=L'\0';
-					fnConvertCmdline(cmdfile_buf);
+				if (ReadFile(h_cmdfile, cmdfile_buf, buf_len, &buf_len, NULL)) {
+					fnConvertCmdline(cmdfile_buf, buf_len);
 					
 					//Changing all \n and \r symbols to spaces
 					wchar_t* wcmdfile_buf=(wchar_t*)cmdfile_buf;
@@ -308,6 +323,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_all=true;
 	} else if (!top_rule.compare(L"-a")) {
 		ctrl_vars.mode_all=false;
+	} else if (!top_rule.compare(L"+e")) {
+		ctrl_vars.mode_expand=true;
+	} else if (!top_rule.compare(L"-e")) {
+		ctrl_vars.mode_expand=false;
 	} else if (!top_rule.compare(L"+r")) {
 		ctrl_vars.mode_recent=true;
 		SortByRecentlyCreated();
