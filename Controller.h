@@ -12,6 +12,7 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using ProcessesPolicy::ManageProcessList;
 	using ProcessesPolicy::SortByCpuUsage;
 	using ProcessesPolicy::SortByRecentlyCreated;
+	using ProcessesPolicy::Synchronize;
 	using KillersPolicy::KillByCpu;
 	using KillersPolicy::KillByPth;
 	using KillersPolicy::KillByMod;
@@ -24,6 +25,7 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using KillersPolicy::KillByFgd;
 private:
 	enum CmdMode:char {CMDCP_AUTO=0, CMDCP_UTF8, CMDCP_UTF16};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
+	enum MIDStatus:char {MID_HIT, MID_NONE, MID_EMPTY};
 	
 	struct {
 		bool first_run;
@@ -53,11 +55,13 @@ private:
 		};
 		union {
 			bool param_second;
+			bool param_sub;
 			bool param_primary;
 		}; 
 		std::wstring args;
 	} ctrl_vars;
 	
+	//Windows will close mutex handle automatically when the process terminates
 	HANDLE sec_mutex;
 	
 	void ClearParamsAndArgs();
@@ -69,7 +73,7 @@ private:
 	DWORD IsBOM(DWORD bom);
 	bool IsDone(bool sw_res);
 	void ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
-	bool MakeItDeadInternal(std::stack<std::wstring> &rules);
+	MIDStatus MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
 	virtual bool ModeAll() { return ctrl_vars.mode_all||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
 	virtual bool ModeLoop() { return ctrl_vars.mode_loop||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }

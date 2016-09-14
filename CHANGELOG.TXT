@@ -6,13 +6,15 @@
 		- Revamped output
 		- Arguments starting with '#' or '\0' are now ignored
 		- Path comparing now omits backslash from globbing
-		- /sec now indifferent to loop (+l/-l) and ignore (+i/-i) settings
+		- /sec now indifferent to loop (+l/-l), ignore (+i/-i) and new negate (+n/-n) settings
 		- Test setting (+t/-t) now doesn't mark result processes as killed
 	* Fixed:
 		- Fixed sending ENTER to wrong console for windowless (hidden) version
 	* Added:
 		- /cmd switch (load arguments from file)
 		- /lst switch (show and manage process list)
+		- /prn switch (print something to stdout)
+		- +q/-q setting (suppress all output)
 		- +r/-r setting (recently added sorting)
 		- +m/-m setting (mute stdout output)
 		- +b/-b setting (blacklist results)

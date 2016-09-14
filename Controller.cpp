@@ -140,7 +140,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 		BYTE bom_sz;
 		
 		if (ReadFile(h_cmdfile, &bom, 4, &buf_len, NULL)) {
-			//This function requires wchar_t-NULL-terminated (L'\0') array, no matter what actual coding is
+			//This function requires wchar_t-NULL-terminated (L'\0') and wchar_t-whitespace-padded (L' ') array, no matter what actual coding is
 			//It converts BYTE array to NULL-terminated wchar_t array
 			std::function<void(BYTE* &cmdline)> fnConvertCmdline;
 			
@@ -150,13 +150,13 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 				//Use this encoding if BOM is absent and CMDCP_UTF16 set
 				(!bom&&param_cmd_mode==CMDCP_UTF16)) {
 				fnConvertCmdline=[](BYTE* &cmdline){
-					//Nothing to be done here, cmdline is already NULL-terminated wchar_t (which is UTF16 LE on Windows) array, just type cast it
+					//Nothing to be done here, cmdline is already NULL-terminated and whitespace padded wchar_t (which is UTF16 LE on Windows) array, just type cast it
 				};
 				bom_sz=bom?2:0;
 			} else if (bom==0xFFFE) {		//UTF16 BE
 				fnConvertCmdline=[](BYTE* &cmdline){
-					//Already NULL-terminated, just need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
-					wchar_t* wcmdline=(wchar_t*)cmdline;
+					//Already NULL-terminated and whitespace padded, just need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
+					wchar_t* wcmdline=(wchar_t*)(cmdline+sizeof(wchar_t));	//Skipping ehitespace prefix (see comments on CommandLineToArgvW below)
 					while (*wcmdline) {
 						*wcmdline=(*wcmdline>>8&0xFF)|*wcmdline<<8;	//Signedness of wchar_t is implementation defined so don't expect right shift to be padded with zeroes
 						wcmdline++;
@@ -169,8 +169,8 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 				fnConvertCmdline=[](BYTE* &cmdline){
 					//Need to convert from UTF8 to wchar_t
 					if (int wchars_num=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, NULL, 0)) {
-						BYTE *wcmdline=new BYTE[wchars_num*sizeof(wchar_t)];
-						if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, -1, (wchar_t*)wcmdline, wchars_num)) {
+						BYTE *wcmdline=new BYTE[wchars_num*sizeof(wchar_t)*2]; //+sizeof(wchar_t) for whitespace prefix and NULL-terminator
+						if (MultiByteToWideChar(CP_UTF8, 0, (const char*)(cmdline+sizeof(wchar_t)), -1, (wchar_t*)(wcmdline+sizeof(wchar_t)), wchars_num)) {
 							delete[] cmdline;
 							cmdline=wcmdline;
 							return;
@@ -212,10 +212,12 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 			//Sorry guys, 4GB file limit - deal with it
 			//Also don't bother processing zero-length files
 			if (SetFilePointer(h_cmdfile, bom_sz, NULL, FILE_BEGIN)!=INVALID_SET_FILE_POINTER&&(buf_len=GetFileSize(h_cmdfile, NULL))!=INVALID_FILE_SIZE&&(buf_len-=bom_sz)) {
-				//+sizeof(wchar_t) bytes for the wchar_t-NULL terminator (ConvertCmdline requirement)
-				BYTE *cmdfile_buf=new BYTE[buf_len+sizeof(wchar_t)];
+				//First +sizeof(wchar_t) bytes for the wchar_t-NULL terminator (ConvertCmdline requirement)
+				//And another +sizeof(wchar_t) bytes for wchar_t whitespace prefix (see comments on CommandLineToArgvW below)
+				BYTE *cmdfile_buf=new BYTE[buf_len+sizeof(wchar_t)*2]; 
 				//Yep, reading whole file in one pass
-				if (ReadFile(h_cmdfile, cmdfile_buf, buf_len, &buf_len, NULL)) {
+				if (ReadFile(h_cmdfile, cmdfile_buf+sizeof(wchar_t), buf_len, &buf_len, NULL)) {
+					*(wchar_t*)cmdfile_buf=L' ';
 					*(wchar_t*)(cmdfile_buf+buf_len)=L'\0';
 					fnConvertCmdline(cmdfile_buf);
 					
@@ -230,6 +232,17 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 					//Getting ARGV/ARGC and pushing them to rules stack
 					wchar_t** cmd_argv;
 					int cmd_argc;
+#if DEBUG>=3
+					std::wcerr<<L"" __FILE__ ":ProcessCmdFile:"<<__LINE__<<L": Command file buffer = \""<<(wchar_t*)cmdfile_buf<<"\""<<std::endl;
+#endif
+					//CommandLineToArgvW has an interesting behaviour of how it parsing the very first argument
+					//Without going into details - double quotes handling algorithm is different from the rest of arguments
+					//If you want to use double quotes to keep spaces in the first argument - the very first character of input string should be double quote
+					//E.g.: string ["argumen one"] works as expected but [argument" one"] will produce two arguments instead - [argument"] and [one"]
+					//So you can't use something like [/pth:full="C:\Program Files\program.exe"] for the first argument
+					//But you can use ["/pth:full=C:\Program Files\program.exe"] which looks ugly but does the work	
+					//In the end it's better to prepend input string with whitespace - that will simply produce empty first argument
+					//Empty arguments are ignored by MakeRulesFromArgv so everything will look clean and from now on parsing will work as expected
 					if ((cmd_argv=CommandLineToArgvW((wchar_t*)cmdfile_buf, &cmd_argc))) {
 						MakeRulesFromArgv(cmd_argc, cmd_argv, rules, 0);
 						LocalFree(cmd_argv);
@@ -267,9 +280,9 @@ bool Controller<ProcessesPolicy, KillersPolicy>::IsDone(bool sw_res)
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<std::wstring> &rules)
+typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<std::wstring> &rules)
 {	
-	if (rules.empty()) return false;
+	if (rules.empty()) return MID_EMPTY;
 	
 	bool done=false;
 	std::wstring top_rule=std::move(rules.top());
@@ -343,6 +356,10 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 		NoArgsAllowed(top_rule);
 		MessageBeep(MB_ICONINFORMATION);
 		ClearParamsAndArgs();
+		Sleep(750);
+	} else if (!top_rule.compare(L"/prn")) {
+		std::wcout<<ctrl_vars.args<<std::endl;
+		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/sec")) {
 		//Not affected by ignore, loop and negate modes
 		NoArgsAllowed(top_rule);
@@ -358,9 +375,27 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 			ctrl_vars.param_cmd_mode=CMDCP_UTF16;
 		else
 			DiscardedParam(top_rule);
+	} else if (!top_rule.compare(L"/cmd:sub")) {
+		ctrl_vars.param_sub=true;
 	} else if (!top_rule.compare(L"/cmd")) {
-		ProcessCmdFile(rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
-		ClearParamsAndArgs();
+		if (ctrl_vars.param_sub) {
+			std::stack<std::wstring> sub_rules;
+			MIDStatus sub_ret;
+			ProcessCmdFile(sub_rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
+			ClearParamsAndArgs();
+			Controller<ProcessesPolicy, KillersPolicy> sub_controller(*this);
+			while ((sub_ret=sub_controller.MakeItDeadInternal(sub_rules))==MID_NONE);
+			if (sub_controller.sec_mutex!=sec_mutex) CloseHandle(sub_controller.sec_mutex);
+			if (fnEnableWcout) fnEnableWcout(!ctrl_vars.mode_mute);
+			sub_controller.Synchronize(true, [this](ULONG_PTR disabled_pid){
+				Synchronize(false, [disabled_pid](ULONG_PTR pid){ return disabled_pid==pid; });
+				return false;
+			});
+			done=IsDone(sub_ret==MID_EMPTY);			
+		} else {
+			ProcessCmdFile(rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
+			ClearParamsAndArgs();
+		}
 	} else if (!top_rule.compare(L"/hlp")) {
 		//Usable only on first run
 		if (ctrl_vars.first_run) {
@@ -455,13 +490,13 @@ bool Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<s
 	}
 
 	ctrl_vars.first_run=false;
-	return !done;
+	return done?MID_HIT:MID_NONE;
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstring> &rules)
 {
-	while (MakeItDeadInternal(rules));
+	while (MakeItDeadInternal(rules)==MID_NONE);
 	
 	if (ctrl_vars.mode_verbose) WaitForUserInput();
 	
@@ -469,6 +504,8 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 		CloseHandle(sec_mutex);
 		sec_mutex=NULL;
 	}
+	
+	if (fnEnableWcout) fnEnableWcout(true);
 	
 	ctrl_vars={true};
 }

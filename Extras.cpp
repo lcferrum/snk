@@ -65,6 +65,7 @@ void Extras::WcoutMessageBox()
 void Extras::EnableWcout(bool value)
 {
 	wcout_win32.OutputEnabled(value);
+	wcerr_win32.OutputEnabled(value);
 }
 
 void Extras::MessageBoxCallback(const std::wstring& mb_buffer)

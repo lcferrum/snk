@@ -31,6 +31,8 @@ public:
 	~Extras();
 	Extras(const Extras&)=delete;				//Get rid of default copy constructor
 	Extras& operator=(const Extras&)=delete;	//Get rid of default copy assignment operator
+	Extras(const Extras&&)=delete;				//Get rid of default move constructor
+	Extras& operator=(const Extras&&)=delete;	//Get rid of default move assignment operator
 	void WcoutMessageBox();						//Not making this static for the uniformity of calling extra functions (through extern "fn" pointers)
 	void EnableWcout(bool value);				//Not making this static for the uniformity of calling extra functions (through extern "fn" pointers)
 	

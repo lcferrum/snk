@@ -97,6 +97,17 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 	return applied;
 }
 
+void Processes::Synchronize(bool param_disabled, std::function<bool(ULONG_PTR)> mutator)
+{
+	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
+	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+		if (rit->GetDisabled()==param_disabled&&mutator(rit->GetPID())) {
+			rit->SetDisabled(true);
+			break;
+		}
+	}
+}
+
 void Processes::ManageProcessList(LstMode param_lst_mode)
 {
 #if DEBUG>=1

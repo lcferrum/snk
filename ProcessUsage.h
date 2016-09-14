@@ -76,11 +76,14 @@ private:
 protected:
 	enum LstMode:char {LST_SHOW=0, LST_DEBUG, INV_MASK, CLR_MASK};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
 
-	//Applies function ("mutator") to processes from CAN that are not marked as system
+	//Applies function ("mutator") to processes from CAN according to currently active modes
 	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
-	//If mode_all - applies "mutator" to the whole CAN, including processes that are marked as system
-	//If mode_loop - ignores return result and loops till the end of CAN (disabled processes are still marked)
 	bool ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&, bool)> mutator);
+	
+	//Applies function ("mutator") to processes from CAN ignoring currently active modes
+	//If param_disabled - applies "mutator" to disabled processes
+	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
+	void Synchronize(bool param_disabled, std::function<bool(ULONG_PTR)> mutator);
 
 	//Adds processes that are forbidden to kill to blacklist using path
 	//If param_full - uses full process path instead just name
