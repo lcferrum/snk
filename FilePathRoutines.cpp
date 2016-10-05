@@ -270,10 +270,13 @@ void FPRoutines::FillServiceMap()
 							//Required shlwapi.dll version is included with IE 4.0 and higher
 							//Win 2000, Win 95 OSR 2.5 and higher includes needed shlwapi.dll out of the box
 							//Pre-OSR 2.5 versons of Win 95 and Win NT needs IE 4.0 (or higher) installed separately in order to get required shlwapi.dll version
+							
 							//CheckIfFileExists just checks if supplied path is an absolute path to existing file
 							//PathFindOnPath follows steps 3-6 from CreateProcess search algorithm to obtain absolute path from supplied path (checked with ReactOS sources)
 							//Supplied path for PathFindOnPath should be relative, function will fail if relative path doesn't exist or path is already absolute
 							//Hopefully we don't need steps 1-2 from CreateProcess (search in processes' CWDs) that PathFindOnPath doesn't implement
+							
+							//If path is relative but PathFindOnPathW not present on system - it's ok we have another methods to get process path that could work
 #if DEBUG>=3
 							std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Found path for service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L"): \""<<abs_path<<L"\""<<std::endl;
 #endif

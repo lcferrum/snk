@@ -5,6 +5,7 @@
 #include "Controller.h"
 #include <stdio.h>
 #include <iostream>
+#include <algorithm> 
 #include <functional>
 #include <memory>
 #include <limits>	//numeric_limits
@@ -117,7 +118,7 @@ DWORD Controller<ProcessesPolicy, KillersPolicy>::IsBOM(DWORD bom)
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode)
+bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode)
 {
 	//No point in using wifstream
 	//First, filename parameter for constructor and open() is const char*, not const wchar_t*
@@ -135,141 +136,119 @@ void Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 	//So any cmdline that won't cause overflow of mentioned vars is good to go
 	
 	HANDLE h_cmdfile;
+	bool success=false;		//Current status of cmdfile read
 	if ((h_cmdfile=CreateFile(arg_cmdpath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL|FILE_FLAG_SEQUENTIAL_SCAN, NULL))!=INVALID_HANDLE_VALUE) {
-		DWORD buf_len, bom=0;	//Initialize BOM with 0 so unread bytes won't be filled with garbage
-		BYTE bom_sz;
-		
-		if (ReadFile(h_cmdfile, &bom, 4, &buf_len, NULL)) {
-			//This function takes care of converting raw data bytes read from file to NULL-terminated wchar_t array padded with whitespace
-			//See comments on CommandLineToArgvW below
-			std::function<void(BYTE*&, DWORD)> fnConvertCmdline;
-			
-			bom=IsBOM(bom);
-			
-			if (bom==0xFEFF||				//UTF16 LE (ordinary Windows Unicode)
-				//Use this encoding if BOM is absent and CMDCP_UTF16 set
-				(!bom&&param_cmd_mode==CMDCP_UTF16)) {
-				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
-					//Nothing to be done here, cmdline is already wchar_t (which is UTF16 LE on Windows) array
-					//Just terminate it with NULL and pad with whitespace
-					BYTE *wcmdline=new BYTE[buf_len+sizeof(wchar_t)*2]; //+sizeof(wchar_t)*2 for whitespace prefix and NULL-terminator
-					*(wchar_t*)wcmdline=L' ';
-					*(wchar_t*)(wcmdline+buf_len+sizeof(wchar_t))=L'\0';
-					while (buf_len--)
-						wcmdline[buf_len+sizeof(wchar_t)]=cmdline[buf_len];
-					delete[] cmdline;
-					cmdline=wcmdline;
-				};
-				bom_sz=bom?2:0;
-			} else if (bom==0xFFFE) {		//UTF16 BE
-				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
-					//Need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
-					BYTE *wcmdline=new BYTE[buf_len+sizeof(wchar_t)*2]; //+sizeof(wchar_t)*2 for whitespace prefix and NULL-terminator
-					if (buf_len%2) {	
-						//Odd buffer length indicate that something is not alright
-						*(wchar_t*)wcmdline=L'\0';
-					} else {
-						//Though even buffer length doesn't guarantee that buffer contains something meaningful
-						//But at least algorithm won't corrupt terminating NULL in this case
-						*(wchar_t*)wcmdline=L' ';
-						*(wchar_t*)(wcmdline+buf_len+sizeof(wchar_t))=L'\0';
-						while (buf_len--)
-							buf_len%2?wcmdline[buf_len+sizeof(wchar_t)-1]:wcmdline[buf_len+sizeof(wchar_t)+1]=cmdline[buf_len];
-					}
-					delete[] cmdline;
-					cmdline=wcmdline;
-				};
-				bom_sz=2;
-			} else if (bom==0xBFBBEF||		//UTF8
-				//Use this encoding if BOM is absent and CMDCP_UTF8 set
-				(!bom&&param_cmd_mode==CMDCP_UTF8)) {
-				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
-					//Need to convert from UTF8 to wchar_t
-					if (int wchars_num=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, buf_len, NULL, 0)) {
-						BYTE *wcmdline=new BYTE[wchars_num+sizeof(wchar_t)*2]; //+sizeof(wchar_t) for whitespace prefix and NULL-terminator
-						if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdline, buf_len, (wchar_t*)(wcmdline+sizeof(wchar_t)), wchars_num)) {
-							*(wchar_t*)wcmdline=L' ';
-							*(wchar_t*)(wcmdline+buf_len+sizeof(wchar_t))=L'\0';
-							delete[] cmdline;
-							cmdline=wcmdline;
-							return;
-						}
-						delete[] wcmdline;
-					}
-					*(wchar_t*)cmdline=L'\0';
-				};
-				bom_sz=bom?3:0;
-			} else if (bom) {				//UTF-32, UTF-7, UTF-1, UTF-EBCDIC, SCSU, BOCU-1, GB-18030
-				//Unsupported encodings
-				//These encodings are rarely used on Windows for plain text file encoding (if used at all)
-				CloseHandle(h_cmdfile);
-				std::wcerr<<L"Warning: \""<<arg_cmdpath<<L"\" have unsupported encoding!"<<std::endl;
-				return;
-			} else {						//ANSI
-				//BOM is not required for UTF-8 and rarely used on systems for which UTF-8 is native (which Windows is not)
-				//Sometimes BOM can be missing from encodings where it should be (e.g. redirecting wcout to file produces UTF-16 LE w/o BOM)
-				//Windows Notepad always saves non-ANSI encoded files with BOM
-				//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
-				//Otherwise missing BOM will be treated as ANSI encoding
-				fnConvertCmdline=[](BYTE* &cmdline, DWORD buf_len){
-					//Need to convert from ANSI to wchar_t
-					if (int wchars_num=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, NULL, 0)) {
-						BYTE *wcmdline=new BYTE[wchars_num*sizeof(wchar_t)];
-						if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdline, -1, (wchar_t*)wcmdline, wchars_num)) {
-							delete[] cmdline;
-							cmdline=wcmdline;
-							return;
-						}
-						delete[] wcmdline;
-					}
-					*(wchar_t*)cmdline=L'\0';
-				};
-				bom_sz=0;
-			}
-			
-			//Not using lpFileSizeHigh for GetFileSize()
-			//Sorry guys, 4GB file limit - deal with it
-			//Also don't bother processing zero-length files
-			if (SetFilePointer(h_cmdfile, bom_sz, NULL, FILE_BEGIN)!=INVALID_SET_FILE_POINTER&&(buf_len=GetFileSize(h_cmdfile, NULL))!=INVALID_FILE_SIZE&&(buf_len-=bom_sz)) {
-				BYTE *cmdfile_buf=new BYTE[buf_len]; 
-				//Yep, reading whole file in one pass
-				if (ReadFile(h_cmdfile, cmdfile_buf, buf_len, &buf_len, NULL)) {
-					fnConvertCmdline(cmdfile_buf, buf_len);
+		DWORD cmdfile_len, cmdfile_len_high;
+		if ((cmdfile_len=GetFileSize(h_cmdfile, &cmdfile_len_high))!=INVALID_FILE_SIZE&&!cmdfile_len_high) {	//For the sake of simplicity only files under 4GB are supported
+			if (HANDLE h_cmdfilemap=CreateFileMapping(h_cmdfile, NULL, PAGE_READONLY, 0, 0, NULL)) {	//CreateFileMapping fails with ERROR_FILE_INVALID if file is empty (zero length)
+				if (void* cmdfile_mem=MapViewOfFile(h_cmdfilemap, FILE_MAP_READ, 0, 0, 0)) {
+					DWORD bom=0;				//Initialize BOM with 0 so unread bytes won't be filled with garbage
+					wchar_t* wcmdfile_buf=NULL;	//Buffer that receives converted cmdfile, ready to read by CommandLineToArgvW
+					size_t wcmdfile_len;		//Length of wcmdfile_buf in caracters
+					memcpy(&bom, cmdfile_mem, std::min((DWORD)sizeof(bom), cmdfile_len));
+					bom=IsBOM(bom);
 					
-					//Changing all \n and \r symbols to spaces
-					wchar_t* wcmdfile_buf=(wchar_t*)cmdfile_buf;
-					while (*wcmdfile_buf) {
-						if (*wcmdfile_buf==L'\r'||*wcmdfile_buf==L'\n')
-							*wcmdfile_buf=L' ';
-						wcmdfile_buf++;
+					//Conversions below assume that wchar_t represents UTF16 LE so is 2 bytes in length
+					//On Windows wchar_t is indeed UTF16 LE
+					//But by C++ standard wchar_t is implementation defined so just in case test that we really dealing with 2 byte wchar_t
+					static_assert(sizeof(wchar_t)==2, L"sizeof(wchar_t) should be exactly 2 bytes");
+					if (bom==0xFEFF||(!bom&&param_cmd_mode==CMDCP_UTF16)) {	//UTF16 LE (ordinary Windows Unicode), use this encoding if BOM is absent and CMDCP_UTF16 set
+						//Nothing to be done here, cmdline is already wchar_t (which is UTF16 LE on Windows) array
+						//Just terminate it with NULL and pad with '\n'
+						cmdfile_len-=bom?2:0;				//Compensating for bom
+						cmdfile_mem=(BYTE*)cmdfile_mem+(bom?2:0);
+						if (!(cmdfile_len%2)) {	//Make sure that cmdfile length is even, because otherwise it can't be UTF16
+							wcmdfile_len=cmdfile_len/2+2;	//+2 is for terminating NULL and leading '\n'
+							wcmdfile_buf=new wchar_t[wcmdfile_len];	
+							memcpy(wcmdfile_buf+1, cmdfile_mem, cmdfile_len);
+							success=true;
+						}
+					} else if (bom==0xFFFE) {		//UTF16 BE
+						//Need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
+						cmdfile_len-=2;					//Compensating for bom
+						cmdfile_mem=(BYTE*)cmdfile_mem+2;
+						if (!(cmdfile_len%2)) {	//Make sure that cmdfile length is even, because otherwise it can't be UTF16
+							wcmdfile_len=cmdfile_len/2+2;	//+2 is for terminating NULL and leading '\n'
+							wcmdfile_buf=new wchar_t[wcmdfile_len];	
+							BYTE *le_buf=(BYTE*)(wcmdfile_buf+1);
+							BYTE *be_buf=(BYTE*)cmdfile_mem;
+							for (DWORD be_pos=0; be_pos<cmdfile_len; be_pos++)
+								le_buf[be_pos+(be_pos%2?-1:1)]=be_buf[be_pos];
+							success=true;
+						}
+					} else if (bom==0xBFBBEF||(!bom&&param_cmd_mode==CMDCP_UTF8)) {	//UTF8, use this encoding if BOM is absent and CMDCP_UTF8 set
+						//Need to convert from UTF8 to wchar_t
+						cmdfile_len-=bom?3:0;					//Compensating for bom
+						cmdfile_mem=(BYTE*)cmdfile_mem+(bom?3:0);
+						if (int wcmdfile_len=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
+							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
+							if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {
+								success=true;
+							}
+						}
+					} else if (bom) {				//UTF-32, UTF-7, UTF-1, UTF-EBCDIC, SCSU, BOCU-1, GB-18030
+						//Unsupported encodings
+						//These encodings are rarely used on Windows for plain text file encoding (if used at all)
+						std::wcerr<<L"Warning: \""<<arg_cmdpath<<L"\" have unsupported encoding!"<<std::endl;
+					} else {						//ANSI
+						//BOM is not required for UTF-8 and rarely used on systems for which UTF-8 is native (which Windows is not)
+						//Sometimes BOM can be missing from encodings where it should be (e.g. redirecting wcout to file produces UTF-16 LE w/o BOM)
+						//Windows Notepad always saves non-ANSI encoded files with BOM
+						//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
+						//Otherwise missing BOM will be treated as ANSI encoding
+						if (int wcmdfile_len=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
+							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
+							if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {
+								success=true;
+							}
+						}
 					}
 					
-					//Getting ARGV/ARGC and pushing them to rules stack
-					wchar_t** cmd_argv;
-					int cmd_argc;
+					if (success) {
+						wcmdfile_buf[0]=L'\n';
+						wcmdfile_buf[wcmdfile_len-1]=L'\0';
+						
+						//Changing all \n and \r symbols to spaces
+						wchar_t* wcmdfile_temp=wcmdfile_buf;
+						while (*wcmdfile_temp) {
+							if (*wcmdfile_temp==L'\r'||*wcmdfile_temp==L'\n')
+								*wcmdfile_temp=L' ';
+							wcmdfile_temp++;
+						}
+						
+						//Getting ARGV/ARGC and pushing them to rules stack
+						wchar_t** cmd_argv;
+						int cmd_argc;
 #if DEBUG>=3
-					std::wcerr<<L"" __FILE__ ":ProcessCmdFile:"<<__LINE__<<L": Command file buffer = \""<<(wchar_t*)cmdfile_buf<<"\""<<std::endl;
+						std::wcerr<<L"" __FILE__ ":ProcessCmdFile:"<<__LINE__<<L": Command file buffer = \""<<(wchar_t*)cmdfile_buf<<"\""<<std::endl;
 #endif
-					//CommandLineToArgvW has an interesting behaviour of how it parsing the very first argument
-					//Without going into details - double quotes handling algorithm is different from the rest of arguments
-					//If you want to use double quotes to keep spaces in the first argument - the very first character of input string should be double quote
-					//E.g.: string ["argumen one"] works as expected but [argument" one"] will produce two arguments instead - [argument"] and [one"]
-					//So you can't use something like [/pth:full="C:\Program Files\program.exe"] for the first argument
-					//But you can use ["/pth:full=C:\Program Files\program.exe"] which looks ugly but does the work	
-					//In the end it's better to prepend input string with whitespace - that will simply produce empty first argument
-					//Empty arguments are ignored by MakeRulesFromArgv so everything will look clean and from now on parsing will work as expected
-					if ((cmd_argv=CommandLineToArgvW((wchar_t*)cmdfile_buf, &cmd_argc))) {
-						MakeRulesFromArgv(cmd_argc, cmd_argv, rules, 0);
-						LocalFree(cmd_argv);
+						//CommandLineToArgvW has an interesting behaviour of how it parsing the very first argument
+						//Without going into details - double quotes handling algorithm is different from the rest of arguments
+						//If you want to use double quotes to keep spaces in the first argument - the very first character of input string should be double quote
+						//E.g.: string ["argumen one"] works as expected but [argument" one"] will produce two arguments instead - [argument"] and [one"]
+						//So you can't use something like [/pth:full="C:\Program Files\program.exe"] for the first argument
+						//But you can use ["/pth:full=C:\Program Files\program.exe"] which looks ugly but does the work	
+						//In the end it's better to prepend input string with whitespace - that will simply produce empty first argument
+						//Empty arguments are ignored by MakeRulesFromArgv so everything will look clean and from now on parsing will work as expected
+						if ((cmd_argv=CommandLineToArgvW(wcmdfile_buf, &cmd_argc))) {
+							MakeRulesFromArgv(cmd_argc, cmd_argv, rules, 0);
+							LocalFree(cmd_argv);
+						}
 					}
+					
+					delete[] wcmdfile_buf;
+					UnmapViewOfFile(cmdfile_mem);
 				}
-				delete[] cmdfile_buf;
-			}				
+				
+				CloseHandle(h_cmdfilemap);
+			}
 		}
 		
 		CloseHandle(h_cmdfile);
 	} else
 		std::wcerr<<L"Warning: failed to open \""<<arg_cmdpath<<L"\" for command processing!"<<std::endl;
+	
+	return success;
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
