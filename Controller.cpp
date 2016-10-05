@@ -180,9 +180,10 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						//Need to convert from UTF8 to wchar_t
 						cmdfile_len-=bom?3:0;					//Compensating for bom
 						cmdfile_mem=(BYTE*)cmdfile_mem+(bom?3:0);
-						if (int wcmdfile_len=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
+						if (wcmdfile_len=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
 							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
 							if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {
+								wcmdfile_len+=2;
 								success=true;
 							}
 						}
@@ -196,9 +197,10 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						//Windows Notepad always saves non-ANSI encoded files with BOM
 						//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
 						//Otherwise missing BOM will be treated as ANSI encoding
-						if (int wcmdfile_len=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
+						if (wcmdfile_len=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
 							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
 							if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {
+								wcmdfile_len+=2;
 								success=true;
 							}
 						}
@@ -209,18 +211,32 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						wcmdfile_buf[wcmdfile_len-1]=L'\0';
 						
 						//Changing all \n and \r symbols to spaces
-						wchar_t* wcmdfile_temp=wcmdfile_buf;
-						while (*wcmdfile_temp) {
-							if (*wcmdfile_temp==L'\r'||*wcmdfile_temp==L'\n')
-								*wcmdfile_temp=L' ';
-							wcmdfile_temp++;
+						//If new line starts with '#' - change all of it into spaces
+						wchar_t* wcmdfile_cnv=wcmdfile_buf;
+						bool hashtag=false;
+						bool newline=false;
+						while (*wcmdfile_cnv) {
+							if (*wcmdfile_cnv==L'\r'||*wcmdfile_cnv==L'\n') {
+								hashtag=false;
+								newline=true;
+								*wcmdfile_cnv=L' ';
+							} else {
+								if (newline&&*wcmdfile_cnv==L'#') {
+									hashtag=true;
+									*wcmdfile_cnv=L' ';
+								} else if (hashtag) {
+									*wcmdfile_cnv=L' ';
+								}
+								newline=false;
+							}
+							wcmdfile_cnv++;
 						}
 						
 						//Getting ARGV/ARGC and pushing them to rules stack
 						wchar_t** cmd_argv;
 						int cmd_argc;
 #if DEBUG>=3
-						std::wcerr<<L"" __FILE__ ":ProcessCmdFile:"<<__LINE__<<L": Command file buffer = \""<<(wchar_t*)cmdfile_buf<<"\""<<std::endl;
+						std::wcerr<<L"" __FILE__ ":ProcessCmdFile:"<<__LINE__<<L": Command file buffer = \""<<wcmdfile_buf<<"\""<<std::endl;
 #endif
 						//CommandLineToArgvW has an interesting behaviour of how it parsing the very first argument
 						//Without going into details - double quotes handling algorithm is different from the rest of arguments
