@@ -207,7 +207,7 @@ DWORD Processes::EnumProcessTimes(bool first_time)
 	
 	if (first_time) {
 		CAN.clear();
-		FPRoutines::FillDriveMap();
+		FPRoutines::FillDriveList();
 		FPRoutines::FillServiceMap();
 	}
 	

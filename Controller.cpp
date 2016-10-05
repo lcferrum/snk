@@ -135,16 +135,26 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 	//It is only limited by internal variable sizes for ARGV buffer size and number of arguments (ARGC) - all are INTs (signed 4-byte integers)
 	//So any cmdline that won't cause overflow of mentioned vars is good to go
 	
+	//CommandLineToArgvW has an interesting behaviour of how it parses the very first argument
+	//Without going into details - double quotes handling algorithm is different from the rest of arguments
+	//If you want to use double quotes to keep spaces in the first argument - the very first character of input string should be double quote
+	//E.g.: string ["argumen one"] works as expected but [argument" one"] will produce two arguments instead - [argument"] and [one"]
+	//So you can't use something like [/pth:full="C:\Program Files\program.exe"] for the first argument
+	//But you can use ["/pth:full=C:\Program Files\program.exe"] which looks ugly but does the work	
+	//In the end it's better to prepend input string with whitespace - that will simply produce empty first argument
+	//Empty arguments are ignored by MakeRulesFromArgv so everything will look clean and from now on parsing will work as expected
+	//That's why each read file is prepended with '\n' in the following algorithm - '\n' will be converted to space before passing file contents to CommandLineToArgvW
+	
 	HANDLE h_cmdfile;
 	bool success=false;		//Current status of cmdfile read
 	if ((h_cmdfile=CreateFile(arg_cmdpath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL|FILE_FLAG_SEQUENTIAL_SCAN, NULL))!=INVALID_HANDLE_VALUE) {
 		DWORD cmdfile_len, cmdfile_len_high;
-		if ((cmdfile_len=GetFileSize(h_cmdfile, &cmdfile_len_high))!=INVALID_FILE_SIZE&&!cmdfile_len_high) {	//For the sake of simplicity only files under 4GB are supported
+		if ((cmdfile_len=GetFileSize(h_cmdfile, &cmdfile_len_high))!=INVALID_FILE_SIZE&&cmdfile_len&&!cmdfile_len_high) {	//For the sake of simplicity only files under 4GB are supported
 			if (HANDLE h_cmdfilemap=CreateFileMapping(h_cmdfile, NULL, PAGE_READONLY, 0, 0, NULL)) {	//CreateFileMapping fails with ERROR_FILE_INVALID if file is empty (zero length)
 				if (void* cmdfile_mem=MapViewOfFile(h_cmdfilemap, FILE_MAP_READ, 0, 0, 0)) {
 					DWORD bom=0;				//Initialize BOM with 0 so unread bytes won't be filled with garbage
 					wchar_t* wcmdfile_buf=NULL;	//Buffer that receives converted cmdfile, ready to read by CommandLineToArgvW
-					size_t wcmdfile_len;		//Length of wcmdfile_buf in caracters
+					DWORD wcmdfile_len;		//Length of wcmdfile_buf in caracters
 					memcpy(&bom, cmdfile_mem, std::min((DWORD)sizeof(bom), cmdfile_len));
 					bom=IsBOM(bom);
 					
@@ -162,7 +172,8 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 							wcmdfile_buf=new wchar_t[wcmdfile_len];	
 							memcpy(wcmdfile_buf+1, cmdfile_mem, cmdfile_len);
 							success=true;
-						}
+						} else
+							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 encoded!"<<std::endl;
 					} else if (bom==0xFFFE) {		//UTF16 BE
 						//Need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
 						cmdfile_len-=2;					//Compensating for bom
@@ -175,7 +186,8 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 							for (DWORD be_pos=0; be_pos<cmdfile_len; be_pos++)
 								le_buf[be_pos+(be_pos%2?-1:1)]=be_buf[be_pos];
 							success=true;
-						}
+						} else
+							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 encoded!"<<std::endl;
 					} else if (bom==0xBFBBEF||(!bom&&param_cmd_mode==CMDCP_UTF8)) {	//UTF8, use this encoding if BOM is absent and CMDCP_UTF8 set
 						//Need to convert from UTF8 to wchar_t
 						cmdfile_len-=bom?3:0;					//Compensating for bom
@@ -187,10 +199,12 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 								success=true;
 							}
 						}
+						if (!success)
+							std::wcerr<<L"Warning: error while converting \""<<arg_cmdpath<<L"\" from UTF8 to UTF16 LE!"<<std::endl;
 					} else if (bom) {				//UTF-32, UTF-7, UTF-1, UTF-EBCDIC, SCSU, BOCU-1, GB-18030
 						//Unsupported encodings
 						//These encodings are rarely used on Windows for plain text file encoding (if used at all)
-						std::wcerr<<L"Warning: \""<<arg_cmdpath<<L"\" have unsupported encoding!"<<std::endl;
+						std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" has unsupported encoding!"<<std::endl;
 					} else {						//ANSI
 						//BOM is not required for UTF-8 and rarely used on systems for which UTF-8 is native (which Windows is not)
 						//Sometimes BOM can be missing from encodings where it should be (e.g. redirecting wcout to file produces UTF-16 LE w/o BOM)
@@ -204,6 +218,8 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 								success=true;
 							}
 						}
+						if (!success)
+							std::wcerr<<L"Warning: error while converting \""<<arg_cmdpath<<L"\" from ANSI to UTF16 LE!"<<std::endl;
 					}
 					
 					if (success) {
@@ -238,14 +254,6 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 #if DEBUG>=3
 						std::wcerr<<L"" __FILE__ ":ProcessCmdFile:"<<__LINE__<<L": Command file buffer = \""<<wcmdfile_buf<<"\""<<std::endl;
 #endif
-						//CommandLineToArgvW has an interesting behaviour of how it parsing the very first argument
-						//Without going into details - double quotes handling algorithm is different from the rest of arguments
-						//If you want to use double quotes to keep spaces in the first argument - the very first character of input string should be double quote
-						//E.g.: string ["argumen one"] works as expected but [argument" one"] will produce two arguments instead - [argument"] and [one"]
-						//So you can't use something like [/pth:full="C:\Program Files\program.exe"] for the first argument
-						//But you can use ["/pth:full=C:\Program Files\program.exe"] which looks ugly but does the work	
-						//In the end it's better to prepend input string with whitespace - that will simply produce empty first argument
-						//Empty arguments are ignored by MakeRulesFromArgv so everything will look clean and from now on parsing will work as expected
 						if ((cmd_argv=CommandLineToArgvW(wcmdfile_buf, &cmd_argc))) {
 							MakeRulesFromArgv(cmd_argc, cmd_argv, rules, 0);
 							LocalFree(cmd_argv);
@@ -257,9 +265,11 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 				}
 				
 				CloseHandle(h_cmdfilemap);
-			}
-		}
-		
+			} else 
+				std::wcerr<<L"Warning: error while reading file \""<<arg_cmdpath<<L"\"!"<<std::endl;
+		} else
+			std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" is empty, too large or of unknown size!"<<std::endl;
+	
 		CloseHandle(h_cmdfile);
 	} else
 		std::wcerr<<L"Warning: failed to open \""<<arg_cmdpath<<L"\" for command processing!"<<std::endl;
@@ -318,10 +328,6 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_all=true;
 	} else if (!top_rule.compare(L"-a")) {
 		ctrl_vars.mode_all=false;
-	} else if (!top_rule.compare(L"+e")) {
-		ctrl_vars.mode_expand=true;
-	} else if (!top_rule.compare(L"-e")) {
-		ctrl_vars.mode_expand=false;
 	} else if (!top_rule.compare(L"+r")) {
 		ctrl_vars.mode_recent=true;
 		SortByRecentlyCreated();
@@ -394,18 +400,22 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 	} else if (!top_rule.compare(L"/cmd")) {
 		if (ctrl_vars.param_sub) {
 			std::stack<std::wstring> sub_rules;
-			MIDStatus sub_ret;
-			ProcessCmdFile(sub_rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
-			ClearParamsAndArgs();
-			Controller<ProcessesPolicy, KillersPolicy> sub_controller(*this);
-			while ((sub_ret=sub_controller.MakeItDeadInternal(sub_rules))==MID_NONE);
-			if (sub_controller.sec_mutex!=sec_mutex) CloseHandle(sub_controller.sec_mutex);
-			if (fnEnableWcout) fnEnableWcout(!ctrl_vars.mode_mute);
-			sub_controller.Synchronize(true, [this](ULONG_PTR disabled_pid){
-				Synchronize(false, [disabled_pid](ULONG_PTR pid){ return disabled_pid==pid; });
-				return false;
-			});
-			done=IsDone(sub_ret==MID_EMPTY);			
+			if (ProcessCmdFile(sub_rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode)) {
+				MIDStatus sub_ret;
+				ClearParamsAndArgs();
+				Controller<ProcessesPolicy, KillersPolicy> sub_controller(*this);
+				while ((sub_ret=sub_controller.MakeItDeadInternal(sub_rules))==MID_NONE);
+				if (sub_controller.sec_mutex!=sec_mutex) CloseHandle(sub_controller.sec_mutex);
+				if (fnEnableWcout) fnEnableWcout(!ctrl_vars.mode_mute);
+				sub_controller.Synchronize(true, [this](ULONG_PTR disabled_pid){
+					Synchronize(false, [disabled_pid](ULONG_PTR pid){ return disabled_pid==pid; });
+					return false;
+				});
+				done=IsDone(sub_ret==MID_EMPTY);
+			} else {
+				ClearParamsAndArgs();
+				std::wcerr<<L"Warning: subroutine won't be called!"<<std::endl; 
+			}				
 		} else {
 			ProcessCmdFile(rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
 			ClearParamsAndArgs();

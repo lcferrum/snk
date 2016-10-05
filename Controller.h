@@ -35,7 +35,6 @@ private:
 		bool mode_all;
 		bool mode_loop;
 		bool mode_verbose;
-		bool mode_expand;
 		bool mode_recent;
 		bool mode_blacklist;
 		bool mode_whitelist;

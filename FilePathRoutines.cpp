@@ -142,9 +142,9 @@ extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 extern pPathFindOnPathW fnPathFindOnPathW;
 
 namespace FPRoutines {
-	std::map<std::wstring, wchar_t> DriveMap;
+	std::vector<std::pair<std::wstring, wchar_t>> DriveList;
 	std::map<DWORD, std::wstring> ServiceMap;
-	bool KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath);
+	bool KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath, USHORT krn_ulen=USHRT_MAX, USHORT krn_umaxlen=0);
 	bool GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath);
 	bool GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath);
 	bool GetFP_PEB(HANDLE hProcess, std::wstring &fpath);
@@ -152,9 +152,9 @@ namespace FPRoutines {
 	bool GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath);
 }
 
-void FPRoutines::FillDriveMap() 
+void FPRoutines::FillDriveList() 
 {
-	DriveMap.clear();
+	DriveList.clear();
 	
 	if (!fnNtOpenSymbolicLinkObject) {
 #if DEBUG>=2
@@ -170,37 +170,79 @@ void FPRoutines::FillDriveMap()
 		return;
 	}
 	
-	//Most universal method of resolving device name to local drive
-	//Just cycle through all possible drive letters and try to get their respective device names with OpenSymbolicLinkObject/NtQuerySymbolicLinkObject
-		
-	HANDLE hLink;
-	OBJECT_ATTRIBUTES objAttribs;
+	if (!fnNtCreateFile) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":FillDriveMap:"<<__LINE__<<L": NtCreateFile not found!"<<std::endl;
+#endif
+		return;
+	}
+	
+	if (!fnNtQueryObject) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":FillDriveMap:"<<__LINE__<<L": NtQueryObject not found!"<<std::endl;
+#endif
+		return;
+	}
+	
+	HANDLE hFile;
+	OBJECT_ATTRIBUTES objAttribs;	
 	wchar_t drive_lnk[]=L"\\??\\A:";
-	UNICODE_STRING u_drive_lnk={sizeof(drive_lnk)-sizeof(wchar_t), sizeof(drive_lnk), drive_lnk};
-	UNICODE_STRING u_path;
-	DWORD buffer_size;
-	NTSTATUS st;
-
+	UNICODE_STRING u_drive_lnk={(USHORT)(sizeof(drive_lnk)-sizeof(wchar_t)), (USHORT)sizeof(drive_lnk), drive_lnk};
+	IO_STATUS_BLOCK ioStatusBlock;
+	BYTE oni_buf[1024];
+	
+	//InitializeObjectAttributes is a macros that assigns OBJECT_ATTRIBUTES it's parameters
+	//Second parameter is assigned to OBJECT_ATTRIBUTES.ObjectName
+	//OBJECT_ATTRIBUTES.ObjectName is a UNICODE_STRING which Buffer member is just a pointer to actual buffer (drive_lnk)
+	//That's why changing buffer contents won't require calling InitializeObjectAttributes second time
 	InitializeObjectAttributes(&objAttribs, &u_drive_lnk, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	for (drive_lnk[4]=L'A'; drive_lnk[4]<=L'Z'; drive_lnk[4]++)	//4'th index is a drive letter
-		if (NT_SUCCESS(fnNtOpenSymbolicLinkObject(&hLink, SYMBOLIC_LINK_QUERY, &objAttribs))) {
-			//In buffer_size function returns not the actual buffer size needed for UNICODE_STRING, but the size of the UNICODE_STRING.Buffer itself
+	//There are several ways to enumerate all drives and get their NT paths
+	//QueryDosDevice does the job but doesn't display paths for drive letters that are mapped network drives
+	//NtOpenSymbolicLinkObject/NtQuerySymbolicLinkObject is better approach because it resolves mapped network drives letters
+	//But it has drawback - mapped network drives letters often resolve to NT path that contains some internal IDs making it difficult to use it NT->Win32 path conversion
+	//Example of such path: "\Device\LanmanRedirector\;Z:00000000000894aa\PC_NAME\SHARE_NAME"
+	//And at last we have NtCreateFile(FILE_DIRECTORY_FILE)/NtQueryObject approach
+	//It works even better than NtOpenSymbolicLinkObject/NtQuerySymbolicLinkObject - mapped drives are resolved to ordinary NT paths
+	//With previous example it will now look like this: "\Device\LanmanRedirector\PC_NAME\SHARE_NAME"
+	//Though there are two caveats:
+	//	1) Don't append drive with backslash or NtCreateFile will open root directory instead (imagine it's floppy drive without disk inserted)
+	//	2) Under NT4 NtQueryObject will fail with every drive letter except real mapped network drives (though ObjectNameInformation still gets filled with proper path)
+	//Also, when mapped network drive being queried - code won't force system to check whether drive in offline or not
+	//This means code won't stop there to wait for system response, which is good
+	//The only time when there is really delay in execution is when system is in the process of changing drive status (e.g. explorer trying to access no longer available network drive)
+	//Only in this case when trying to open such drive code will wait for system to update drive status
+	//So we keep NtOpenSymbolicLinkObject/NtQuerySymbolicLinkObject as backup approach in case we are on NT4 (this approach still works there)
+	for (drive_lnk[4]=L'A'; drive_lnk[4]<=L'Z'; drive_lnk[4]++)	{	//4'th index is a drive letter
+		if (NT_SUCCESS(fnNtCreateFile(&hFile, FILE_READ_ATTRIBUTES, &objAttribs, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN, FILE_DIRECTORY_FILE, NULL, 0))) {
+			if (NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, 1024, NULL))) {
+				//Actually OBJECT_NAME_INFORMATION contains NULL-terminated UNICODE_STRING but we can save std::wstring constructor time and provide it with string length
+				DriveList.push_back(std::make_pair(std::wstring(((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer, ((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Length/sizeof(wchar_t)), drive_lnk[4]));
+				CloseHandle(hFile);
+				continue;
+			}
+			CloseHandle(hFile);
+		}
+		
+		if (NT_SUCCESS(fnNtOpenSymbolicLinkObject(&hFile, SYMBOLIC_LINK_QUERY, &objAttribs))) {
+			//In buf_len function returns not the actual buffer size needed for UNICODE_STRING, but the size of the UNICODE_STRING.Buffer itself
 			//And this UNICODE_STRING should be already initialized before the second call - buffer created, Buffer pointer and MaximumLength set
 			//Returned UNICODE_STRING includes terminating NULL
-			u_path={};
-			if ((st=fnNtQuerySymbolicLinkObject(hLink, &u_path, &buffer_size))==STATUS_BUFFER_TOO_SMALL) {
-				u_path.Buffer=(wchar_t*)new BYTE[buffer_size];	//buffer_size is Length + terminating NULL
-				u_path.MaximumLength=buffer_size;
-				st=fnNtQuerySymbolicLinkObject(hLink, &u_path, &buffer_size);
+			UNICODE_STRING u_path={};
+			DWORD buf_len;
+			if (fnNtQuerySymbolicLinkObject(hFile, &u_path, &buf_len)==STATUS_BUFFER_TOO_SMALL) {
+				u_path.Buffer=(wchar_t*)new BYTE[buf_len];	//buf_len is Length + terminating NULL
+				u_path.MaximumLength=buf_len;
+				if (NT_SUCCESS(fnNtQuerySymbolicLinkObject(hFile, &u_path, &buf_len))) {
+					//As was said earlier returned UNICODE_STRING is NULL-terminated but we can save std::wstring constructor time and provide it with string length
+					DriveList.push_back(std::make_pair(std::wstring(u_path.Buffer, u_path.Length/sizeof(wchar_t)), drive_lnk[4]));
+				}
+				delete[] (BYTE*)u_path.Buffer;
 			}
 			
-			if (NT_SUCCESS(st))
-				DriveMap[u_path.Buffer]=drive_lnk[4];
-			
-			delete[] (BYTE*)u_path.Buffer;
-			CloseHandle(hLink);
+			CloseHandle(hFile);
 		}
+	}
 }
 
 void FPRoutines::FillServiceMap() 
@@ -304,18 +346,26 @@ void FPRoutines::FillServiceMap()
 	CloseServiceHandle(schSCMgr);
 }
 
-bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath) 
+bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath, USHORT krn_ulen, USHORT krn_umaxlen)
 {
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": Converting \""<<krn_fpath<<L"\"..."<<std::endl;
 #endif
 
-	//Check if Kernel path is already Win32 and if it's not - default Win32 path to empty string
-	if (CheckIfFileExists(krn_fpath)) {
-		w32_fpath=krn_fpath;
+	if (!krn_ulen)
+		return false;
+	
+	//Function accepts both UNICODE_STRINGs and null-terminated wchar_t arrays 
+	if (krn_ulen==USHRT_MAX&&krn_umaxlen==0) {
+		krn_ulen=wcslen(krn_fpath)*sizeof(wchar_t);
+		krn_umaxlen=krn_ulen+sizeof(wchar_t);
+	}		
+	//Check if Kernel path is already Win32
+	std::wstring aux_fpath(krn_fpath, krn_ulen/sizeof(wchar_t));
+	if (CheckIfFileExists(aux_fpath.c_str())) {
+		w32_fpath=std::move(aux_fpath);
 		return true;
-	} else
-		w32_fpath=L"";
+	}
 	
 	if (!fnNtCreateFile) {
 #if DEBUG>=2
@@ -339,33 +389,29 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath)
 	}
 	
 	//Basic algorithm is the following:
-	//We have NT kernel path like \Device\HarddiskVolume2\Windows\System32\wininit.exe and should turn it to "user-readable" Win32 path
+	//We have NT kernel path like "\Device\HarddiskVolume2\Windows\System32\wininit.exe" and should turn it to "user-readable" Win32 path
 	//First, we should resolve any symbolic links in the path like "\SystemRoot" and "\??"
 	//It could be done by opening the file (NtCreateFile) and then getting path to the handle (NtQueryObject(ObjectNameInformation))
-	//Second, path should be broken into two parts: device name and relative path
-	//Instead of guessing and counting slashes one could simply call NtQueryInformationFile(FileNameInformation) on the handle to get just relative path part
-	//Third, we should resolve device name to it's Win32 equivalent and, after concatenating it back with relative path, we are done
-	//Actually we have only two options here: the device is a local drive or a network provider
-	//If device name resolves to local drive - it's in DriveMap container
-	//If it's not - just create UNC path from relative path (prepend it with slash) and test it for existence
-	//This way is a lot easier than enumerating all the network providers and comparing them to device name
+	//Then, we try to match resulting path with one of the device prefixes from DriveList - this way we resolve device name to it's Win32 equivalent
+	//If we have a match - swap device prefix with it's drive letter and we are good to go
+	//If no match, usually that means it's some kind of network path which hasn't been mapped to any of drives
+	//That's why we extract relative (to device prefix) path using NtQueryInformationFile(FileNameInformation) and make UNC path from it
+	//Check if guess was right by testing resulting UNC path for existence
 
 	HANDLE hFile;
 	OBJECT_ATTRIBUTES objAttribs;	
-	UNICODE_STRING ustr_fpath={(USHORT)(wcslen(krn_fpath)*sizeof(wchar_t)), (USHORT)((wcslen(krn_fpath)+1)*sizeof(wchar_t)), krn_fpath};
+	UNICODE_STRING ustr_fpath={krn_ulen, krn_umaxlen, krn_fpath};
 	IO_STATUS_BLOCK ioStatusBlock;
 	
 	InitializeObjectAttributes(&objAttribs, &ustr_fpath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	//NtQueryInformationFile accepts handles only from NtCreateFile
-	//Handles from ordinary CreateFile causes OBJECT_TYPE_MISMATCH error
 	//NtCreateFile will accept only NT kernel paths
 	//NtCreateFile will not accept ordinary Win32 paths (will fail with STATUS_OBJECT_PATH_SYNTAX_BAD)
 	if (!NT_SUCCESS(fnNtCreateFile(&hFile, FILE_READ_ATTRIBUTES, &objAttribs, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN, FILE_NON_DIRECTORY_FILE, NULL, 0)))
 		return false;
 	
 	//Very inconsistent function which behaviour differs between OS versions
-	//Starting from Vista thigs are easy - just pass NULL buffer and zero length and you'll get STATUS_INFO_LENGTH_MISMATCH and needed buffer size
+	//Starting from Vista things are easy - just pass NULL buffer and zero length and you'll get STATUS_INFO_LENGTH_MISMATCH and needed buffer size
 	//Before Vista things are ugly - you will get all kinds of error statuses because of insufficient buffer
 	//And function won't necessary return needed buffer size - it actually depends on passed buffer size!
 	//But worst of all is NT4 where function will never return needed buffer size and you can get real buffer overflow with some buffer sizes
@@ -374,12 +420,24 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath)
 	//We'll try something similar here: we already have kernel path, only portion of which may expand to something bigger
 	//So let's assume that [current path length in bytes + 1024] is a sane buffer size (1024 - most common buffer size that Windows passes to NtQueryObject)
 	//Returned path is NULL-terminated (MaximumLength is Length plus NULL-terminator, all in bytes)
-	DWORD buf_len=wcslen(krn_fpath)*sizeof(wchar_t)+1024;
+	DWORD buf_len=krn_ulen+1024;
 	BYTE oni_buf[buf_len];
-	OBJECT_NAME_INFORMATION *poni=(OBJECT_NAME_INFORMATION*)oni_buf;
-	if (!NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, poni, buf_len, NULL))) {
+	if (!NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
 		CloseHandle(hFile);
 		return false;
+	}
+
+	wchar_t* res_krn_path=((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer;
+	for (std::pair<std::wstring, wchar_t> &drive: DriveList) {
+		if (!wcsncmp(drive.first.c_str(), res_krn_path, drive.first.length())&&(drive.first.back()==L'\\'||res_krn_path[drive.first.length()]==L'\\')) {
+			CloseHandle(hFile);
+			if (drive.first.back()==L'\\')
+				w32_fpath={drive.second, L':', L'\\'};
+			else
+				w32_fpath={drive.second, L':'};
+			w32_fpath.append(res_krn_path+drive.first.length());
+			return true;
+		}
 	}
 
 	//In contrast with NtQueryObject, NtQueryInformationFile is pretty predictable
@@ -388,37 +446,22 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath)
 	//But we are already know sufficient buffer size from the call to NtQueryObject - no need to second guess here
 	//NtQueryInformationFile(FileNameInformation) returns path relative to device
 	//Returned path is not NULL-terminated (FileNameLength is string length in bytes)
-	buf_len=poni->Name.Length+sizeof(FILE_NAME_INFORMATION);
-	BYTE fni_buf[buf_len+sizeof(wchar_t)];	//sizeof(wchar_t) bytes for the future NULL terminator
-	FILE_NAME_INFORMATION *pfni=(FILE_NAME_INFORMATION*)fni_buf;
-	if (!NT_SUCCESS(fnNtQueryInformationFile(hFile, &ioStatusBlock, pfni, buf_len, FileNameInformation))) {
+	buf_len=((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Length+sizeof(FILE_NAME_INFORMATION);
+	BYTE fni_buf[buf_len];
+	if (!NT_SUCCESS(fnNtQueryInformationFile(hFile, &ioStatusBlock, (FILE_NAME_INFORMATION*)fni_buf, buf_len, FileNameInformation))) {
 		CloseHandle(hFile);
 		return false;
+	}	
+	
+	CloseHandle(hFile);
+	aux_fpath={L'\\'};
+	aux_fpath.append(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
+	if (CheckIfFileExists(aux_fpath.c_str())) {
+		w32_fpath=std::move(aux_fpath);
+		return true;
 	}
-	
-	pfni->FileName[pfni->FileNameLength/sizeof(wchar_t)]=L'\0';	//Terminating FileNameInformation
-	CloseHandle(hFile);	//We don't need it anymore
-	
-	//ObjectNameInformation should be longer than FileNameInformation
-	//ObjectNameInformation - device part plus path part
-	//FileNameInformation - only path part
-	if (poni->Name.Length>pfni->FileNameLength) {
-		std::map<std::wstring, wchar_t>::iterator DriveMapItem;
-		if ((DriveMapItem=DriveMap.find(std::wstring(poni->Name.Buffer, (poni->Name.Length-pfni->FileNameLength)/sizeof(wchar_t))))!=DriveMap.end()) {
-			//Device portion found in drive map
-			w32_fpath=std::wstring{DriveMapItem->second, L':'}+pfni->FileName;
-		} else { 
-			//Check if it's a UNC path and if it's not - return nothing
-			//Move start of the string to the place just before relative path (pfni->FileName) portion and make it a slash character
-			//It's possible because poni->Name.Buffer is at least one character longer than pfni->FileName
-			*(poni->Name.Buffer+=(poni->Name.Length-pfni->FileNameLength)/sizeof(wchar_t)-1)=L'\\';
-			
-			if (CheckIfFileExists(poni->Name.Buffer))	//Check really takes some time with UNC paths...
-				w32_fpath=poni->Name.Buffer;
-		}
-	}
-	
-	return !w32_fpath.empty();
+
+	return false;
 }
 
 bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath) 
@@ -426,8 +469,6 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
-	//Default file path to empty string
-	fpath=L"";
 
 	if (!fnNtQueryInformationProcess) {
 #if DEBUG>=2
@@ -445,20 +486,18 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 	//Returned bufferSize doesn't include terminating NULL character, but we don't need to add NULL terminator because PUNICODE_STRING will be assigned using wstring.assign() 
 	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
 		pusFileName=(PUNICODE_STRING)new BYTE[bufferSize];
-		st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, pusFileName, bufferSize, &bufferSize);
+		if (NT_SUCCESS(st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, pusFileName, bufferSize, &bufferSize))) {
+			fpath.assign(pusFileName->Buffer, pusFileName->Length/sizeof(wchar_t));
+		}
+		delete[] (BYTE*)pusFileName;
 	}
-	
-	if (!NT_SUCCESS(st)) {
+
 #if DEBUG>=2
-		if (st==STATUS_INVALID_INFO_CLASS)
-			std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileNameWin32) failed - information class not supported!"<<std::endl;
+	if (st==STATUS_INVALID_INFO_CLASS)
+		std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileNameWin32) failed - information class not supported!"<<std::endl;
 #endif
-	} else {
-		fpath.assign(pusFileName->Buffer, pusFileName->Length/sizeof(wchar_t));
-	}
-	
-	delete[] (BYTE*)pusFileName;
-	return !fpath.empty();
+
+	return NT_SUCCESS(st);
 }
 
 bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) 
@@ -472,7 +511,6 @@ bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath)
 		fpath=it->second;
 		return true;
 	} else {
-		fpath=L"";
 		return false;
 	}
 }
@@ -482,8 +520,6 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_PEB:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
-	//Default file path to empty string
-	fpath=L"";
 	
 	if (!fnNtQueryInformationProcess) {
 #if DEBUG>=2
@@ -530,11 +566,10 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), &ret_len)) {
 			UNICODE_STRING ImagePathName;
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, ImagePathName)), &ImagePathName, sizeof(ImagePathName), &ret_len)) {
-				wchar_t buffer[ImagePathName.Length/sizeof(wchar_t)+1];
-				buffer[ImagePathName.Length/sizeof(wchar_t)]=L'\0';
-				if (ReadProcessMemory(hProcess, ImagePathName.Buffer, &buffer, ImagePathName.Length, &ret_len))
+				wchar_t buffer[ImagePathName.MaximumLength/sizeof(wchar_t)];
+				if (ReadProcessMemory(hProcess, ImagePathName.Buffer, &buffer, ImagePathName.MaximumLength, &ret_len))
 					//Filepath is found, but it can be in kernel form
-					return KernelToWin32Path(buffer, fpath);
+					return KernelToWin32Path(buffer, fpath, ImagePathName.Length, ImagePathName.MaximumLength);
 			}
 		}
 	} else {
@@ -560,11 +595,10 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), &ret_len)) {
 			UNICODE_STRING32 ImagePathName32;
 			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, ImagePathName)), &ImagePathName32, sizeof(ImagePathName32), &ret_len)) {
-				wchar_t buffer[ImagePathName32.Length/sizeof(wchar_t)+1];
-				buffer[ImagePathName32.Length/sizeof(wchar_t)]=L'\0';
-				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ImagePathName32.Buffer, &buffer, ImagePathName32.Length, &ret_len))
+				wchar_t buffer[ImagePathName32.MaximumLength/sizeof(wchar_t)];
+				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ImagePathName32.Buffer, &buffer, ImagePathName32.MaximumLength, &ret_len))
 					//Filepath is found, but it can be in kernel form
-					return KernelToWin32Path(buffer, fpath);
+					return KernelToWin32Path(buffer, fpath, ImagePathName32.Length, ImagePathName32.MaximumLength);
 			}
 		}
 #else	//_WIN64 ***********************************
@@ -600,11 +634,10 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), &ret_len64))) {
 			UNICODE_STRING64 ImagePathName64;
 			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, ImagePathName), &ImagePathName64, sizeof(ImagePathName64), &ret_len64))) {
-				wchar_t buffer[ImagePathName64.Length/sizeof(wchar_t)+1];
-				buffer[ImagePathName64.Length/sizeof(wchar_t)]=L'\0';
-				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ImagePathName64.Buffer, &buffer, ImagePathName64.Length, &ret_len64)))
+				wchar_t buffer[ImagePathName64.MaximumLength/sizeof(wchar_t)];
+				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ImagePathName64.Buffer, &buffer, ImagePathName64.MaximumLength, &ret_len64)))
 					//Filepath is found, but it can be in kernel form
-					return KernelToWin32Path(buffer, fpath);
+					return KernelToWin32Path(buffer, fpath, ImagePathName64.Length, ImagePathName64.MaximumLength);
 			}
 		}
 #endif	//_WIN64 ***********************************
@@ -618,8 +651,6 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_SystemProcessIdInformation:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
-	//Default file path to empty string
-	fpath=L"";
 	
 	if (!fnNtQuerySystemInformation) {
 #if DEBUG>=2
@@ -631,15 +662,12 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	NTSTATUS st;
 	SYSTEM_PROCESS_ID_INFORMATION processIdInfo;
 	processIdInfo.ProcessId=PID;
-	processIdInfo.ImageName.Buffer=NULL;
-	processIdInfo.ImageName.Length=0;
-	processIdInfo.ImageName.MaximumLength=0;
-	
+	processIdInfo.ImageName={};
 	//NtQuerySystemInformation(SystemProcessIdInformation) doesn't return needed length in ImageName.MaximumLength
 	//So we can't tell for sure how many bytes will be needed to store unicode string
 	//MaximumLength length is actual Length plus terminating character, so when function succeed Buffer will already contain terminating NULL
 	do {
-		delete[] processIdInfo.ImageName.Buffer;
+		delete[] (BYTE*)processIdInfo.ImageName.Buffer;
 		processIdInfo.ImageName.Buffer=(wchar_t*)new BYTE[(processIdInfo.ImageName.MaximumLength+=512)];  //each iteration buffer size is increased by 0.5 KB
 	} while ((st=fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))==STATUS_INFO_LENGTH_MISMATCH);
 	
@@ -648,12 +676,14 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 		if (st==STATUS_INVALID_INFO_CLASS)
 			std::wcerr<<L"" __FILE__ ":GetFP_SystemProcessIdInformation:"<<__LINE__<<L": NtQuerySystemInformation(SystemProcessIdInformation) failed - information class not supported!"<<std::endl;
 #endif
-	} else
+		delete[] (BYTE*)processIdInfo.ImageName.Buffer;
+		return false;
+	} else {
 		//Filepath is found, but we need to convert it to Win32 form
-		KernelToWin32Path(processIdInfo.ImageName.Buffer, fpath);
-	
-	delete[] (BYTE*)processIdInfo.ImageName.Buffer;
-	return !fpath.empty();
+		bool cvn_res=KernelToWin32Path(processIdInfo.ImageName.Buffer, fpath);
+		delete[] (BYTE*)processIdInfo.ImageName.Buffer;
+		return cvn_res;
+	}
 }
 
 bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) 
@@ -661,8 +691,6 @@ bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
-	//Default file path to empty string
-	fpath=L"";
 	
 	if (!fnNtQueryInformationProcess) {
 #if DEBUG>=2
@@ -673,26 +701,25 @@ bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath
 	
 	NTSTATUS st;
 	DWORD bufferSize=0;
+	bool cnv_res=false;
 	PUNICODE_STRING pusFileName=NULL;
 	
 	//If function succeed, returned UNICODE_STRING.Buffer already contains terminating NULL character
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
 	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
 		pusFileName=(PUNICODE_STRING)new BYTE[bufferSize];
-		st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, pusFileName, bufferSize, &bufferSize);
+		if (NT_SUCCESS(st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, pusFileName, bufferSize, &bufferSize))) {
+			cnv_res=KernelToWin32Path(pusFileName->Buffer, fpath);
+		}
+		delete[] (BYTE*)pusFileName;
 	}
 	
-	if (!NT_SUCCESS(st)) {
 #if DEBUG>=2
-		if (st==STATUS_INVALID_INFO_CLASS)
-			std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileName) failed - information class not supported!"<<std::endl;
+	if (st==STATUS_INVALID_INFO_CLASS)
+		std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileName) failed - information class not supported!"<<std::endl;
 #endif
-	} else
-		//Filepath is found, but we need to convert it to Win32 form
-		KernelToWin32Path(pusFileName->Buffer, fpath);
 	
-	delete[] (BYTE*)pusFileName;
-	return !fpath.empty();
+	return cnv_res;
 }
 
 std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read) 

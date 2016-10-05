@@ -22,7 +22,7 @@ pEnableWcout fnEnableWcout;
 std::unique_ptr<Extras> Extras::instance;
 
 Extras::Extras(bool hidden, const wchar_t* caption): 
-	wcout_win32(Win32WcostreamBuf::WCOUT), wcerr_win32(Win32WcostreamBuf::WCERR), mb_caption(caption),
+	wcout_win32(Win32WcostreamBuf::WCOUT), wcerr_win32(Win32WcostreamBuf::WCERR), mb_caption(caption?caption:L""),
 	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL)
 {
 	LoadFunctions();
