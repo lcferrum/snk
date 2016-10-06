@@ -154,7 +154,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 				if (void* cmdfile_mem=MapViewOfFile(h_cmdfilemap, FILE_MAP_READ, 0, 0, 0)) {
 					DWORD bom=0;				//Initialize BOM with 0 so unread bytes won't be filled with garbage
 					wchar_t* wcmdfile_buf=NULL;	//Buffer that receives converted cmdfile, ready to read by CommandLineToArgvW
-					DWORD wcmdfile_len;		//Length of wcmdfile_buf in caracters
+					DWORD wcmdfile_len;			//Length of wcmdfile_buf in characters
 					memcpy(&bom, cmdfile_mem, std::min((DWORD)sizeof(bom), cmdfile_len));
 					bom=IsBOM(bom);
 					

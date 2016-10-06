@@ -15,7 +15,6 @@
 		- /lst switch (show and manage process list)
 		- /prn switch (print something to stdout)
 		- +r/-r setting (recently added sorting)
-		- +e/-e setting (expand arguments)
 		- +m/-m setting (mute stdout and stderr outputs)
 		- +b/-b setting (blacklist results)
 		- +w/-w setting (whitelist results)

@@ -144,7 +144,7 @@ extern pPathFindOnPathW fnPathFindOnPathW;
 namespace FPRoutines {
 	std::vector<std::pair<std::wstring, wchar_t>> DriveList;
 	std::map<DWORD, std::wstring> ServiceMap;
-	bool KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath, USHORT krn_ulen=USHRT_MAX, USHORT krn_umaxlen=0);
+	bool KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath);
 	bool GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath);
 	bool GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath);
 	bool GetFP_PEB(HANDLE hProcess, std::wstring &fpath);
@@ -346,24 +346,15 @@ void FPRoutines::FillServiceMap()
 	CloseServiceHandle(schSCMgr);
 }
 
-bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath, USHORT krn_ulen, USHORT krn_umaxlen)
+bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath)
 {
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": Converting \""<<krn_fpath<<L"\"..."<<std::endl;
 #endif
 
-	if (!krn_ulen)
-		return false;
-	
-	//Function accepts both UNICODE_STRINGs and null-terminated wchar_t arrays 
-	if (krn_ulen==USHRT_MAX&&krn_umaxlen==0) {
-		krn_ulen=wcslen(krn_fpath)*sizeof(wchar_t);
-		krn_umaxlen=krn_ulen+sizeof(wchar_t);
-	}		
 	//Check if Kernel path is already Win32
-	std::wstring aux_fpath(krn_fpath, krn_ulen/sizeof(wchar_t));
-	if (CheckIfFileExists(aux_fpath.c_str())) {
-		w32_fpath=std::move(aux_fpath);
+	if (CheckIfFileExists(krn_fpath)) {
+		w32_fpath=krn_fpath;
 		return true;
 	}
 	
@@ -400,7 +391,7 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath, 
 
 	HANDLE hFile;
 	OBJECT_ATTRIBUTES objAttribs;	
-	UNICODE_STRING ustr_fpath={krn_ulen, krn_umaxlen, krn_fpath};
+	UNICODE_STRING ustr_fpath={(USHORT)(wcslen(krn_fpath)*sizeof(wchar_t)), (USHORT)((wcslen(krn_fpath)+1)*sizeof(wchar_t)), const_cast<wchar_t*>(krn_fpath)};
 	IO_STATUS_BLOCK ioStatusBlock;
 	
 	InitializeObjectAttributes(&objAttribs, &ustr_fpath, OBJ_CASE_INSENSITIVE, NULL, NULL);
@@ -420,7 +411,7 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath, 
 	//We'll try something similar here: we already have kernel path, only portion of which may expand to something bigger
 	//So let's assume that [current path length in bytes + 1024] is a sane buffer size (1024 - most common buffer size that Windows passes to NtQueryObject)
 	//Returned path is NULL-terminated (MaximumLength is Length plus NULL-terminator, all in bytes)
-	DWORD buf_len=krn_ulen+1024;
+	DWORD buf_len=ustr_fpath.Length+1024;
 	BYTE oni_buf[buf_len];
 	if (!NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
 		CloseHandle(hFile);
@@ -454,10 +445,10 @@ bool FPRoutines::KernelToWin32Path(wchar_t* krn_fpath, std::wstring &w32_fpath, 
 	}	
 	
 	CloseHandle(hFile);
-	aux_fpath={L'\\'};
-	aux_fpath.append(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
-	if (CheckIfFileExists(aux_fpath.c_str())) {
-		w32_fpath=std::move(aux_fpath);
+	std::wstring unc_path{L'\\'};
+	unc_path.append(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
+	if (CheckIfFileExists(unc_path.c_str())) {
+		w32_fpath=std::move(unc_path);
 		return true;
 	}
 
@@ -566,10 +557,11 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), &ret_len)) {
 			UNICODE_STRING ImagePathName;
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, ImagePathName)), &ImagePathName, sizeof(ImagePathName), &ret_len)) {
-				wchar_t buffer[ImagePathName.MaximumLength/sizeof(wchar_t)];
+				wchar_t buffer[ImagePathName.MaximumLength/sizeof(wchar_t)+1];
+				buffer[ImagePathName.Length/sizeof(wchar_t)]=L'\0';
 				if (ReadProcessMemory(hProcess, ImagePathName.Buffer, &buffer, ImagePathName.MaximumLength, &ret_len))
 					//Filepath is found, but it can be in kernel form
-					return KernelToWin32Path(buffer, fpath, ImagePathName.Length, ImagePathName.MaximumLength);
+					return KernelToWin32Path(buffer, fpath);
 			}
 		}
 	} else {
@@ -595,10 +587,11 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), &ret_len)) {
 			UNICODE_STRING32 ImagePathName32;
 			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, ImagePathName)), &ImagePathName32, sizeof(ImagePathName32), &ret_len)) {
-				wchar_t buffer[ImagePathName32.MaximumLength/sizeof(wchar_t)];
+				wchar_t buffer[ImagePathName32.MaximumLength/sizeof(wchar_t)+1];
+				buffer[ImagePathName32.Length/sizeof(wchar_t)]=L'\0';
 				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ImagePathName32.Buffer, &buffer, ImagePathName32.MaximumLength, &ret_len))
 					//Filepath is found, but it can be in kernel form
-					return KernelToWin32Path(buffer, fpath, ImagePathName32.Length, ImagePathName32.MaximumLength);
+					return KernelToWin32Path(buffer, fpath);
 			}
 		}
 #else	//_WIN64 ***********************************
@@ -634,10 +627,11 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), &ret_len64))) {
 			UNICODE_STRING64 ImagePathName64;
 			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, ImagePathName), &ImagePathName64, sizeof(ImagePathName64), &ret_len64))) {
-				wchar_t buffer[ImagePathName64.MaximumLength/sizeof(wchar_t)];
+				wchar_t buffer[ImagePathName64.MaximumLength/sizeof(wchar_t)+1];
+				buffer[ImagePathName64.Length/sizeof(wchar_t)]=L'\0';
 				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ImagePathName64.Buffer, &buffer, ImagePathName64.MaximumLength, &ret_len64)))
 					//Filepath is found, but it can be in kernel form
-					return KernelToWin32Path(buffer, fpath, ImagePathName64.Length, ImagePathName64.MaximumLength);
+					return KernelToWin32Path(buffer, fpath);
 			}
 		}
 #endif	//_WIN64 ***********************************
