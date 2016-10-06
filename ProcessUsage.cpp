@@ -39,7 +39,7 @@ bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONG
 //Assuming that UNICODE_STRING not necessary terminated
 //Complex expression in prc_time_dlt initialization is (paranoid) overflow check
 PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool odd_enum, UNICODE_STRING name, const std::wstring &path, bool system):
-	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), odd_enum(odd_enum)
+	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), odd_enum(odd_enum), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
 	if (!this->path.empty()) {
@@ -97,15 +97,20 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 	return applied;
 }
 
-void Processes::Synchronize(bool param_disabled, std::function<bool(ULONG_PTR)> mutator)
+void Processes::Synchronize(Processes &ref)
 {
-	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
-	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
-		if (rit->GetDisabled()==param_disabled&&mutator(rit->GetPID())) {
-			rit->SetDisabled(true);
-			break;
-		}
-	}
+	//In both objects CANs should be of equal size
+	//In reality they should also excact copies
+	//But we are making this check solely for the loop below not to throw anything
+	if (CAN.size()!=ref.CAN.size())
+		return;
+	
+	//Problem with pointers to vector member is that pointer may be invalidated sometime in the future
+	//This happens when vector is modified - items adde, deleted or reordered
+	//So pointers are valid as long as reference vector not modified
+	std::vector<PData>::iterator loc_it, ref_it;
+	for (loc_it=CAN.begin(), ref_it=ref.CAN.begin(); loc_it!=CAN.end(); loc_it++, ref_it++)
+		loc_it->SetReference(&(*ref_it));
 }
 
 void Processes::ManageProcessList(LstMode param_lst_mode)

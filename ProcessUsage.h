@@ -20,6 +20,7 @@ private:
 	bool system;				//Indicates that this is a system process (i.e. process that wasn't created by user)
 	std::wstring name;			//Name of the process executable
 	std::wstring path;			//Full path to the process executable
+	PData *ref;					//Reference instead of current object could be used for some methods
 public:
 	bool operator<(const PData &right) const {
 		return prc_time_dlt<right.prc_time_dlt;
@@ -36,8 +37,9 @@ public:
 	bool GetSystem() const { return system; }
 	bool GetDiscarded() const { return discarded; }
 	void SetDiscarded(bool value) { discarded=value; }
-	bool GetDisabled() const { return disabled; }
-	void SetDisabled(bool value) { disabled=value; }
+	bool GetDisabled() const { return ref?ref->GetDisabled():disabled; }
+	void SetDisabled(bool value) { if (ref) ref->SetDisabled(value); else disabled=value; }
+	void SetReference(PData* value) { ref=value; }
 	std::wstring GetName() const { return name; }
 	std::wstring GetPath() const { return path; }
 
@@ -80,13 +82,10 @@ protected:
 	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
 	bool ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&, bool)> mutator);
 	
-	//Applies function ("mutator") to processes from CAN ignoring currently active modes
-	//If param_disabled - applies "mutator" to disabled processes
-	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
-	void Synchronize(bool param_disabled, std::function<bool(ULONG_PTR)> mutator);
+	//TODO
+	void Synchronize(Processes &ref);
 
-	//Adds processes that are forbidden to kill to blacklist using path
-	//If param_full - uses full process path instead just name
+	//TODO
 	void ManageProcessList(LstMode param_lst_mode);	
 	
 	//Sorts processes list by CPU usage

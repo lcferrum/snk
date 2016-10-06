@@ -173,7 +173,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 							memcpy(wcmdfile_buf+1, cmdfile_mem, cmdfile_len);
 							success=true;
 						} else
-							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 encoded!"<<std::endl;
+							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 LE encoded!"<<std::endl;
 					} else if (bom==0xFFFE) {		//UTF16 BE
 						//Need to reverse UTF16 BE BYTE pairs to make it wchar_t (which is UTF16 LE on Windows) array
 						cmdfile_len-=2;					//Compensating for bom
@@ -187,7 +187,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 								le_buf[be_pos+(be_pos%2?-1:1)]=be_buf[be_pos];
 							success=true;
 						} else
-							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 encoded!"<<std::endl;
+							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 BE encoded!"<<std::endl;
 					} else if (bom==0xBFBBEF||(!bom&&param_cmd_mode==CMDCP_UTF8)) {	//UTF8, use this encoding if BOM is absent and CMDCP_UTF8 set
 						//Need to convert from UTF8 to wchar_t
 						cmdfile_len-=bom?3:0;					//Compensating for bom
@@ -212,6 +212,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
 						//Otherwise missing BOM will be treated as ANSI encoding
 						if (wcmdfile_len=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
+							std::wcerr<<L"wcmdfile_len="<<wcmdfile_len<<std::endl;
 							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
 							if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {
 								wcmdfile_len+=2;
@@ -256,6 +257,10 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 #endif
 						if ((cmd_argv=CommandLineToArgvW(wcmdfile_buf, &cmd_argc))) {
 							MakeRulesFromArgv(cmd_argc, cmd_argv, rules, 0);
+							if (!rules.size()) {
+								std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't contain any commands!"<<std::endl;
+								success=false;
+							}
 							LocalFree(cmd_argv);
 						}
 					}
@@ -268,7 +273,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 			} else 
 				std::wcerr<<L"Warning: error while reading file \""<<arg_cmdpath<<L"\"!"<<std::endl;
 		} else
-			std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" is empty, too large or of unknown size!"<<std::endl;
+			std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" is empty, too large (>4GB) or of unknown size!"<<std::endl;
 	
 		CloseHandle(h_cmdfile);
 	} else
@@ -404,17 +409,19 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 				MIDStatus sub_ret;
 				ClearParamsAndArgs();
 				Controller<ProcessesPolicy, KillersPolicy> sub_controller(*this);
+				//ProcessesPolicy.Synchronize makes CAN members in sub_controller use some of the methods from local CAN members
+				//It is done by passing reference for each local CAN member to corresponding sub_controller CAN member
+				//That's why starting from Synchronize call till the end of the clause (when sub_controller will be destroyed) it's vital to not modify local CAN
+				sub_controller.Synchronize(*this);
+				//******** DO NOT MODIFY LOCAL CAN BEYOND THIS POINT ********
 				while ((sub_ret=sub_controller.MakeItDeadInternal(sub_rules))==MID_NONE);
 				if (sub_controller.sec_mutex!=sec_mutex) CloseHandle(sub_controller.sec_mutex);
 				if (fnEnableWcout) fnEnableWcout(!ctrl_vars.mode_mute);
-				sub_controller.Synchronize(true, [this](ULONG_PTR disabled_pid){
-					Synchronize(false, [disabled_pid](ULONG_PTR pid){ return disabled_pid==pid; });
-					return false;
-				});
 				done=IsDone(sub_ret==MID_EMPTY);
+				//*************** FREE TO MODIFY LOCAL CAN ******************
 			} else {
+				std::wcerr<<L"Warning: subroutine \""<<ctrl_vars.args<<"\" won't be called!"<<std::endl; 
 				ClearParamsAndArgs();
-				std::wcerr<<L"Warning: subroutine won't be called!"<<std::endl; 
 			}				
 		} else {
 			ProcessCmdFile(rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
