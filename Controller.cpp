@@ -155,11 +155,11 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 					DWORD bom=0;				//Initialize BOM with 0 so unread bytes won't be filled with garbage
 					wchar_t* wcmdfile_buf=NULL;	//Buffer that receives converted cmdfile, ready to read by CommandLineToArgvW
 					DWORD wcmdfile_len;			//Length of wcmdfile_buf in characters
-					memcpy(&bom, cmdfile_mem, std::min((DWORD)sizeof(bom), cmdfile_len));
+					memcpy(&bom, cmdfile_mem, std::min((decltype(cmdfile_len))sizeof(bom), cmdfile_len));
 					bom=IsBOM(bom);
 					
 					//Conversions below assume that wchar_t represents UTF16 LE so is 2 bytes in length
-					//On Windows wchar_t is indeed UTF16 LE
+					//On Windows wchar_t is indeed UTF16 LE (even for versions of NT4 that run on bi-endian platforms)
 					//But by C++ standard wchar_t is implementation defined so just in case test that we really dealing with 2 byte wchar_t
 					static_assert(sizeof(wchar_t)==2, L"sizeof(wchar_t) should be exactly 2 bytes");
 					if (bom==0xFEFF||(!bom&&param_cmd_mode==CMDCP_UTF16)) {	//UTF16 LE (ordinary Windows Unicode), use this encoding if BOM is absent and CMDCP_UTF16 set
