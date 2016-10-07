@@ -469,26 +469,25 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 	}
 	
 	NTSTATUS st;
-	DWORD bufferSize=0;
-	PUNICODE_STRING pusFileName=NULL;
+	DWORD buf_len;
 	
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
 	//This call works only on Vista and above and gets Win32 path
-	//Returned bufferSize doesn't include terminating NULL character, but we don't need to add NULL terminator because PUNICODE_STRING will be assigned using wstring.assign() 
-	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
-		pusFileName=(PUNICODE_STRING)new BYTE[bufferSize];
-		if (NT_SUCCESS(st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, pusFileName, bufferSize, &bufferSize))) {
-			fpath.assign(pusFileName->Buffer, pusFileName->Length/sizeof(wchar_t));
+	//Returned buf_len doesn't include terminating NULL character, but we don't need to add NULL terminator because PUNICODE_STRING will be assigned using wstring.assign() 
+	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, NULL, 0, &buf_len))==STATUS_INFO_LENGTH_MISMATCH) {
+		BYTE ustr_fpath[buf_len];
+		if (NT_SUCCESS(fnNtQueryInformationProcess(hProcess, ProcessImageFileNameWin32, ustr_fpath, buf_len, NULL))) {
+			fpath.assign(((PUNICODE_STRING)ustr_fpath)->Buffer, ((PUNICODE_STRING)ustr_fpath)->Length/sizeof(wchar_t));
+			return true;
 		}
-		delete[] (BYTE*)pusFileName;
+	} else {
+#if DEBUG>=2
+		if (st==STATUS_INVALID_INFO_CLASS)
+			std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileNameWin32) failed - information class not supported!"<<std::endl;
+#endif
 	}
 
-#if DEBUG>=2
-	if (st==STATUS_INVALID_INFO_CLASS)
-		std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileNameWin32) failed - information class not supported!"<<std::endl;
-#endif
-
-	return NT_SUCCESS(st);
+	return false;
 }
 
 bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) 
@@ -523,9 +522,6 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 	NTSTATUS st;
 	ULONG_PTR PebBaseAddress32=0;
 	PROCESS_BASIC_INFORMATION64 proc_info64={};
-	SIZE_T ret_len;
-	ULONG ret_len32;
-	ULONGLONG ret_len64;
 	//By default it's assumed that target PID and current process are WOW64 processes
 	BOOL pid_wow64=TRUE;
 	BOOL cur_wow64=TRUE;
@@ -543,7 +539,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		//Bitness of current process and target process is the same - it's safe to use native ReadProcessMemory with native structures
 	
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-		st=fnNtQueryInformationProcess(hProcess, ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), &ret_len32);
+		st=fnNtQueryInformationProcess(hProcess, ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), NULL);
 		if (!NT_SUCCESS(st)||!proc_info.PebBaseAddress) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
@@ -554,12 +550,12 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		
 		PVOID pRUPP;
 		//Requires PROCESS_VM_READ	
-		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), &ret_len)) {
+		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), NULL)) {
 			UNICODE_STRING ImagePathName;
-			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, ImagePathName)), &ImagePathName, sizeof(ImagePathName), &ret_len)) {
+			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, ImagePathName)), &ImagePathName, sizeof(ImagePathName), NULL)) {
 				wchar_t buffer[ImagePathName.MaximumLength/sizeof(wchar_t)+1];
 				buffer[ImagePathName.Length/sizeof(wchar_t)]=L'\0';
-				if (ReadProcessMemory(hProcess, ImagePathName.Buffer, &buffer, ImagePathName.MaximumLength, &ret_len))
+				if (ReadProcessMemory(hProcess, ImagePathName.Buffer, &buffer, ImagePathName.MaximumLength, NULL))
 					//Filepath is found, but it can be in kernel form
 					return KernelToWin32Path(buffer, fpath);
 			}
@@ -572,7 +568,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		//Documentation states that ProcessWow64Information returns WoW64 flag for selected process
 		//But actually this flag contains WoW64 process' PEB address
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-		st=fnNtQueryInformationProcess(hProcess, ProcessWow64Information, &PebBaseAddress32, sizeof(PebBaseAddress32), &ret_len32);
+		st=fnNtQueryInformationProcess(hProcess, ProcessWow64Information, &PebBaseAddress32, sizeof(PebBaseAddress32), NULL);
 		if (!NT_SUCCESS(st)||!PebBaseAddress32) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
@@ -584,12 +580,12 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		PTR_32(PVOID) pRUPP32;
 		//Requires PROCESS_VM_READ
 		//PebBaseAddress32, pRUPP32 and ImagePathName32.Buffer pointers are already casted to integers
-		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), &ret_len)) {
+		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), NULL)) {
 			UNICODE_STRING32 ImagePathName32;
-			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, ImagePathName)), &ImagePathName32, sizeof(ImagePathName32), &ret_len)) {
+			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, ImagePathName)), &ImagePathName32, sizeof(ImagePathName32), NULL)) {
 				wchar_t buffer[ImagePathName32.MaximumLength/sizeof(wchar_t)+1];
 				buffer[ImagePathName32.Length/sizeof(wchar_t)]=L'\0';
-				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ImagePathName32.Buffer, &buffer, ImagePathName32.MaximumLength, &ret_len))
+				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ImagePathName32.Buffer, &buffer, ImagePathName32.MaximumLength, NULL))
 					//Filepath is found, but it can be in kernel form
 					return KernelToWin32Path(buffer, fpath);
 			}
@@ -612,7 +608,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		}
 	
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-		st=fnNtWow64QueryInformationProcess64(hProcess, ProcessBasicInformation, &proc_info64, sizeof(PROCESS_BASIC_INFORMATION64), &ret_len64);
+		st=fnNtWow64QueryInformationProcess64(hProcess, ProcessBasicInformation, &proc_info64, sizeof(PROCESS_BASIC_INFORMATION64), NULL);
 		if (!NT_SUCCESS(st)||!proc_info64.PebBaseAddress) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
@@ -624,12 +620,12 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		PTR_64(PVOID) pRUPP64;
 		//Requires PROCESS_VM_READ
 		//proc_info64.PebBaseAddress, pRUPP64 and ImagePathName64.Buffer pointers are already casted to integers
-		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), &ret_len64))) {
+		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), NULL))) {
 			UNICODE_STRING64 ImagePathName64;
-			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, ImagePathName), &ImagePathName64, sizeof(ImagePathName64), &ret_len64))) {
+			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, ImagePathName), &ImagePathName64, sizeof(ImagePathName64), NULL))) {
 				wchar_t buffer[ImagePathName64.MaximumLength/sizeof(wchar_t)+1];
 				buffer[ImagePathName64.Length/sizeof(wchar_t)]=L'\0';
-				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ImagePathName64.Buffer, &buffer, ImagePathName64.MaximumLength, &ret_len64)))
+				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ImagePathName64.Buffer, &buffer, ImagePathName64.MaximumLength, NULL)))
 					//Filepath is found, but it can be in kernel form
 					return KernelToWin32Path(buffer, fpath);
 			}
@@ -657,26 +653,19 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	SYSTEM_PROCESS_ID_INFORMATION processIdInfo;
 	processIdInfo.ProcessId=PID;
 	processIdInfo.ImageName={};
-	//NtQuerySystemInformation(SystemProcessIdInformation) doesn't return needed length in ImageName.MaximumLength
-	//So we can't tell for sure how many bytes will be needed to store unicode string
-	//MaximumLength length is actual Length plus terminating character, so when function succeed Buffer will already contain terminating NULL
-	do {
-		delete[] (BYTE*)processIdInfo.ImageName.Buffer;
-		processIdInfo.ImageName.Buffer=(wchar_t*)new BYTE[(processIdInfo.ImageName.MaximumLength+=512)];  //each iteration buffer size is increased by 0.5 KB
-	} while ((st=fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))==STATUS_INFO_LENGTH_MISMATCH);
-	
-	if (!NT_SUCCESS(st)) {
+	if ((st=fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))==STATUS_INFO_LENGTH_MISMATCH) {
+		BYTE ustr_buf[processIdInfo.ImageName.MaximumLength];
+		processIdInfo.ImageName.Buffer=(wchar_t*)ustr_buf;
+		if (NT_SUCCESS(fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))) {
+			//MaximumLength length is actual Length plus terminating character, so when function succeed Buffer will already contain terminating NULL
+			//Filepath is found, but we need to convert it to Win32 form
+			return KernelToWin32Path(processIdInfo.ImageName.Buffer, fpath);
+		}
+	} else {
 #if DEBUG>=2
 		if (st==STATUS_INVALID_INFO_CLASS)
 			std::wcerr<<L"" __FILE__ ":GetFP_SystemProcessIdInformation:"<<__LINE__<<L": NtQuerySystemInformation(SystemProcessIdInformation) failed - information class not supported!"<<std::endl;
 #endif
-		delete[] (BYTE*)processIdInfo.ImageName.Buffer;
-		return false;
-	} else {
-		//Filepath is found, but we need to convert it to Win32 form
-		bool cvn_res=KernelToWin32Path(processIdInfo.ImageName.Buffer, fpath);
-		delete[] (BYTE*)processIdInfo.ImageName.Buffer;
-		return cvn_res;
 	}
 }
 
@@ -694,26 +683,23 @@ bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath
 	}
 	
 	NTSTATUS st;
-	DWORD bufferSize=0;
-	bool cnv_res=false;
-	PUNICODE_STRING pusFileName=NULL;
+	DWORD buf_len;
 	
 	//If function succeed, returned UNICODE_STRING.Buffer already contains terminating NULL character
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, NULL, 0, &bufferSize))==STATUS_INFO_LENGTH_MISMATCH) {
-		pusFileName=(PUNICODE_STRING)new BYTE[bufferSize];
-		if (NT_SUCCESS(st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, pusFileName, bufferSize, &bufferSize))) {
-			cnv_res=KernelToWin32Path(pusFileName->Buffer, fpath);
+	if ((st=fnNtQueryInformationProcess(hProcess, ProcessImageFileName, NULL, 0, &buf_len))==STATUS_INFO_LENGTH_MISMATCH) {
+		BYTE ustr_fname[buf_len];
+		if (NT_SUCCESS(fnNtQueryInformationProcess(hProcess, ProcessImageFileName, ustr_fname, buf_len, NULL))) {
+			return KernelToWin32Path(((PUNICODE_STRING)ustr_fname)->Buffer, fpath);
 		}
-		delete[] (BYTE*)pusFileName;
+	} else {
+#if DEBUG>=2
+		if (st==STATUS_INVALID_INFO_CLASS)
+			std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileName) failed - information class not supported!"<<std::endl;
+#endif
 	}
 	
-#if DEBUG>=2
-	if (st==STATUS_INVALID_INFO_CLASS)
-		std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileName) failed - information class not supported!"<<std::endl;
-#endif
-	
-	return cnv_res;
+	return false;
 }
 
 std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read) 
@@ -767,9 +753,6 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 	NTSTATUS st;
 	ULONG_PTR PebBaseAddress32=0;
 	PROCESS_BASIC_INFORMATION64 proc_info64={};
-	SIZE_T ret_len;
-	ULONG ret_len32;
-	ULONGLONG ret_len64;
 	//By default it's assumed that target PID and current process are WOW64 processes
 	BOOL pid_wow64=TRUE;
 	BOOL cur_wow64=TRUE;
@@ -781,13 +764,19 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 		fnIsWow64Process(GetCurrentProcess(), &cur_wow64);
 	}
 	
+	//Note on Wow64FsRedirection
+	//If we are querying WoW64 process (doesn't matter from x86 or x86-64 binary) - we are getting non redirected module paths
+	//I.e. the paths that was originally used to load module and not the path that was formed after Wow64FsRedirection
+	//So it is actually better to pass module paths of WoW64 processes through algorithm that will show where this paths are really being redirected to
+	//So this is TODO
+	
 	//UNICODE_STRING in LDR_DATA_TABLE_ENTRY usually includes terminating NULL character in it's buffer
 	//Kernel paths are possible only in image path and they are skipped so it's pretty safe to use MaximumLength
 	if (pid_wow64==cur_wow64) {
 		//Bitness of current process and target process is the same - it's safe to use native ReadProcessMemory with native structures
 	
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-		st=fnNtQueryInformationProcess(hProcess, ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), &ret_len32);
+		st=fnNtQueryInformationProcess(hProcess, ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), NULL);
 		if (!NT_SUCCESS(st)||!proc_info.PebBaseAddress) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
@@ -799,21 +788,21 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 		//Requires PROCESS_VM_READ	
 		//All members of PEBXX and LDR_DATA_TABLE_ENTRYXX are already casted to integers
 		PEBXX pebXX;
-		if (ReadProcessMemory(hProcess, proc_info.PebBaseAddress, &pebXX, sizeof(pebXX), &ret_len)) {
+		if (ReadProcessMemory(hProcess, proc_info.PebBaseAddress, &pebXX, sizeof(pebXX), NULL)) {
 			//One thing to remember is that Flink/Blink members of LIST_ENTRY don't actually point to the start of structures composing the list
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRYXX ldteXX;
-			if (ReadProcessMemory(hProcess, (LPCVOID)(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST)), &ldteXX.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), &ret_len)&&ldteXX.SELECTED_MODULE_LIST.Flink) {
+			if (ReadProcessMemory(hProcess, (LPCVOID)(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST)), &ldteXX.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL)&&ldteXX.SELECTED_MODULE_LIST.Flink) {
 				while (ldteXX.SELECTED_MODULE_LIST.Flink!=(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST))) {	//Eumerate all the list members till list closes
-					if (ReadProcessMemory(hProcess, (LPCVOID)(ldteXX.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRYXX, SELECTED_MODULE_LIST)), &ldteXX, sizeof(ldteXX), &ret_len)) {
+					if (ReadProcessMemory(hProcess, (LPCVOID)(ldteXX.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRYXX, SELECTED_MODULE_LIST)), &ldteXX, sizeof(ldteXX), NULL)) {
 						if (ldteXX.DllBase==pebXX.ImageBaseAddress)	//Skip process image entry
 							continue;
 						//Returned paths are all in Win32 form (except image path that is skipped)
 						wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
-						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, &ret_len)) 
+						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, NULL)) 
 							break;
 						wchar_t buffer2[ldteXX.FullDllName.MaximumLength/sizeof(wchar_t)];						
-						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, &ret_len))
+						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, NULL))
 							break;
 						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
 					} else
@@ -830,7 +819,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 		//Documentation states that ProcessWow64Information returns WoW64 flag for selected process
 		//But actually this flag contains WoW64 process' PEB address
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-		st=fnNtQueryInformationProcess(hProcess, ProcessWow64Information, &PebBaseAddress32, sizeof(PebBaseAddress32), &ret_len32);
+		st=fnNtQueryInformationProcess(hProcess, ProcessWow64Information, &PebBaseAddress32, sizeof(PebBaseAddress32), NULL);
 		if (!NT_SUCCESS(st)||!PebBaseAddress32) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
@@ -842,21 +831,21 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 		//Requires PROCESS_VM_READ
 		//PebBaseAddress32 and all members of PEB32 and LDR_DATA_TABLE_ENTRY32 are already casted to integers
 		PEB32 peb32;
-		if (ReadProcessMemory(hProcess, (LPCVOID)PebBaseAddress32, &peb32, sizeof(peb32), &ret_len)) {
+		if (ReadProcessMemory(hProcess, (LPCVOID)PebBaseAddress32, &peb32, sizeof(peb32), NULL)) {
 			//One thing to remember is that Flink/Blink members of LIST_ENTRY don't actually point to the start of structures composing the list
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRY32 ldte32;
-			if (ReadProcessMemory(hProcess, (LPCVOID)(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST)), &ldte32.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), &ret_len)&&ldte32.SELECTED_MODULE_LIST.Flink) {
+			if (ReadProcessMemory(hProcess, (LPCVOID)(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST)), &ldte32.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL)&&ldte32.SELECTED_MODULE_LIST.Flink) {
 				while (ldte32.SELECTED_MODULE_LIST.Flink!=(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST))) {	//Eumerate all the list members till list closes
-					if (ReadProcessMemory(hProcess, (LPCVOID)(ldte32.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY32, SELECTED_MODULE_LIST)), &ldte32, sizeof(ldte32), &ret_len)) {
+					if (ReadProcessMemory(hProcess, (LPCVOID)(ldte32.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY32, SELECTED_MODULE_LIST)), &ldte32, sizeof(ldte32), NULL)) {
 						if (ldte32.DllBase==peb32.ImageBaseAddress)	//Skip process image entry
 							continue;
 						//Returned paths are all in Win32 form (except image path that is skipped)
 						wchar_t buffer1[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
-						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, &ret_len)) 
+						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, NULL)) 
 							break;
 						wchar_t buffer2[ldte32.FullDllName.MaximumLength/sizeof(wchar_t)];						
-						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, &ret_len))
+						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, NULL))
 							break;
 						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
 					} else
@@ -883,7 +872,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 		}
 	
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-		st=fnNtWow64QueryInformationProcess64(hProcess, ProcessBasicInformation, &proc_info64, sizeof(PROCESS_BASIC_INFORMATION64), &ret_len64);
+		st=fnNtWow64QueryInformationProcess64(hProcess, ProcessBasicInformation, &proc_info64, sizeof(PROCESS_BASIC_INFORMATION64), NULL);
 		if (!NT_SUCCESS(st)||!proc_info64.PebBaseAddress) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
@@ -895,21 +884,21 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 		//Requires PROCESS_VM_READ
 		//proc_info64.PebBaseAddress and all members of PEB64 and LDR_DATA_TABLE_ENTRY64 are already casted to integers
 		PEB64 peb64;
-		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress, &peb64, sizeof(peb64), &ret_len64))) {
+		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress, &peb64, sizeof(peb64), NULL))) {
 			//One thing to remember is that Flink/Blink members of LIST_ENTRY don't actually point to the start of structures composing the list
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRY64 ldte64;
-			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST), &ldte64.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), &ret_len64))&&ldte64.SELECTED_MODULE_LIST.Flink) {
+			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST), &ldte64.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL))&&ldte64.SELECTED_MODULE_LIST.Flink) {
 				while (ldte64.SELECTED_MODULE_LIST.Flink!=(peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST))) {	//Eumerate all the list members till list closes
-					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY64, SELECTED_MODULE_LIST), &ldte64, sizeof(ldte64), &ret_len64))) {
+					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY64, SELECTED_MODULE_LIST), &ldte64, sizeof(ldte64), NULL))) {
 						if (ldte64.DllBase==peb64.ImageBaseAddress)	//Skip process image entry
 							continue;
 						//Returned paths are all in Win32 form (except image path that is skipped)
 						wchar_t buffer1[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
-						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, &ret_len64))) 
+						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, NULL))) 
 							break;
 						wchar_t buffer2[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];						
-						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, &ret_len64)))
+						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, NULL)))
 							break;
 						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
 					} else

@@ -56,6 +56,12 @@ Processes::Processes():
 	CAN(), self_pid(GetCurrentProcessId()), self_lsid(GetLogonSID(GetCurrentProcess()))
 {
 	if (fnWow64DisableWow64FsRedirection) fnWow64DisableWow64FsRedirection(&wow64_fs_redir);	//So GetLongPathName and GetFileAttributes uses correct path
+	//A note on disabling Wow64FsRedirection
+	//Microsoft discourages to do this process-wide and suggests disabling it right before the needed function call and reverting after
+	//Main concerns here being LodaLibrary calls and delayed-loaded imports that may occur after Wow64FsRedirection being disabled and failing because of that
+	//Delayed-loaded imports for Windows targets is not supported by current compiler selection (MinGW and Clang) - so it's not concern here
+	//So we just have to do all the LoadLibrary calls before disabling Wow64FsRedirection (which is already done through Extras class) and we are good to go
+	
 	EnableDebugPrivileges();	//Will set debug privileges (administrator privileges should be already present for this to actually work)
 	CoInitialize(NULL);			//COM is needed for GetLongPathName implementation from newapis.h
 		
