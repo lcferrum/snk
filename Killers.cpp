@@ -22,7 +22,7 @@ extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 #ifdef _WIN64
 #define EnumDisplayDevicesWrapper EnumDisplayDevices
 #else
-extern "C" BOOL __cdecl EnumDisplayDevicesWrapper(LPCTSTR lpDevice, DWORD iDevNum, PDISPLAY_DEVICE lpDisplayDevice, DWORD dwFlags, BOOL (WINAPI *fnPtr)(LPCWSTR, DWORD, PDISPLAY_DEVICEW, DWORD)=EnumDisplayDevices, DWORD dwEBP=0);
+extern "C" BOOL __stdcall EnumDisplayDevicesWrapper(LPCTSTR lpDevice, DWORD iDevNum, PDISPLAY_DEVICE lpDisplayDevice, DWORD dwFlags, DWORD=0, DWORD=0);
 #endif
 
 #ifdef __clang__

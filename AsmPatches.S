@@ -1,33 +1,31 @@
 .file "AsmPatches.S"
-.text								/* Code section */
-.globl _EnumDisplayDevicesWrapper	/* Make function visible to linker, underscore shows that it is CDECL */
-.def _EnumDisplayDevicesWrapper		/* Defining symbol, COFF format */
-	.scl 2							/* Storage-class: 2 = external */
-	.type 32						/* Attribute: 32 = function */
-.endef
+.text									/* Code section */
+.globl _EnumDisplayDevicesWrapper@24	/* Make function visible to linker, STDCALL name mangling */
+/* Defining symbols, COFF format, storage-class 2 (external), attribute 32 (function) */
+.def _EnumDisplayDevicesWrapper@24;	.scl 2;	.type 32;	.endef
+.def _EnumDisplayDevicesW@16;		.scl 2;	.type 32;	.endef
 	
-_EnumDisplayDevicesWrapper:
+_EnumDisplayDevicesWrapper@24:
 #ifndef _WIN64
 	/* 
-	Function prototype is BOOL __cdecl EnumDisplayDevicesWrapper(LPCTSTR, DWORD, PDISPLAY_DEVICE, DWORD, fnPtr, DWORD)
-	6 DWORDs are passed on the stack: 
+	Function prototype is BOOL __stdcall EnumDisplayDevicesWrapper(LPCTSTR, DWORD, PDISPLAY_DEVICE, DWORD, DWORD, DWORD)
+	7 DWORDs are passed on the stack: 
 	 First is a return address
 	 Next 4 DWORDs are actual function parameters which will be passed to EnumDisplayDevices function
-	 Last 2 DWORDs are also function parameters:
-	  First one is EnumDisplayDevices function pointer and also will be used to store return address
-	  Second one will be used to store EBP
-	We are not using stack frame so current stack can be used to call EnumDisplayDevices
+	 Last 2 DWORDs will be used in place of stack frame to store variables
+	  First one will be used to store EBP
+	  Second one be used to store return address
+	We are not using stack frame so to save a few cycles by not moving variables and using present stack to call EnumDisplayDevices
 	All the hacking is to be able to call EnumDisplayDevices with variable number of parameters
-	Not using __imp__EnumDisplayDevicesW@16 symbol directly because Clang's AS doesn't uderstand STDCALL mangling
 	*/
-	movl 20(%esp), %eax							/* Moving EnumDisplayDevices pointer to EAX */
-	movl %ebp, 24(%esp)							/* Saving EBP to the last DWORD on the stack */
+	movl %ebp, 20(%esp)							/* Saving EBP to the second-to-last DWORD on the stack */
 	movl %esp, %ebp								/* Saving stack pointer to EBP */
-	popl 20(%ebp)								/* Removing return address from the stack and saving it to the second-to-last DWORD on the stack */
-	call *%eax									/* Calling EnumDisplayDevices: it's STDCALL but function may take less params than expected and won't clear the stack properly */
-	movl %ebp, %esp								/* By STDCALL convention EBP is non-volatile so it still holds original stack pointer after the call - restoring it */
-	movl 20(%esp), %ebp							/* Restoring return address */
-	movl %ebp, (%esp)							
-	movl 24(%esp), %ebp							/* Restoring EBP */
+	popl 24(%ebp)								/* Removing return address from the stack and saving it to the last DWORD on the stack */
+	call _EnumDisplayDevicesW					/* Calling EnumDisplayDevices: it's STDCALL but function may take less params than expected and won't clear the stack properly */
+	movl %ebp, %esp								/* Conforming to Intel ABI EBP is non-volatile so it still holds original stack pointer after the call - restoring it */
+	addl $20, %esp								/* Cleaning up the stack up to the saved EBP */	
+	popl %ebp									/* Restoring EBP */
+	ret											/* Stack is now cleared of passed variables (by STDCALL convention) and return value is in EAX */
+#else
+	ret											/* Conforming Microsoft x64 calling convention, it's caller's responsibility to clean up stack */
 #endif
-	ret											/* Stack is now returned to it's original state so caller can clear it (by CDECL convention) and return value is in EAX */
