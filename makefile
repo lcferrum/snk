@@ -45,6 +45,11 @@ LDFLAGS=-lversion -lole32 -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-
 COMMON_SRC=SnK.cpp Extras.cpp Common.cpp Hout.cpp Killers.cpp ProcessUsage.cpp FilePathRoutines.cpp Controller.cpp ConOut.cpp AsmPatches.S
 UPSTREAM_INC=/c/cygwin/usr/i686-w64-mingw32/sys-root/mingw/include/
 
+# Debug specific common section
+ifdef DEBUG
+	override LDFLAGS:=$(filter-out -s,$(LDFLAGS)) -g
+endif
+
 # Compiler specific section
 ifeq ($(CC),x86_64-w64-mingw32-g++)
 	LDFLAGS+=-municode
