@@ -392,8 +392,9 @@ bool FPRoutines::GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hM
 		return false;
 	}
 	
-	//Currently NtWow64QueryVirtualMemory64(MemorySectionName) returns STATUS_NOT_IMPLEMENTED on Win 7 and Srv 2012R2
-	//Can't test on other machines where it might be working so keeping it unimplemented for now
+	//NtWow64QueryVirtualMemory64 existed on WoW64 only till Win 10 - from Win XP x64 to Win 8.1
+	//And while it existed it supported only one MEMORY_INFORMATION_CLASS - MemoryBasicInformation
+	//Everything else returns STATUS_NOT_IMPLEMENTED
 		
 	return false;
 }
@@ -968,19 +969,21 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 						if (ldte64.DllBase==peb64.ImageBaseAddress)	//Skip process image entry
 							continue;
 							
-						std::wstring mapped_buf;
-						if (GetMappedFileNameWow64Wrapper(hProcess, ldte64.DllBase, mapped_buf)) {	//Strange, but GetMappedFileNameWrapper actually works here, though only for some of the modules
-							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
-						} else {
-							//Returned paths are all in Win32 form (except image path that is skipped)
-							wchar_t buffer1[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
-							if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, NULL))) 
-								break;
-							wchar_t buffer2[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];						
-							if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, NULL)))
-								break;
-							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
-						}
+						//Not using GetMappedFileNameWow64Wrapper here
+						//First of all - it's not implemented because of underlaying NtWow64QueryVirtualMemory64 not being properly implemented on WoW64
+						//Actually, we can just use ordinary GetMappedFileNameWrapper, but it will work only with modules which DllBase's HIDWORD is NULL
+						//Second - actually we don't need no GetMappedFileNameWow64Wrapper or GetMappedFileNameWrapper here
+						//The whole point of getting module path from it's handle is in getting rid of WoW64 path redirection mechanism which affects BaseDllName/FullDllName
+						//But we are queryng x64 process - it's simply doesn't run on WoW64 so has nothing to do with WoW64 redirection
+							
+						//Returned paths are all in Win32 form (except image path that is skipped)
+						wchar_t buffer1[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
+						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, NULL))) 
+							break;
+						wchar_t buffer2[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];						
+						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, NULL)))
+							break;
+						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
 					} else
 						break;
 				}
