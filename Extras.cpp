@@ -15,6 +15,8 @@ pIsWow64Process fnIsWow64Process=NULL;
 pPathFindOnPathW fnPathFindOnPathW=NULL;
 pWow64DisableWow64FsRedirection fnWow64DisableWow64FsRedirection=NULL;
 pWow64RevertWow64FsRedirection fnWow64RevertWow64FsRedirection=NULL;
+pNtQueryVirtualMemory fnNtQueryVirtualMemory=NULL;
+pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64=NULL;
 pAttachConsole fnAttachConsole=NULL;
 pWcoutMessageBox fnWcoutMessageBox;
 pEnableWcout fnEnableWcout;
@@ -96,6 +98,8 @@ void Extras::LoadFunctions()
 		fnNtQueryInformationProcess=(pNtQueryInformationProcess)GetProcAddress(hNtDll, "NtQueryInformationProcess");
 		fnNtWow64QueryInformationProcess64=(pNtWow64QueryInformationProcess64)GetProcAddress(hNtDll, "NtWow64QueryInformationProcess64");
 		fnNtWow64ReadVirtualMemory64=(pNtWow64ReadVirtualMemory64)GetProcAddress(hNtDll, "NtWow64ReadVirtualMemory64");
+		fnNtQueryVirtualMemory=(pNtQueryVirtualMemory)GetProcAddress(hNtDll, "NtQueryVirtualMemory");
+		fnNtWow64QueryVirtualMemory64=(pNtWow64QueryVirtualMemory64)GetProcAddress(hNtDll, "NtWow64QueryVirtualMemory64");
 	}
 	
 	if (hKernel32) {

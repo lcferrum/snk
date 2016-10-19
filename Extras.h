@@ -49,6 +49,9 @@ typedef NTSTATUS (WINAPI *pNtQueryObject)(HANDLE Handle, OBJECT_INFORMATION_CLAS
 typedef NTSTATUS (WINAPI *pNtQueryInformationProcess)(HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONG ReturnLength);
 typedef NTSTATUS (WINAPI *pNtWow64QueryInformationProcess64)(HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONGLONG ReturnLength);
 typedef NTSTATUS (WINAPI *pNtWow64ReadVirtualMemory64)(HANDLE ProcessHandle, PTR_64(PVOID) BaseAddress, PVOID Buffer, ULONGLONG BufferSize, PULONGLONG NumberOfBytesRead);
+enum MEMORY_INFORMATION_CLASS {MemoryBasicInformation=0x0, MemorySectionName=0x2};
+typedef NTSTATUS (WINAPI *pNtQueryVirtualMemory)(HANDLE ProcessHandle, PVOID BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, SIZE_T MemoryInformationLength, PSIZE_T ReturnLength);
+typedef NTSTATUS (WINAPI *pNtWow64QueryVirtualMemory64)(HANDLE ProcessHandle, PTR_64(PVOID) BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, ULONGLONG Size, PULONGLONG ReturnLength);
 typedef BOOL (WINAPI *pIsWow64Process)(HANDLE hProcess, PBOOL Wow64Process);
 typedef BOOL (WINAPI *pPathFindOnPathW)(LPWSTR lpszFile, LPCWSTR* lppszOtherDirs);
 typedef BOOL (WINAPI *pWow64DisableWow64FsRedirection)(PVOID *OldValue);

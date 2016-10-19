@@ -14,7 +14,6 @@
 #define COMPILE_NEWAPIS_STUBS
 #define WANT_GETLONGPATHNAME_WRAPPER
 #include <newapis.h>	//Probe_GetLongPathName
-#include <psapi.h>
 
 //Version of PROCESS_BASIC_INFORMATION with x86_64 align
 typedef struct _PROCESS_BASIC_INFORMATION64 {
@@ -141,11 +140,15 @@ extern pNtWow64ReadVirtualMemory64 fnNtWow64ReadVirtualMemory64;
 extern pIsWow64Process fnIsWow64Process;
 extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 extern pPathFindOnPathW fnPathFindOnPathW;
+extern pNtQueryVirtualMemory fnNtQueryVirtualMemory;
+extern pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64;
 
 namespace FPRoutines {
 	std::vector<std::pair<std::wstring, wchar_t>> DriveList;
 	std::map<DWORD, std::wstring> ServiceMap;
 	bool KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath);
+	bool GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wstring &fpath);
+	bool GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hMod, std::wstring &fpath);
 	bool GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath);
 	bool GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath);
 	bool GetFP_PEB(HANDLE hProcess, std::wstring &fpath);
@@ -345,6 +348,54 @@ void FPRoutines::FillServiceMap()
 		
 	delete[] (BYTE*)pessp;
 	CloseServiceHandle(schSCMgr);
+}
+
+bool FPRoutines::GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wstring &fpath)
+{
+	//Alright, this is reinvention of GetMappedFileName from psapi.dll
+	//But we have several reasons for this
+	//NT4 not necessarry includes this DLL out-of-the-box - official MS installation disks don't have one as none of SPs
+	//It should be installed as redistributable package that shipped separately (psinst.exe) or as part of "Windows NT 4.0 Resource Kit" or "Windows NT 4.0 SDK"
+	//Though most modern non-MS "all-inclusive" NT4 install disks usually install it by default
+	//On Win 9x we have no psapi.dll though some "unofficial" SPs for 9x systems install it anyway
+	//In the end exporting it dynamically may succeed on Win 9x if such SP was installed but using it will result in crash
+	//So here we re-implementing NT's GetMappedFileName so not to be dependent on psapi.dll
+	
+	if (!fnNtQueryVirtualMemory) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":GetMappedFileNameWrapper:"<<__LINE__<<L": NtQueryVirtualMemory not found!"<<std::endl;
+#endif
+		return false;
+	}
+	
+	//Actual string buffer size is MAX_PATH characters - same size is used in MS's GetMappedFileName implementation
+	SIZE_T buf_len=sizeof(UNICODE_STRING)+MAX_PATH*sizeof(wchar_t);
+	SIZE_T ret_len;
+	BYTE msn_buf[buf_len];
+	
+	if (NT_SUCCESS(fnNtQueryVirtualMemory(hProcess, hMod, MemorySectionName, msn_buf, buf_len, &ret_len))) {
+		//UNICODE_STRING returned by NtQueryVirtualMemory(MemorySectionName) not necessary NULL terminated
+		return KernelToWin32Path(((UNICODE_STRING*)msn_buf)->Buffer, fpath);
+	}
+	
+	return false;
+}
+
+bool FPRoutines::GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hMod, std::wstring &fpath)
+{
+	//See comments on GetMappedFileNameWrapper - this is it's WoW64 equivalent
+	
+	if (!fnNtWow64QueryVirtualMemory64) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":GetMappedFileNameWow64Wrapper:"<<__LINE__<<L": NtWow64QueryVirtualMemory64 not found!"<<std::endl;
+#endif
+		return false;
+	}
+	
+	//Currently NtWow64QueryVirtualMemory64(MemorySectionName) returns STATUS_NOT_IMPLEMENTED on Win 7 and Srv 2012R2
+	//Can't test on other machines where it might be working so keeping it unimplemented for now
+		
+	return false;
 }
 
 bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath)
@@ -809,12 +860,9 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 						if (ldteXX.DllBase==pebXX.ImageBaseAddress)	//Skip process image entry
 							continue;
 							
-						wchar_t mapped_nt_buf[MAX_PATH];
-						if (GetMappedFileName(hProcess, (LPVOID)ldteXX.DllBase, mapped_nt_buf, MAX_PATH)) {
-							std::wstring mapped_w32_buf;
-							if (KernelToWin32Path(mapped_nt_buf, mapped_w32_buf)) {
-								mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_w32_buf), mapped_w32_buf));
-							}
+						std::wstring mapped_buf;
+						if (GetMappedFileNameWrapper(hProcess, (LPVOID)ldteXX.DllBase, mapped_buf)) {
+							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
 						} else {
 							//Returned paths are all in Win32 form (except image path that is skipped)
 							wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
@@ -860,14 +908,20 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 					if (ReadProcessMemory(hProcess, (LPCVOID)(ldte32.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY32, SELECTED_MODULE_LIST)), &ldte32, sizeof(ldte32), NULL)) {
 						if (ldte32.DllBase==peb32.ImageBaseAddress)	//Skip process image entry
 							continue;
-						//Returned paths are all in Win32 form (except image path that is skipped)
-						wchar_t buffer1[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
-						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, NULL)) 
-							break;
-						wchar_t buffer2[ldte32.FullDllName.MaximumLength/sizeof(wchar_t)];						
-						if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, NULL))
-							break;
-						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+							
+						std::wstring mapped_buf;
+						if (GetMappedFileNameWrapper(hProcess, (LPVOID)(ULONG_PTR)ldte32.DllBase, mapped_buf)) {
+							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
+						} else {
+							//Returned paths are all in Win32 form (except image path that is skipped)
+							wchar_t buffer1[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
+							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, NULL)) 
+								break;
+							wchar_t buffer2[ldte32.FullDllName.MaximumLength/sizeof(wchar_t)];						
+							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, NULL))
+								break;
+							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+						}
 					} else
 						break;
 				}
@@ -913,14 +967,20 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY64, SELECTED_MODULE_LIST), &ldte64, sizeof(ldte64), NULL))) {
 						if (ldte64.DllBase==peb64.ImageBaseAddress)	//Skip process image entry
 							continue;
-						//Returned paths are all in Win32 form (except image path that is skipped)
-						wchar_t buffer1[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
-						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, NULL))) 
-							break;
-						wchar_t buffer2[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];						
-						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, NULL)))
-							break;
-						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+							
+						std::wstring mapped_buf;
+						if (GetMappedFileNameWow64Wrapper(hProcess, ldte64.DllBase, mapped_buf)) {	//Strange, but GetMappedFileNameWrapper actually works here, though only for some of the modules
+							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
+						} else {
+							//Returned paths are all in Win32 form (except image path that is skipped)
+							wchar_t buffer1[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
+							if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, NULL))) 
+								break;
+							wchar_t buffer2[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];						
+							if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, NULL)))
+								break;
+							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+						}
 					} else
 						break;
 				}
