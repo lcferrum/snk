@@ -26,6 +26,8 @@ inline bool PidListCmp(std::vector<ULONG_PTR> &uptr_array, const ULONG_PTR &&pid
 
 bool CheckIfFileExists(const wchar_t* fpath);
 
+std::wstring GetNamePartFromFullPath(const std::wstring& fpath);
+
 HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMandatory=0);
 inline HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &&dwDesiredAccess, DWORD dwMandatory=0) { return OpenProcessWrapper(dwProcessId, dwDesiredAccess, dwMandatory); }
 

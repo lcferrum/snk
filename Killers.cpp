@@ -137,7 +137,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
 		CloseHandle(hProcess);
 #if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":KillByMod:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
+		std::wcerr<<L"" __FILE__ ":KillByMod:"<<__LINE__<<L": Dumping modules for \""<<name<<L"\"..."<<std::endl;
 		for (const std::pair<std::wstring, std::wstring> &module: mlist)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif

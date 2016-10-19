@@ -54,6 +54,6 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	Controller<Processes, Killers> controller;
 	
 	controller.MakeItDead(rules);
-	
+
 	return 0;
 }

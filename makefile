@@ -25,10 +25,6 @@ $(error CC not set)
 endif
 endif
 
-ifdef DEBUG
-	override DEBUG:=-DDEBUG=$(DEBUG)
-endif
-
 ifdef USE_CYCLE_TIME
 ifneq ($(USE_CYCLE_TIME),0)
 	override USE_CYCLE_TIME=-DUSE_CYCLE_TIME
@@ -41,13 +37,16 @@ endif
 RM=rm -f
 UPX=upx
 CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX -DUNICODE -D_UNICODE $(DEBUG) $(USE_CYCLE_TIME)
-LDFLAGS=-lversion -lole32 -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-fixup -s
+LDFLAGS=-lversion -lole32 -lpsapi -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-fixup
 COMMON_SRC=SnK.cpp Extras.cpp Common.cpp Hout.cpp Killers.cpp ProcessUsage.cpp FilePathRoutines.cpp Controller.cpp ConOut.cpp AsmPatches.S
 UPSTREAM_INC=/c/cygwin/usr/i686-w64-mingw32/sys-root/mingw/include/
 
 # Debug specific common section
 ifdef DEBUG
-	override LDFLAGS:=$(filter-out -s,$(LDFLAGS)) -g
+	override DEBUG:=-DDEBUG=$(DEBUG)
+	LDFLAGS+=-g
+else
+	LDFLAGS+=-s
 endif
 
 # Compiler specific section

@@ -42,14 +42,8 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), odd_enum(odd_enum), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
-	if (!this->path.empty()) {
-		wchar_t fname[_MAX_FNAME];
-		wchar_t ext[_MAX_EXT];
-		_wsplitpath(this->path.c_str(), NULL, NULL, fname, ext);
-		this->name.clear();
-		this->name+=fname;
-		this->name+=ext;
-	}
+	if (!this->path.empty())
+		this->name=GetNamePartFromFullPath(this->path);
 }
 
 Processes::Processes():

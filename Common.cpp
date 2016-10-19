@@ -217,6 +217,16 @@ HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMan
 	return OpenProcessWrapper(dwProcessId, dwDesiredAccess, dwMandatory);
 }
 
+std::wstring GetNamePartFromFullPath(const std::wstring& fpath)
+{
+	//Instead of using clumsy _wsplitpath use std::wstring magick nowing that supplied path is full one
+	size_t last_backslash;
+	if ((last_backslash=fpath.find_last_of(L'\\'))!=std::wstring::npos&&last_backslash<fpath.length())
+		return fpath.substr(last_backslash+1);
+	else
+		return std::wstring();
+}
+
 bool CheckIfFileExists(const wchar_t* fpath) 
 {
 	if (!fpath||fpath[0]==L'\0'||(				//We don't need NULL or empty paths

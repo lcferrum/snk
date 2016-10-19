@@ -14,6 +14,7 @@
 #define COMPILE_NEWAPIS_STUBS
 #define WANT_GETLONGPATHNAME_WRAPPER
 #include <newapis.h>	//Probe_GetLongPathName
+#include <psapi.h>
 
 //Version of PROCESS_BASIC_INFORMATION with x86_64 align
 typedef struct _PROCESS_BASIC_INFORMATION64 {
@@ -652,21 +653,31 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	NTSTATUS st;
 	SYSTEM_PROCESS_ID_INFORMATION processIdInfo;
 	processIdInfo.ProcessId=PID;
-	processIdInfo.ImageName={};
-	if ((st=fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))==STATUS_INFO_LENGTH_MISMATCH) {
-		BYTE ustr_buf[processIdInfo.ImageName.MaximumLength];
-		processIdInfo.ImageName.Buffer=(wchar_t*)ustr_buf;
-		if (NT_SUCCESS(fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))) {
-			//MaximumLength length is actual Length plus terminating character, so when function succeed Buffer will already contain terminating NULL
-			//Filepath is found, but we need to convert it to Win32 form
-			return KernelToWin32Path(processIdInfo.ImageName.Buffer, fpath);
-		}
-	} else {
+	processIdInfo.ImageName.Buffer=NULL;
+	processIdInfo.ImageName.Length=0;
+	processIdInfo.ImageName.MaximumLength=0;
+	bool result=false;
+	
+	//On x86 OS NtQuerySystemInformation(SystemProcessIdInformation) doesn't return needed length in ImageName.MaximumLength
+	//So we can't tell for sure how many bytes will be needed to store unicode string
+	//On x64 ImageName.MaximumLength will contain needed buffer length on first call if supplied length is insufficient
+	//MaximumLength length is actual Length plus terminating character, so when function succeed Buffer will already contain terminating NULL
+	do {
+		delete[] processIdInfo.ImageName.Buffer;
+		processIdInfo.ImageName.Buffer=(wchar_t*)new BYTE[(processIdInfo.ImageName.MaximumLength+=512)];  //each iteration buffer size is increased by 0.5 KB
+	} while ((st=fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))==STATUS_INFO_LENGTH_MISMATCH);
+	
+	if (!NT_SUCCESS(st)) {
 #if DEBUG>=2
 		if (st==STATUS_INVALID_INFO_CLASS)
 			std::wcerr<<L"" __FILE__ ":GetFP_SystemProcessIdInformation:"<<__LINE__<<L": NtQuerySystemInformation(SystemProcessIdInformation) failed - information class not supported!"<<std::endl;
 #endif
-	}
+	} else
+		//Filepath is found, but we need to convert it to Win32 form
+		result=KernelToWin32Path(processIdInfo.ImageName.Buffer, fpath);
+	
+	delete[] (BYTE*)processIdInfo.ImageName.Buffer;
+	return result;
 }
 
 bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) 
@@ -797,14 +808,23 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 					if (ReadProcessMemory(hProcess, (LPCVOID)(ldteXX.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRYXX, SELECTED_MODULE_LIST)), &ldteXX, sizeof(ldteXX), NULL)) {
 						if (ldteXX.DllBase==pebXX.ImageBaseAddress)	//Skip process image entry
 							continue;
-						//Returned paths are all in Win32 form (except image path that is skipped)
-						wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
-						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, NULL)) 
-							break;
-						wchar_t buffer2[ldteXX.FullDllName.MaximumLength/sizeof(wchar_t)];						
-						if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, NULL))
-							break;
-						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+							
+						wchar_t mapped_nt_buf[MAX_PATH];
+						if (GetMappedFileName(hProcess, (LPVOID)ldteXX.DllBase, mapped_nt_buf, MAX_PATH)) {
+							std::wstring mapped_w32_buf;
+							if (KernelToWin32Path(mapped_nt_buf, mapped_w32_buf)) {
+								mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_w32_buf), mapped_w32_buf));
+							}
+						} else {
+							//Returned paths are all in Win32 form (except image path that is skipped)
+							wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
+							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, NULL)) 
+								break;
+							wchar_t buffer2[ldteXX.FullDllName.MaximumLength/sizeof(wchar_t)];						
+							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, NULL))
+								break;
+							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+						}
 					} else
 						break;
 				}
