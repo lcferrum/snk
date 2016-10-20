@@ -369,12 +369,17 @@ bool FPRoutines::GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wst
 	}
 	
 	//Actual string buffer size is MAX_PATH characters - same size is used in MS's GetMappedFileName implementation
+	//In MS's implementation returned UNICODE_STRING.Length is incremented by one to get needed buffer size w/ NULL instead of just getting UNICODE_STRING.MaximumLength directly
+	//And then NULL is set separetly in new buffer after copying UNICODE_STRING.Length amount of data
+	//NtQueryVirtualMemory just fails if buffer is not enough - it doesn't return truncated data
+	
 	SIZE_T buf_len=sizeof(UNICODE_STRING)+MAX_PATH*sizeof(wchar_t);
 	SIZE_T ret_len;
-	BYTE msn_buf[buf_len];
+	BYTE msn_buf[buf_len+sizeof(wchar_t)];	//+1 wchar_t for forced NULL terminator 
 	
 	if (NT_SUCCESS(fnNtQueryVirtualMemory(hProcess, hMod, MemorySectionName, msn_buf, buf_len, &ret_len))) {
-		//UNICODE_STRING returned by NtQueryVirtualMemory(MemorySectionName) not necessary NULL terminated
+		//Conforming to MS implementation we don't rely on returned buffer to be NULL terminated 
+		((UNICODE_STRING*)msn_buf)->Buffer[((UNICODE_STRING*)msn_buf)->Length]=L'\0';
 		return KernelToWin32Path(((UNICODE_STRING*)msn_buf)->Buffer, fpath);
 	}
 	
@@ -391,6 +396,10 @@ bool FPRoutines::GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hM
 #endif
 		return false;
 	}
+
+#if DEBUG>=2	
+	std::wcerr<<L"" __FILE__ ":GetMappedFileNameWow64Wrapper:"<<__LINE__<<L": not implemented!"<<std::endl;
+#endif
 	
 	//NtWow64QueryVirtualMemory64 existed on WoW64 only till Win 10 - from Win XP x64 to Win 8.1
 	//And while it existed it supported only one MEMORY_INFORMATION_CLASS - MemoryBasicInformation

@@ -159,8 +159,8 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 					bom=IsBOM(bom);
 					
 					//Conversions below assume that wchar_t represents UTF16 LE so is 2 bytes in length
-					//On Windows wchar_t is indeed UTF16 LE (even for versions of NT4 that run on bi-endian platforms)
-					//But by C++ standard wchar_t is implementation defined so just in case test that we really dealing with 2 byte wchar_t
+					//On Windows wchar_t is indeed UTF16 LE (even for versions of NT that run on bi-endian platforms)
+					//But by C++ standard wchar_t is implementation defined so, just in case, test that we really dealing with 2 byte wchar_t
 					static_assert(sizeof(wchar_t)==2, L"sizeof(wchar_t) should be exactly 2 bytes");
 					if (bom==0xFEFF||(!bom&&param_cmd_mode==CMDCP_UTF16)) {	//UTF16 LE (ordinary Windows Unicode), use this encoding if BOM is absent and CMDCP_UTF16 set
 						//Nothing to be done here, cmdline is already wchar_t (which is UTF16 LE on Windows) array
