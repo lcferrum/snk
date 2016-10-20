@@ -41,11 +41,13 @@ first one. Settings block consists of one or more separate settings combined
 together and can be either all-set (+) or all-unset (-) block. All settings 
 within single settings block and all parametres within single switch are
 applied simultaneously. Incorrect swithes, arguments, settings and parametres 
-are ignored. Switches can return result, and if result is positive program will
-stop execution.
+are ignored and warning is issued. Switches starting from hash (#) are silently
+ignored (may be used as hashtag-like comments). Switches can return result, and
+if result is positive - program will stop execution (you can modify this
+behaviour with some settings).
 
 Windowless version prints output only in verbose mode via dialog. But you can
-always redirect standart output streams (which is still present) to see it 
+always redirect standart output streams (which are still present) to see it 
 either way. The main advantage of windowless version is that it can be run in
 the background where it doesn't interfere with other programs, whereas standart
 version will open console window (if not already run from console) which will
@@ -62,6 +64,9 @@ Switches:
 /bpp                          
                               Make standart Windows 'informational beep' and
                               continue execution.
+/prn=TEXT
+                              Echo-like switch - will print to stdout whatever
+                              passed to it and continue execution.
 /sec                          
                               Secured execution. Will return positive result if
                               there is another instance already running that
@@ -109,18 +114,16 @@ Switches:
                               less precise but faster. Please check 
                               DetectMatrix.html for more information. Will 
                               return positive result if process was found.
-/inr[:manual|:vista]          
+/inr[:plus]          
                               Kill process that is not responding and has
                               highest cpu load. By default will use standard
                               Windows procedure (IsHungAppWindow) to check if
-                              application is hung. If 'manual', will check if
-                              window is pumping any messages through it's
-                              message loop to determine hung state. If 'vista', 
-                              will use undocumented IsHungAppWindow analog from
-                              newer OS versions. Even if hung app not yet being
-                              marked as hung by Windows - default method will
-                              work most of the time, stick with it. Will return 
-                              positive result if process was found.
+                              application is hung. That works ok for most of
+							  real life cases. If 'plus', will additionally
+							  check if window is answering to SendMessage call. 
+                              This will help with artificially hung apps (e.g.
+							  SuspendThread'ed) Will return positive result if
+							  process was found.
 /fsc[:anywnd][:primary]          
                               Kill process that is running in fullscreen and
                               has highest cpu load. Works with multi-monitor
@@ -130,13 +133,14 @@ Switches:
                               type, borderless or not. If 'primary', will check
                               only windows that belong to primary display. Will
                               return positive result if process was found.
-/fgd          
+/fgd[:anywnd]         
                               Kill process which window is in foreground. 
                               Though there is always a foreground window, this
                               switch may return nothing if foreground process
                               has 'non-task' window (has no icon on the task
                               bar) or doesn't belong to user and 'query all
-                              processes' mode was turned off. Will return 
+                              processes' mode was turned off. If 'anywnd', will
+							  also include 'non-task' windows. Will return 
                               positive result if process was found.
 /pth[:full]=WCARDS      
                               Kill process which name matches one of the 
@@ -166,15 +170,35 @@ Switches:
                               decimal (no prefix), hexadecimal ('0x'/'0X' 
                               prefix) or octal ('0' prefix) unsigned integer.
                               Will return positive result if process was found.
+/cmd[:sub][:utf8|:utf16]=FILE
+                              Will load additional commands from file. Encoding
+                              is auto-detected using BOM's. If there is no BOM,
+                              it is assumed that encoding is ANSI or you can
+                              force correct one using 'utf8' ot 'utf16' params.
+                              If 'sub', will execute supplied commands as
+                              subroutine. Settings changed inside subroutine
+                              won't propagade beyond it (further commands won't
+                              affected) and 'cmd' will return result based on
+                              subroutine execution: positive if subroutine
+                              reached it's end without triggering on any of the
+                              switches and negative otherwise.
+/lst[:clrmask|:invmask]
+                              List currently available processes - processes
+                              that are not already terminated, not blacklisted,
+                              within whitelist (if it exists) and non-system
+                              (if +a setting wasn't turned on). If 'clrmask',
+							  will clear blacklist and reset whitelist. If 
+                              'invmask', will swap blacklist with whitelist.
+							  In any case - will continue execution afterwards.
 
 Settings:
 
 +t|-t                         
-                              Will turn test mode on/off. While in test mode,
+                              Will turn 'test' mode on/off. While in test mode,
                               switches only display information about found
                               processes but don't kill them.
 +v|-v                         
-                              Will turn verbose mode on/off. While in verbose
+                              Will turn 'verbose' mode on/off. While in verbose
                               mode, program will prompt user to press 'enter'
                               before exit.
 +a|-a                         
@@ -188,6 +212,35 @@ Settings:
                               returns negative result. Overall result will be
                               posistive if one of the iterations returned
                               positive result.
++i|-i
+                              Will turn 'ignore' mode on/off. While in this 
+                              mode, even if switch returns positive result SnK
+                              execution continues.
++n|-n
+                              Will turn 'negate' mode on/off. While in this 
+                              mode, results returned by switches are treated as
+                              opposite ones. If switch is not designed to
+                              return result - nothing happens.		
++b|-b
+                              Will turn 'blacklist' mode on/off. While in this 
+                              mode, all processes on which switches trigger are
+                              added to blacklist. This mode automatically turns
+                              on 'query all processes', 'loop', 'ignore' and
+							  'test' modes on while it is active.
++w|-w
+                              Will turn 'whitelist' mode on/off. While in this 
+                              mode, all processes on which switches trigger are
+                              added to whitelist. This mode automatically turns
+                              on 'query all processes', 'loop', 'ignore' and
+							  'test' modes on while it is active.
++i|-i
+                              Will turn 'ignore' mode on/off. While in this 
+                              mode, even if switch returns positive result SnK
+                              execution continues.
++i|-i
+                              Will turn 'ignore' mode on/off. While in this 
+                              mode, even if switch returns positive result SnK
+                              execution continues.
 +i|-i
                               Will turn 'ignore' mode on/off. While in this 
                               mode, even if switch returns positive result SnK

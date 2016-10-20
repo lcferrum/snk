@@ -3,6 +3,7 @@
 	* Release 2.1
 	* Changed:
 		- Redesigned /inr and /fgd switches
+		- Added short delay after /bpp
 		- Revamped output
 		- Arguments starting with '#' or '\0' are now ignored
 		- Path comparing now omits backslash from globbing
