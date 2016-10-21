@@ -1,6 +1,6 @@
-#include "Ver.h"
 #include "Hout.h"
 #include "Common.h"
+#include "Version.h"
 #include <algorithm>
 #include <iostream>
 
@@ -357,17 +357,17 @@ void PrintVersion()
 {
 #ifndef HIDDEN
 #ifdef _WIN64
-	Hout::Separator(L"Search and Kill (x64) v" SNK_VERSION);
+	Hout::Separator(L"Search and Kill (x64) v" SNK_STR_VERSION);
 #else
-	Hout::Separator(L"Search and Kill v" SNK_VERSION);
+	Hout::Separator(L"Search and Kill v" SNK_STR_VERSION);
 #endif
 	Hout::EmptyLine();
 	Hout::Separator(L"Run with /hlp switch for usage information");
 #else
 #ifdef _WIN64
-	Hout::Separator(L"Search and Kill (x64 windowless) v" SNK_VERSION);
+	Hout::Separator(L"Search and Kill (x64 windowless) v" SNK_STR_VERSION);
 #else
-	Hout::Separator(L"Search and Kill (windowless) v" SNK_VERSION);
+	Hout::Separator(L"Search and Kill (windowless) v" SNK_STR_VERSION);
 #endif
 	Hout::EmptyLine();
 	Hout::Separator(L"Please check README.TXT for more information");

@@ -1,6 +1,6 @@
 #include <winver.h>
 #include <winuser.h>
-#include "Ver.h"
+#include "Version.h"
 
 //Note on VERSIONINFO
 //According to MSDN https://msdn.microsoft.com/en-us/library/windows/desktop/aa381058.aspx required StringFileInfo fields are:
@@ -10,8 +10,8 @@
 //FILEFLAGS is complete bogus - Details/Version dialog never displays anything regarding those flags, they are totally ignored by Windows
 
 VS_VERSION_INFO VERSIONINFO
-  FILEVERSION SNK_VSVI_VER
-  PRODUCTVERSION SNK_VSVI_VER
+  FILEVERSION SNK_VSVI_VERSION
+  PRODUCTVERSION SNK_VSVI_VERSION
   FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
   FILEFLAGS 0x0
   FILEOS VOS__WINDOWS32
@@ -40,10 +40,10 @@ BEGIN
 			VALUE "OriginalFilename", "SnK.exe"
 #endif
 			VALUE "ProductName", "Search and Kill"
-			VALUE "FileVersion", SNK_VERSION
+			VALUE "FileVersion", SNK_STR_VERSION
 			VALUE "CompanyName", "Lcferrum"
 			VALUE "LegalCopyright", "Copyright (c) 2012-2016 Lcferrum"
-			VALUE "ProductVersion", SNK_VERSION
+			VALUE "ProductVersion", SNK_STR_VERSION
 		END
 	END
 	BLOCK "VarFileInfo"
