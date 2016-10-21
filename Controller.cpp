@@ -374,6 +374,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		else
 			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst")) {
+		RequestPopulatedCAN();
 		ManageProcessList(ctrl_vars.param_lst_mode);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/bpp")) {
@@ -406,6 +407,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 			std::stack<std::wstring> sub_rules;
 			if (ProcessCmdFile(sub_rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode)) {
 				MIDStatus sub_ret;
+				RequestPopulatedCAN();
 				ClearParamsAndArgs();
 				Controller<ProcessesPolicy, KillersPolicy> sub_controller(*this);
 				//ProcessesPolicy.Synchronize makes CAN members in sub_controller use some of the methods from local CAN members
@@ -447,43 +449,51 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		} else
 			IgnoredSwitch(top_rule);
 	} else if (!top_rule.compare(L"/cpu")) {
+		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByCpu());
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/pth:full")) {
 		ctrl_vars.param_full=true;
 	} else if (!top_rule.compare(L"/pth")) {
+		RequestPopulatedCAN();
 		done=IsDone(KillByPth(ctrl_vars.param_full, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/mod:full")) {
 		ctrl_vars.param_full=true;
 	} else if (!top_rule.compare(L"/mod")) {
+		RequestPopulatedCAN();
 		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/pid")) {
+		RequestPopulatedCAN();
 		done=IsDone(KillByPid(ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/d3d:simple")) {
 		ctrl_vars.param_simple=true;
 	} else if (!top_rule.compare(L"/d3d")) {
+		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByD3d(ctrl_vars.param_simple));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/ogl:simple")) {
 		ctrl_vars.param_simple=true;
 	} else if (!top_rule.compare(L"/ogl")) {
+		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByOgl(ctrl_vars.param_simple));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/gld:simple")) {
 		ctrl_vars.param_simple=true;
 	} else if (!top_rule.compare(L"/gld")) {
+		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByGld(ctrl_vars.param_simple));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/inr:plus")) {
 		ctrl_vars.param_plus=true;
 	} else if (!top_rule.compare(L"/inr")) {
+		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByInr(ctrl_vars.param_plus));
 		ClearParamsAndArgs();
@@ -492,12 +502,14 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 	} else if (!top_rule.compare(L"/fsc:primary")) {
 		ctrl_vars.param_primary=true;
 	} else if (!top_rule.compare(L"/fsc")) {
+		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/fgd:anywnd")) {
 		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/fgd")) {
+		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByFgd(ctrl_vars.param_anywnd));
 		ClearParamsAndArgs();

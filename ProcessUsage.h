@@ -73,6 +73,7 @@ private:
 	virtual bool ModeAll()=0;
 	virtual bool ModeLoop()=0;
 	virtual bool ModeBlank()=0;
+	virtual bool ModeRecent()=0;
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 protected:
@@ -102,6 +103,10 @@ protected:
 	//Prints content of CAN 
 	//Mainly for DEBUG
 	void DumpProcesses();
+	
+	//Alerts ProcessUsage that processes should be enumerated because someone needs CAN
+	//If processes was already succesfully enumerated (CAN is not empty) - nothing will be done
+	void RequestPopulatedCAN();
 public:	
 	Processes();
 	~Processes();

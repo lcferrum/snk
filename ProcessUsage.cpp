@@ -58,8 +58,6 @@ Processes::Processes():
 	
 	EnableDebugPrivileges();	//Will set debug privileges (administrator privileges should be already present for this to actually work)
 	CoInitialize(NULL);			//COM is needed for GetLongPathName implementation from newapis.h
-		
-	EnumProcessUsage();
 }
 
 Processes::~Processes()
@@ -170,7 +168,16 @@ void Processes::EnumProcessUsage()
 	
 	EnumProcessTimes(false);
 	
-	SortByCpuUsage();
+	if (ModeRecent())
+		SortByRecentlyCreated();
+	else
+		SortByCpuUsage();
+}
+
+void Processes::RequestPopulatedCAN()
+{
+	if (CAN.empty())
+		EnumProcessUsage();
 }
 
 void Processes::SortByCpuUsage()

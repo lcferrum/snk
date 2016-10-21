@@ -23,11 +23,11 @@ out SnKSampleScript.ahk file.
 You can compile SnK by yourself (refer to COMPILE.TXT that comes with the
 sources) or download binary distribution from Sourceforge:
 
-    https://sourceforge.net/projects/sandk/files/SnK/
+	https://sourceforge.net/projects/sandk/files/SnK/
     
 Main project homepage is at GitHub:
 
-    https://github.com/lcferrum/snk
+	https://github.com/lcferrum/snk
 
 4. Usage
 --------

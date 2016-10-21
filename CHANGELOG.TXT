@@ -1,4 +1,4 @@
-2016-10-21  Lcferrum <lcferrum@yandex.com>
+2016-10-22  Lcferrum <lcferrum@yandex.com>
 	
 	* Release 2.1
 	* Changed:
@@ -9,6 +9,7 @@
 		- Path comparing now omits backslash from globbing
 		- /sec now indifferent to loop (+l/-l), ignore (+i/-i) and new negate (+n/-n) settings
 		- Test setting (+t/-t) now doesn't mark result processes as killed
+		- Process times are now queried on demand - when switches need them
 	* Fixed:
 		- Fixed sending ENTER to wrong console for windowless (hidden) version
 	* Added:

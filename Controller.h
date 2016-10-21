@@ -13,6 +13,7 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using ProcessesPolicy::SortByCpuUsage;
 	using ProcessesPolicy::SortByRecentlyCreated;
 	using ProcessesPolicy::Synchronize;
+	using ProcessesPolicy::RequestPopulatedCAN;
 	using KillersPolicy::KillByCpu;
 	using KillersPolicy::KillByPth;
 	using KillersPolicy::KillByMod;
