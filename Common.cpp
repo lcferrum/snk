@@ -1,9 +1,8 @@
+#include "Ver.h"
 #include "Hout.h"
 #include "Common.h"
 #include <algorithm>
 #include <iostream>
-
-#define SNK_VERSION L"v2.1"
 
 //Original WildcardCmp: 
 // Written by Jack Handy <jakkhandy@hotmail.com>
@@ -273,11 +272,11 @@ void PrintUsage()
 	Hout::Separator(L"/bpp", 2);
 	Hout::Paragraph(L"Make standart Windows 'informational beep' and continue execution.",
 					4);
+	Hout::Separator(L"/prn=TEXT", 2);
+	Hout::Paragraph(L"Print passed text to stdout and continue execution.",
+					4);
 	Hout::Separator(L"/sec", 2);
 	Hout::Paragraph(L"Secured execution. Will exit program if there is another instance already running that has executed this switch.",
-					4);
-	Hout::Separator(L"/blk(:clear|[:full]=WCARDS)", 2);
-	Hout::Paragraph(L"Add processes which name matches one of wildcars (case-insensitive, with globbing) to blacklist or clear blacklist.",
 					4);
 	Hout::Separator(L"/cpu", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load.",
@@ -300,31 +299,52 @@ void PrintUsage()
 	Hout::Separator(L"/gld[:simple]", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load that uses Glide (3Dfx).",
 					4);
-	Hout::Separator(L"/inr[:manual|:vista]", 2);
+	Hout::Separator(L"/inr[:plus]", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load that doesn't respond (Is Not Responding).",
 					4);
 	Hout::Separator(L"/fsc[:anywnd][:primary]", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load that is running in fullscreen.",
 					4);
-	Hout::Separator(L"/fgd", 2);
+	Hout::Separator(L"/fgd[:anywnd]", 2);
 	Hout::Paragraph(L"Kill process which window is in foreground.",
+					4);
+	Hout::Separator(L"/cmd[:sub][:utf8|:utf16]=FILE", 2);
+	Hout::Paragraph(L"Load additional commands from file and continue execution.",
+					4);
+	Hout::Separator(L"/lst[:clrmask|:invmask]", 2);
+	Hout::Paragraph(L"List currently available processes and continue execution.",
 					4);
 	Hout::EmptyLine();
 	Hout::Separator(L"Settings:");
 	Hout::Separator(L"+t|-t", 2);
-	Hout::Paragraph(L"Will turn test mode on/off.",
+	Hout::Paragraph(L"Turn 'test' mode on/off.",
 					4);
 	Hout::Separator(L"+v|-v", 2);
-	Hout::Paragraph(L"Will turn verbose mode on/off.",
+	Hout::Paragraph(L"Turn 'verbose' mode on/off.",
 					4);
 	Hout::Separator(L"+a|-a", 2);
-	Hout::Paragraph(L" Will turn 'query all processes' mode on/off.",
+	Hout::Paragraph(L"Turn 'query all processes' mode on/off.",
 					4);
 	Hout::Separator(L"+l|-l", 2);
-	Hout::Paragraph(L" Will turn 'loop' mode on/off.",
+	Hout::Paragraph(L"Turn 'loop' mode on/off.",
 					4);
 	Hout::Separator(L"+i|-i", 2);
-	Hout::Paragraph(L" Will turn 'ignore' mode on/off.",
+	Hout::Paragraph(L"Turn 'ignore' mode on/off.",
+					4);
+	Hout::Separator(L"+n|-n", 2);
+	Hout::Paragraph(L"Turn 'negate' mode on/off.",
+					4);
+	Hout::Separator(L"+b|-b", 2);
+	Hout::Paragraph(L"Turn 'blacklist' mode on/off.",
+					4);
+	Hout::Separator(L"+w|-w", 2);
+	Hout::Paragraph(L"Turn 'whitelist' mode on/off.",
+					4);
+	Hout::Separator(L"+r|-r", 2);
+	Hout::Paragraph(L"Turn 'recently created sort' mode on/off.",
+					4);
+	Hout::Separator(L"+m|-m", 2);
+	Hout::Paragraph(L"Turn 'mute' mode on/off.",
 					4);
 #else
 	Hout::Separator(L"Usage: SnKh [settings_block|swith[:parametres][=argument]] ...");
@@ -337,17 +357,17 @@ void PrintVersion()
 {
 #ifndef HIDDEN
 #ifdef _WIN64
-	Hout::Separator(L"Search and Kill (x64) " SNK_VERSION);
+	Hout::Separator(L"Search and Kill (x64) v" SNK_VERSION);
 #else
-	Hout::Separator(L"Search and Kill " SNK_VERSION);
+	Hout::Separator(L"Search and Kill v" SNK_VERSION);
 #endif
 	Hout::EmptyLine();
 	Hout::Separator(L"Run with /hlp switch for usage information");
 #else
 #ifdef _WIN64
-	Hout::Separator(L"Search and Kill (x64 windowless) " SNK_VERSION);
+	Hout::Separator(L"Search and Kill (x64 windowless) v" SNK_VERSION);
 #else
-	Hout::Separator(L"Search and Kill (windowless) " SNK_VERSION);
+	Hout::Separator(L"Search and Kill (windowless) v" SNK_VERSION);
 #endif
 	Hout::EmptyLine();
 	Hout::Separator(L"Please check README.TXT for more information");

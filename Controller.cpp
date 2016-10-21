@@ -45,11 +45,11 @@ void Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput()
 {
 #ifdef HIDDEN
 	if (fnWcoutMessageBox) {
-		std::wcout<<L"Press OK to continue... "<<std::endl;
+		std::wcout<<L"Press OK to close program... "<<std::endl;
 		fnWcoutMessageBox();
 	}
 #else
-	std::wcout<<L"Press ENTER to continue... "<<std::flush;
+	std::wcout<<L"Press ENTER to close program... "<<std::flush;
 	std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
 #endif
 }

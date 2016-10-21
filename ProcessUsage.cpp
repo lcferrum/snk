@@ -100,13 +100,13 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 void Processes::Synchronize(Processes &ref)
 {
 	//In both objects CANs should be of equal size
-	//In reality they should also excact copies
+	//In reality they should also be exact copies
 	//But we are making this check solely for the loop below not to throw anything
 	if (CAN.size()!=ref.CAN.size())
 		return;
 	
 	//Problem with pointers to vector member is that pointer may be invalidated sometime in the future
-	//This happens when vector is modified - items adde, deleted or reordered
+	//This happens when vector is modified - items added, deleted or reordered
 	//So pointers are valid as long as reference vector not modified
 	std::vector<PData>::iterator loc_it, ref_it;
 	for (loc_it=CAN.begin(), ref_it=ref.CAN.begin(); loc_it!=CAN.end(); loc_it++, ref_it++)
@@ -129,16 +129,6 @@ void Processes::ManageProcessList(LstMode param_lst_mode)
 	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
 		switch (param_lst_mode) {
 			case LST_SHOW:
-				if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())) {
-					if (!avail_found) {
-						if (ModeAll())
-							std::wcout<<L"Available processes:"<<std::endl;
-						else
-							std::wcout<<L"Available user processes:"<<std::endl;	
-						avail_found=true;
-					}
-					std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
-				}
 				break;
 			case INV_MASK:
 				if (rit->GetDiscarded())
@@ -149,8 +139,18 @@ void Processes::ManageProcessList(LstMode param_lst_mode)
 			case CLR_MASK:
 				rit->SetDiscarded(false);
 				break;
-			default:	//Added to silence clang's -Wswitch warning
-				break;
+			default:
+				continue;
+		}
+		if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())) {
+			if (!avail_found) {
+				if (ModeAll())
+					std::wcout<<L"Available processes:"<<std::endl;
+				else
+					std::wcout<<L"Available user processes:"<<std::endl;	
+				avail_found=true;
+			}
+			std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
 		}
 	}
 	

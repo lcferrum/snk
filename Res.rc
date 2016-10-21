@@ -1,0 +1,55 @@
+#include <winver.h>
+#include <winuser.h>
+#include "Ver.h"
+
+//Note on VERSIONINFO
+//According to MSDN https://msdn.microsoft.com/en-us/library/windows/desktop/aa381058.aspx required StringFileInfo fields are:
+//CompanyName, FileDescription, FileVersion, InternalName, ProductName, ProductVersion and OriginalFilename
+//But actually Windows does nothing if some of these fields (or VERSIONINFO altogether) are absent
+//Moreover, since Vista Details tab (ex Version tab) of file properties dialog shows only limited number of StringFileInfo entries, even omitting some "required" ones
+//FILEFLAGS is complete bogus - Details/Version dialog never displays anything regarding those flags, they are totally ignored by Windows
+
+VS_VERSION_INFO VERSIONINFO
+  FILEVERSION SNK_VSVI_VER
+  PRODUCTVERSION SNK_VSVI_VER
+  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+  FILEFLAGS 0x0
+  FILEOS VOS__WINDOWS32
+  FILETYPE VFT_APP
+  FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904B0"
+		BEGIN
+#ifdef HIDDEN
+#ifdef _WIN64
+			VALUE "FileDescription", "Search and Kill (x64 windowless)"
+#else
+			VALUE "FileDescription", "Search and Kill (windowless)"
+#endif
+			VALUE "InternalName", "SnKh"
+			VALUE "OriginalFilename", "SnKh.exe"
+#else
+#ifdef _WIN64
+			VALUE "FileDescription", "Search and Kill (x64)"
+#else
+			VALUE "FileDescription", "Search and Kill"
+#endif
+			VALUE "InternalName", "SnK"
+			VALUE "OriginalFilename", "SnK.exe"
+#endif
+			VALUE "ProductName", "Search and Kill"
+			VALUE "FileVersion", SNK_VERSION
+			VALUE "CompanyName", "Lcferrum"
+			VALUE "LegalCopyright", "Copyright (c) 2012-2016 Lcferrum"
+			VALUE "ProductVersion", SNK_VERSION
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x409, 1200
+	END
+END
+
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "SnK.manifest" 

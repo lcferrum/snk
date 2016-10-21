@@ -36,9 +36,9 @@ endif
 # Common section
 RM=rm -f
 UPX=upx
-CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX -DUNICODE -D_UNICODE $(DEBUG) $(USE_CYCLE_TIME)
+CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0600 -DNOMINMAX -DUNICODE -D_UNICODE $(DEBUG) $(USE_CYCLE_TIME)
 LDFLAGS=-lversion -lole32 -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-fixup
-COMMON_SRC=SnK.cpp Extras.cpp Common.cpp Hout.cpp Killers.cpp ProcessUsage.cpp FilePathRoutines.cpp Controller.cpp ConOut.cpp AsmPatches.S
+COMMON_SRC=SnK.cpp Extras.cpp Common.cpp Hout.cpp Killers.cpp ProcessUsage.cpp FilePathRoutines.cpp Controller.cpp ConOut.cpp AsmPatches.S Res.rc
 UPSTREAM_INC=/c/cygwin/usr/i686-w64-mingw32/sys-root/mingw/include/
 
 # Debug specific common section
@@ -53,10 +53,12 @@ endif
 ifeq ($(CC),x86_64-w64-mingw32-g++)
 	LDFLAGS+=-municode
 	WNDSUBSYS=-mwindows
+	WINDRES=x86_64-w64-mingw32-windres
 endif
 ifeq ($(CC),i686-w64-mingw32-g++)
 	LDFLAGS+=-municode
 	WNDSUBSYS=-mwindows
+	WINDRES=i686-w64-mingw32-windres
 endif
 # Extra options for outdated clang++/g++ with upstream includes to generate binaries compatible with Win 9x/NT4
 # i386 is minimum system requirement for Windows 95 (MinGW 4.7.2 default arch)
@@ -66,6 +68,7 @@ ifeq ($(CC),clang++)
 	INC=-I$(UPSTREAM_INC)
 	CFLAGS+=-target i486-pc-windows-gnu -march=i486 -Wno-ignored-attributes -Wno-deprecated-register -Wno-inconsistent-dllimport -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
 	WNDSUBSYS=-Wl,--subsystem,windows
+	WINDRES=windres
 	ifndef DEBUG
 		CFLAGS+=-Wno-unused-value
 	endif
@@ -74,6 +77,7 @@ ifeq ($(CC),g++)
 	INC=-I$(UPSTREAM_INC)
 	CFLAGS+=-Wno-attributes -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
 	WNDSUBSYS=-mwindows
+	WINDRES=windres
 endif
 
 # Target specific section
@@ -83,8 +87,8 @@ CMD_LDFLAGS=
 WND_LDFLAGS=$(WNDSUBSYS)
 CMD_SRC=$(COMMON_SRC)
 WND_SRC=$(COMMON_SRC)
-CMD_OBJ=$(patsubst %.S,%_cmd.o,$(patsubst %.cpp,%_cmd.o,$(CMD_SRC)))
-WND_OBJ=$(patsubst %.S,%_wnd.o,$(patsubst %.cpp,%_wnd.o,$(WND_SRC)))
+CMD_OBJ=$(patsubst %.S,%_cmd.o,$(patsubst %.cpp,%_cmd.o,$(patsubst %.rc,%_cmd.o,$(CMD_SRC))))
+WND_OBJ=$(patsubst %.S,%_wnd.o,$(patsubst %.cpp,%_wnd.o,$(patsubst %.rc,%_wnd.o,$(WND_SRC))))
 CMD_EXE=SnK.exe
 WND_EXE=SnKh.exe
 
@@ -109,11 +113,17 @@ $(WND_EXE): $(WND_OBJ)
 %_cmd.o: %.S
 	$(CC) -c -o $@ $< $(CFLAGS) $(CMD_CFLAGS) $(INC)
 	
+%_cmd.o: %.rc
+	$(WINDRES) $< $@ $(filter -D% -U% -I%,$(CFLAGS) $(CMD_CFLAGS)) $(INC)
+	
 %_wnd.o: %.cpp
 	$(CC) -c -o $@ $< $(CFLAGS) $(WND_CFLAGS) $(INC)
 	
 %_wnd.o: %.S
 	$(CC) -c -o $@ $< $(CFLAGS) $(WND_CFLAGS) $(INC)
+	
+%_wnd.o: %.rc
+	$(WINDRES) $< $@ $(filter -D% -U% -I%,$(CFLAGS) $(WND_CFLAGS)) $(INC)
 	
 upx:
 	$(UPX) $(CMD_EXE) $(WND_EXE) ||:

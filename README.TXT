@@ -73,17 +73,6 @@ Switches:
                               has executed this switch. Use before other
                               switches with verbose mode to prevent
                               accidentiall subsequent execution of program.
-/blk(:clear|[:full]=WCARDS)     
-                              Adds every process which name matches one of 
-                              wildcars (delimeted by semicolon) to blacklist.
-                              Matching is always case-insensitive. Blacklisted
-                              processes will be ignored by all other switches.
-                              If 'clear', will clear blacklist (ignoring any
-                              other parameter). If 'full', will use full
-                              process path instead of just name. Wildcards use
-                              standart wildcard characters '?' (exactly one
-                              unknown character) and  '*' (zero or more
-                              unknown characters).
 /cpu                          
                               Kill process with highest cpu load. Will return
                               positive result if process was found. Can return
@@ -119,11 +108,11 @@ Switches:
                               highest cpu load. By default will use standard
                               Windows procedure (IsHungAppWindow) to check if
                               application is hung. That works ok for most of
-							  real life cases. If 'plus', will additionally
-							  check if window is answering to SendMessage call. 
+                              real life cases. If 'plus', will additionally
+                              check if window is answering to SendMessage call. 
                               This will help with artificially hung apps (e.g.
-							  SuspendThread'ed) Will return positive result if
-							  process was found.
+                              SuspendThread'ed) Will return positive result if
+                              process was found.
 /fsc[:anywnd][:primary]          
                               Kill process that is running in fullscreen and
                               has highest cpu load. Works with multi-monitor
@@ -140,7 +129,7 @@ Switches:
                               has 'non-task' window (has no icon on the task
                               bar) or doesn't belong to user and 'query all
                               processes' mode was turned off. If 'anywnd', will
-							  also include 'non-task' windows. Will return 
+                              also include 'non-task' windows. Will return 
                               positive result if process was found.
 /pth[:full]=WCARDS      
                               Kill process which name matches one of the 
@@ -171,13 +160,14 @@ Switches:
                               prefix) or octal ('0' prefix) unsigned integer.
                               Will return positive result if process was found.
 /cmd[:sub][:utf8|:utf16]=FILE
-                              Will load additional commands from file. Encoding
-                              is auto-detected using BOM's. If there is no BOM,
-                              it is assumed that encoding is ANSI or you can
-                              force correct one using 'utf8' ot 'utf16' params.
-                              If 'sub', will execute supplied commands as
-                              subroutine. Settings changed inside subroutine
-                              won't propagade beyond it (further commands won't
+                              Will load additional commands from file and
+                              continue execution. Encoding is auto-detected
+                              using BOM's. If there is no BOM, it is assumed
+                              that encoding is ANSI or you can force correct
+                              one using 'utf8' ot 'utf16' params. If 'sub',
+                              will execute supplied commands as subroutine.
+                              Settings changed inside subroutine won't
+                              propagade beyond it (further commands won't be
                               affected) and 'cmd' will return result based on
                               subroutine execution: positive if subroutine
                               reached it's end without triggering on any of the
@@ -187,9 +177,10 @@ Switches:
                               that are not already terminated, not blacklisted,
                               within whitelist (if it exists) and non-system
                               (if +a setting wasn't turned on). If 'clrmask',
-							  will clear blacklist and reset whitelist. If 
-                              'invmask', will swap blacklist with whitelist.
-							  In any case - will continue execution afterwards.
+                              will clear blacklist, reset whitelist and show
+                              result. If 'invmask', will swap blacklist with
+                              whitelist and show result. In any case - will
+                              continue execution afterwards.
 
 Settings:
 
@@ -220,31 +211,28 @@ Settings:
                               Will turn 'negate' mode on/off. While in this 
                               mode, results returned by switches are treated as
                               opposite ones. If switch is not designed to
-                              return result - nothing happens.		
+                              return result - nothing happens.        
 +b|-b
                               Will turn 'blacklist' mode on/off. While in this 
                               mode, all processes on which switches trigger are
                               added to blacklist. This mode automatically turns
                               on 'query all processes', 'loop', 'ignore' and
-							  'test' modes on while it is active.
+                              'test' modes on while it is active.
 +w|-w
                               Will turn 'whitelist' mode on/off. While in this 
                               mode, all processes on which switches trigger are
                               added to whitelist. This mode automatically turns
                               on 'query all processes', 'loop', 'ignore' and
-							  'test' modes on while it is active.
-+i|-i
-                              Will turn 'ignore' mode on/off. While in this 
-                              mode, even if switch returns positive result SnK
-                              execution continues.
-+i|-i
-                              Will turn 'ignore' mode on/off. While in this 
-                              mode, even if switch returns positive result SnK
-                              execution continues.
-+i|-i
-                              Will turn 'ignore' mode on/off. While in this 
-                              mode, even if switch returns positive result SnK
-                              execution continues.
+                              'test' modes on while it is active.
++r|-r
+                              Will turn 'recently created sort' mode on/off. 
+                              While in this mode, switches, instead of 
+                              triggering on process with highest cpu usage,
+                              trigger on last created process.
++m|-m
+                              Will turn 'mute' mode on/off. While in this mode,
+                              all stream output (bith stdout and stderr) is
+                              suppressed.
 
 5. Usage example
 ----------------                              
