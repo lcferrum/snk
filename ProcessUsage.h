@@ -82,10 +82,15 @@ protected:
 	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
 	bool ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&, bool)> mutator);
 	
-	//TODO
+	//Synchronizes local CAN with ref CAN - some function calls for local CAN items will now be redirected to ref CAN
+	//It's important not to modify ref CAN after synchronization (add, delete, reorder items) while this object still exists
 	void Synchronize(Processes &ref);
 
-	//TODO
+	//Manage and show currently available (to ApplyToProcesses) process list
+	//LST_SHOW - just show list
+	//LST_DEBUG - show debug list information (using DumpProcesses, only for DEBUG builds)
+	//INV_MASK - swap whitelist with blacklist (actually, just inverts "discarded" mask) and show list
+	//CLR_MASK - clear blacklist and reset whitelist (actually, just clears "discarded" mask) and show list
 	void ManageProcessList(LstMode param_lst_mode);	
 	
 	//Sorts processes list by CPU usage

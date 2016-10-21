@@ -9,7 +9,6 @@
 #include <functional>
 #include <memory>
 #include <limits>	//numeric_limits
-#include <conio.h>
 
 #define MUTEX_NAME		L"MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
 
@@ -45,11 +44,11 @@ void Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput()
 {
 #ifdef HIDDEN
 	if (fnWcoutMessageBox) {
-		std::wcout<<L"Press OK to close program... "<<std::endl;
+		std::wcout<<L"When finished, press OK"<<std::endl;
 		fnWcoutMessageBox();
 	}
 #else
-	std::wcout<<L"Press ENTER to close program... "<<std::flush;
+	std::wcout<<L"When finished, press ENTER"<<std::flush;
 	std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
 #endif
 }
@@ -192,7 +191,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						//Need to convert from UTF8 to wchar_t
 						cmdfile_len-=bom?3:0;					//Compensating for bom
 						cmdfile_mem=(BYTE*)cmdfile_mem+(bom?3:0);
-						if (wcmdfile_len=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
+						if ((wcmdfile_len=MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0))) {
 							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
 							if (MultiByteToWideChar(CP_UTF8, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {
 								wcmdfile_len+=2;
@@ -211,7 +210,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						//Windows Notepad always saves non-ANSI encoded files with BOM
 						//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
 						//Otherwise missing BOM will be treated as ANSI encoding
-						if (wcmdfile_len=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0)) {
+						if ((wcmdfile_len=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0))) {
 							std::wcerr<<L"wcmdfile_len="<<wcmdfile_len<<std::endl;
 							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
 							if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {

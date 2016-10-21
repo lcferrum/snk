@@ -377,6 +377,7 @@ bool FPRoutines::GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wst
 	SIZE_T ret_len;
 	BYTE msn_buf[buf_len+sizeof(wchar_t)];	//+1 wchar_t for forced NULL terminator 
 	
+	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION and PROCESS_VM_READ
 	if (NT_SUCCESS(fnNtQueryVirtualMemory(hProcess, hMod, MemorySectionName, msn_buf, buf_len, &ret_len))) {
 		//Conforming to MS implementation we don't rely on returned buffer to be NULL terminated 
 		((UNICODE_STRING*)msn_buf)->Buffer[((UNICODE_STRING*)msn_buf)->Length]=L'\0';
