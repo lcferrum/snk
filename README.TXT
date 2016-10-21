@@ -15,7 +15,8 @@ Windows processes and kills them. Search is accomplished according to SnK input
 arguments. This tool is mainly designed to be run with keyboard shortcut. This
 could be done through creating special Windows shortcut to SnK 
 (http://support.microsoft.com/kb/310417) or by using specialised software like
-AutoHotkey (http://www.autohotkey.com/).
+AutoHotkey (http://www.autohotkey.com/). Sample AHK script is included: check 
+out SnKSampleScript.ahk file.
 
 3. Where to get
 ---------------
