@@ -42,7 +42,7 @@ BEGIN
 			VALUE "ProductName", "Search and Kill"
 			VALUE "FileVersion", SNK_STR_VERSION
 			VALUE "CompanyName", "Lcferrum"
-			VALUE "LegalCopyright", "Copyright (c) 2012-2016 Lcferrum"
+			VALUE "LegalCopyright", "Copyright (c) " SNK_CRIGHT_YEARS " Lcferrum"
 			VALUE "ProductVersion", SNK_STR_VERSION
 		END
 	END

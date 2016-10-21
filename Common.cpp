@@ -373,6 +373,6 @@ void PrintVersion()
 	Hout::Separator(L"Please check README.TXT for more information");
 #endif
 	Hout::EmptyLine();
-	Hout::Separator(L"Copyright (c) 2012-2016 Lcferrum");
+	Hout::Separator(L"Copyright (c) " SNK_CRIGHT_YEARS " Lcferrum");
 	Hout::Separator(L"Licensed under BSD license - see LICENSE.TXT file for details");
 }
