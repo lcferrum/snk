@@ -60,7 +60,7 @@ Switches:
 
 /hlp                          
                               Print usage information and exit. Can only be
-                              used as first argument, ignored otherwise.							  
+                              used as first argument, ignored otherwise.
 /ver                          
                               Print version information and exit. Can only be
                               used as first argument, ignored otherwise.
@@ -218,15 +218,17 @@ Settings:
 +b|-b
                               Will turn 'blacklist' mode on/off. While in this 
                               mode, all processes on which switches trigger are
-                              added to blacklist. This mode automatically turns
-                              on 'query all processes', 'loop', 'ignore' and
-                              'test' modes on while it is active.
+                              added to blacklist. Blacklisted processes will be
+                              ignored by all switches. This mode automatically
+                              turns on 'query all processes', 'loop', 'ignore'
+                              and 'test' modes on while it is active.
 +w|-w
                               Will turn 'whitelist' mode on/off. While in this 
                               mode, all processes on which switches trigger are
-                              added to whitelist. This mode automatically turns
-                              on 'query all processes', 'loop', 'ignore' and
-                              'test' modes on while it is active.
+                              added to whitelist. Switches will query only
+                              whitelisted processes. This mode automatically
+                              turns on 'query all processes', 'loop', 'ignore'
+                              and 'test' modes on while it is active.
 +r|-r
                               Will turn 'recently created sort' mode on/off. 
                               While in this mode, switches, instead of 
