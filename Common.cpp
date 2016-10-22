@@ -350,6 +350,7 @@ void PrintUsage()
 	Hout::Separator(L"Usage: SnKh [settings_block|swith[:parametres][=argument]] ...");
 	Hout::EmptyLine();
 	Hout::Separator(L"Please check README.TXT for more information.");
+	Hout::EmptyLine();
 #endif
 }
 
@@ -375,4 +376,7 @@ void PrintVersion()
 	Hout::EmptyLine();
 	Hout::Separator(L"Copyright (c) " SNK_CRIGHT_YEARS " Lcferrum");
 	Hout::Separator(L"Licensed under BSD license - see LICENSE.TXT file for details");
+#ifdef HIDDEN
+	Hout::EmptyLine();
+#endif
 }

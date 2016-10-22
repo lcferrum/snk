@@ -837,12 +837,6 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 		fnIsWow64Process(GetCurrentProcess(), &cur_wow64);
 	}
 	
-	//Note on Wow64FsRedirection
-	//If we are querying WoW64 process (doesn't matter from x86 or x86-64 binary) - we are getting non redirected module paths
-	//I.e. the paths that was originally used to load module and not the path that was formed after Wow64FsRedirection
-	//So it is actually better to pass module paths of WoW64 processes through algorithm that will show where this paths are really being redirected to
-	//So this is TODO
-	
 	//UNICODE_STRING in LDR_DATA_TABLE_ENTRY usually includes terminating NULL character in it's buffer
 	//Kernel paths are possible only in image path and they are skipped so it's pretty safe to use MaximumLength
 	if (pid_wow64==cur_wow64) {

@@ -56,6 +56,7 @@ typedef BOOL (WINAPI *pIsWow64Process)(HANDLE hProcess, PBOOL Wow64Process);
 typedef BOOL (WINAPI *pPathFindOnPathW)(LPWSTR lpszFile, LPCWSTR* lppszOtherDirs);
 typedef BOOL (WINAPI *pWow64DisableWow64FsRedirection)(PVOID *OldValue);
 typedef BOOL (WINAPI *pWow64RevertWow64FsRedirection)(PVOID OldValue);
+typedef HWND (WINAPI *pGetConsoleWindow)(void);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
 typedef std::function<void(void)> pWcoutMessageBox;
 typedef std::function<void(bool)> pEnableWcout;

@@ -18,6 +18,7 @@ pWow64RevertWow64FsRedirection fnWow64RevertWow64FsRedirection=NULL;
 pNtQueryVirtualMemory fnNtQueryVirtualMemory=NULL;
 pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64=NULL;
 pAttachConsole fnAttachConsole=NULL;
+pGetConsoleWindow fnGetConsoleWindow=NULL;
 pWcoutMessageBox fnWcoutMessageBox;
 pEnableWcout fnEnableWcout;
 
@@ -107,6 +108,7 @@ void Extras::LoadFunctions()
 		fnWow64DisableWow64FsRedirection=(pWow64DisableWow64FsRedirection)GetProcAddress(hKernel32, "Wow64DisableWow64FsRedirection");
 		fnWow64RevertWow64FsRedirection=(pWow64RevertWow64FsRedirection)GetProcAddress(hKernel32, "Wow64RevertWow64FsRedirection");
 		fnAttachConsole=(pAttachConsole)GetProcAddress(hKernel32, "AttachConsole");
+		fnGetConsoleWindow=(pGetConsoleWindow)GetProcAddress(hKernel32, "GetConsoleWindow");
 	}
 	
 	if (hShlwapi) {

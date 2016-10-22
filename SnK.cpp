@@ -41,7 +41,7 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 		PrintVersion();
 #ifdef HIDDEN
 		if (fnWcoutMessageBox) {
-			std::wcout<<L"\nWhen finished, press OK"<<std::endl;
+			std::wcout<<L"When finished, press OK..."<<std::endl;
 			fnWcoutMessageBox();
 		}
 #endif

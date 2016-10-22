@@ -59,9 +59,11 @@ properties due to emerged console window.
 Switches:
 
 /hlp                          
-                              Print usage information and exit.
+                              Print usage information and exit. Can only be
+                              used as first argument, ignored otherwise.							  
 /ver                          
-                              Print version information and exit.
+                              Print version information and exit. Can only be
+                              used as first argument, ignored otherwise.
 /bpp                          
                               Make standart Windows 'informational beep' and
                               continue execution.
