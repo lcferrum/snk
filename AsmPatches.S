@@ -1,12 +1,12 @@
 .file "AsmPatches.S"
 .text									/* Code section */
+#ifndef _WIN64
 .globl _EnumDisplayDevicesWrapper@24	/* Make function visible to linker, STDCALL name mangling */
 /* Defining symbols, COFF format, storage-class 2 (external), attribute 32 (function) */
 .def _EnumDisplayDevicesWrapper@24;	.scl 2;	.type 32;	.endef
 .def _EnumDisplayDevicesW@16;		.scl 2;	.type 32;	.endef
 	
 _EnumDisplayDevicesWrapper@24:
-#ifndef _WIN64
 	/* 
 	Function prototype is BOOL __stdcall EnumDisplayDevicesWrapper(LPCTSTR, DWORD, PDISPLAY_DEVICE, DWORD, DWORD, DWORD)
 	7 DWORDs are passed on the stack (ESP offsets): 
@@ -26,6 +26,4 @@ _EnumDisplayDevicesWrapper@24:
 	addl $0x14, %esp							/* Cleaning up the stack up to the saved EBP */	
 	popl %ebp									/* Restoring EBP */
 	ret											/* Stack is now cleared of passed variables (by STDCALL convention) and return value is in EAX */
-#else
-	ret											/* Conforming to Microsoft x64 calling convention, it's caller's responsibility to clean up stack */
 #endif
