@@ -1,6 +1,8 @@
 ;	Samle AHK script to launch SnK (windowsless) with Ctrl+Alt+Backspace
+Menu, Tray, Tip, SnK: Ctrl+Alt+BS
+
 ;	SnK first try to search for and kill fullscreen app that has highest cpu load
-;	If no such app is found it will next try with DirectX app
+;	If no such app is found it will next try with not responding (hung) app and DirectX app
 ;	In the end, if everything else fails, it will just kill any process that has highest CPU load
 ;		/sec switch will prevent accidentially launching several SnKs in quick succession
 ;		/bpp will make a beep signaling that hotkey was triggered and SnK launched
@@ -10,7 +12,7 @@
 ;	It is recommended to grant scheduled AHK script Admin rights by checking "Run with highest privileges" checkbox
 ;	This way SnK launched by the script will also have Admin rights
 ;	For other possible hotkey combinations and options check out official AHK docs: https://autohotkey.com/docs/Hotkeys.htm
-$^!BS::Run SnKh.exe /sec /bpp +v /fsc /d3d /cpu
+$^!BS::Run SnKh.exe /sec /bpp +v /fsc /inr /d3d /cpu
 
 
 ;	Hotkey below is variation of previous hotkey
