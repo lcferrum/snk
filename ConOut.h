@@ -9,7 +9,7 @@
 
 //Buffer size for basic_streambuf in characters
 //Keep it reasonable - if it's nearing LONG_MAX you definetely doing it wrong
-#define W32WBUF_OBUFLEN 256
+#define W32WBUF_OBUFLEN 4096
 
 class Win32WcostreamBuf: private std::basic_streambuf<wchar_t> {
 	typedef std::function<void(const std::wstring&)> AoutCallbackType;
