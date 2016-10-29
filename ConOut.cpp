@@ -10,7 +10,7 @@ extern pGetConsoleWindow fnGetConsoleWindow;
 int Win32WcostreamBuf::console_attached=0;
 
 Win32WcostreamBuf::Win32WcostreamBuf(WCType wc_type):
-	obuf(), active(false), enabled(true), is_wcout(wc_type==WCOUT), orig_mode(-1), orig_buf(NULL), stdstream_type(NONE), 
+	obuf(), active(false), enabled(true), wc_type(wc_type), orig_mode(-1), orig_buf(NULL), stdstream_type(NONE), 
 	hstdstream(INVALID_HANDLE_VALUE), aout_buf(), aout_proc()
 {
 	setp(obuf, obuf+W32WBUF_OBUFLEN);
@@ -46,11 +46,15 @@ bool Win32WcostreamBuf::Activate()
 	if (active)
 		return false;	
 
-	if ((hstdstream=GetStdHandle(is_wcout?STD_OUTPUT_HANDLE:STD_ERROR_HANDLE))!=INVALID_HANDLE_VALUE) {
+	if ((hstdstream=GetStdHandle(wc_type==WCOUT?STD_OUTPUT_HANDLE:STD_ERROR_HANDLE))!=INVALID_HANDLE_VALUE) {
 		DWORD conmode;
 		DWORD filetype=GetFileType(hstdstream);
 		if (filetype==FILE_TYPE_UNKNOWN) {	
 			//Stdstream is going nowhere (or not valid) - try to attach parent console
+			//The trick is that console is attached to the process and not to the standard handle
+			//So if someone already succesfully attached a console - GetFileType will return FILE_TYPE_CHAR for any valid handle
+			//It is observed that if someone already called AttachConsole(ATTACH_PARENT_PROCESS) and it returned TRUE - next calls (was actual attach succesfull or not) will return FALSE
+			//That's why we are also checking console_attached counter - don't try to attach console if someone already tried and failed (indicated by FILE_TYPE_UNKNOWN with console_attached!=0)
 			if (!console_attached&&fnAttachConsole&&fnAttachConsole(ATTACH_PARENT_PROCESS)) {
 				//Console attached but maybe unusable
 				console_attached++;
@@ -80,14 +84,21 @@ bool Win32WcostreamBuf::Activate()
 		//Will prevent stdout/stderr failing on Cyrillic and Ideographic wide character output (console still have to support them)
 		//Warning: this will also break output of sbcs/mbcs characters (only wstring and wchar_t now allowed)
 		//_O_U16TEXT is UTF-16 w/o BOM
-		fflush(is_wcout?stdout:stderr);
-		orig_mode=_setmode(_fileno(is_wcout?stdout:stderr), _O_U16TEXT);
+		fflush(wc_type==WCOUT?stdout:stderr);
+		orig_mode=_setmode(_fileno(wc_type==WCOUT?stdout:stderr), _O_U16TEXT);
 	}
 	
-	if (is_wcout)
-		orig_buf=std::wcout.rdbuf(this);
-	else
-		orig_buf=std::wcerr.rdbuf(this);
+	switch (wc_type) {
+		case WCOUT:
+			orig_buf=std::wcout.rdbuf(this);
+			break;
+		case WCERR:
+			orig_buf=std::wcerr.rdbuf(this);
+			break;
+		case WCLOG:
+			orig_buf=std::wclog.rdbuf(this);
+			break;
+	}
 	
 	active=true;
 	
@@ -104,24 +115,37 @@ bool Win32WcostreamBuf::Deactivate()
 	
 	sync();
 	
-	if (is_wcout)
-		std::wcout.rdbuf(orig_buf);
-	else
-		std::wcerr.rdbuf(orig_buf);
-	
+	switch (wc_type) {
+		case WCOUT:
+			std::wcout.rdbuf(orig_buf);
+			break;
+		case WCERR:
+			std::wcerr.rdbuf(orig_buf);
+			break;
+		case WCLOG:
+			std::wclog.rdbuf(orig_buf);
+			break;
+	}
+
 	if (orig_mode!=-1) {
-		fflush(is_wcout?stdout:stderr);
-		_setmode(_fileno(is_wcout?stdout:stderr), orig_mode);
+		fflush(wc_type==WCOUT?stdout:stderr);
+		_setmode(_fileno(wc_type==WCOUT?stdout:stderr), orig_mode);
 		orig_mode=-1;
 	}
 	
 	//The gentelmen rule: if you are using attached console or merely unsuccesfully attached it - it's your responsibility to free it if no one needs it anymore
 	if (stdstream_type==GUICON||stdstream_type==BADCON) {
 		if (!--console_attached) {
-			//Hack for attached parent console that makes things prettier
-			//Parent console will wait for ENTER keystroke after the last WriteConsole
-			//Sending it manually so user won't have to do it
+			//It is guaranteed by the Activate algorithm that if console attach was unsuccesfull - there won't be second tries
+			//And console is attached to the process and not to the standard handle
+			//So there can be only one BADCON object and it won't mix with GUICON/CON objects
+			//And if there is one GUICON/CON object - every other object will also be GUICON/CON (respectively)
+			//That's why even with out-of-order deactivation, check below will return true for truly the last of GUICON objects
+			//There can't be the case when only one object is GUICON and other is something else - every other object will also be GUICON
 			if (stdstream_type==GUICON)
+				//Hack for attached parent console that makes things prettier
+				//Parent console will wait for ENTER keystroke after the last WriteConsole
+				//Sending it manually so user won't have to do it
 				SimulateEnterKey();
 			FreeConsole();
 		}
@@ -178,9 +202,9 @@ bool Win32WcostreamBuf::WriteBuffer()
 					return false;
 			} else {
 				//Using fwrite(stdout) instead of wcout
-				if (fwrite(pbase(), sizeof(wchar_t), datalen, is_wcout?stdout:stderr)!=datalen)
+				if (fwrite(pbase(), sizeof(wchar_t), datalen, wc_type==WCOUT?stdout:stderr)!=datalen)
 					return false;
-				fflush(is_wcout?stdout:stderr);
+				fflush(wc_type==WCOUT?stdout:stderr);
 			}
 			//If we have additional output active - write data to it's buffer
 			if (aout_proc)

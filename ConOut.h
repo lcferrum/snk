@@ -13,6 +13,8 @@
 
 class Win32WcostreamBuf: private std::basic_streambuf<wchar_t> {
 	typedef std::function<void(const std::wstring&)> AoutCallbackType;
+public:
+	enum WCType:char {WCOUT=1, WCERR=2, WCLOG=3};
 private:
 	enum OutType:char {NONE, REDIR, GEN, CON, GUICON, BADCON};
 	//NONE - we basically have nowhere to output stdstream
@@ -27,7 +29,7 @@ private:
 	wchar_t obuf[W32WBUF_OBUFLEN];
 	bool active;
 	bool enabled;
-	bool is_wcout;
+	WCType wc_type;
 	int orig_mode;
 	std::wstreambuf *orig_buf;
 	OutType stdstream_type;
@@ -42,8 +44,6 @@ private:
 	virtual int_type overflow(int_type ch);
 	virtual int sync();
 public:
-	enum WCType:char {WCERR=0, WCOUT};
-	
 	Win32WcostreamBuf(WCType wc_type);
 	~Win32WcostreamBuf();
 	
