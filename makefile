@@ -46,7 +46,7 @@ ifdef DEBUG
 	override DEBUG:=-DDEBUG=$(DEBUG)
 	LDFLAGS+=-g
 else
-	LDFLAGS+=-s
+	LDFLAGS+=-O2 -s
 	CFLAGS+=-O2
 endif
 
