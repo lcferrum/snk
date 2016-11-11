@@ -45,6 +45,7 @@ UPSTREAM_INC=/c/cygwin/usr/i686-w64-mingw32/sys-root/mingw/include/
 ifdef DEBUG
 	override DEBUG:=-DDEBUG=$(DEBUG)
 	LDFLAGS+=-g
+	CFLAGS+=-g
 else
 	LDFLAGS+=-O2 -s
 	CFLAGS+=-O2
