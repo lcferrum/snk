@@ -593,7 +593,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
 	if (fnIsWow64Process) {
 		//If IsWow64Process is available and returns false - it's an actual error and we should fail
-		if (!fnIsWow64Process(hProcess, &pid_wow64)&&!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
+		if (!fnIsWow64Process(hProcess, &pid_wow64)||!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
 			return false;
 	}
 	
@@ -835,7 +835,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
 	if (fnIsWow64Process) {
 		//If IsWow64Process is available and returns false - it's an actual error and we should fail
-		if (!fnIsWow64Process(hProcess, &pid_wow64)&&!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
+		if (!fnIsWow64Process(hProcess, &pid_wow64)||!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
 			return {};
 	}
 	
