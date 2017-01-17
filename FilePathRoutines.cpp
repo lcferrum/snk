@@ -380,7 +380,7 @@ bool FPRoutines::GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wst
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION and PROCESS_VM_READ
 	if (NT_SUCCESS(fnNtQueryVirtualMemory(hProcess, hMod, MemorySectionName, msn_buf, buf_len, &ret_len))) {
 		//Conforming to MS implementation we don't rely on returned buffer to be NULL terminated 
-		((UNICODE_STRING*)msn_buf)->Buffer[((UNICODE_STRING*)msn_buf)->Length]=L'\0';
+		((UNICODE_STRING*)msn_buf)->Buffer[((UNICODE_STRING*)msn_buf)->Length/sizeof(wchar_t)]=L'\0';
 		return KernelToWin32Path(((UNICODE_STRING*)msn_buf)->Buffer, fpath);
 	}
 	
@@ -585,15 +585,16 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 	NTSTATUS st;
 	ULONG_PTR PebBaseAddress32=0;
 	PROCESS_BASIC_INFORMATION64 proc_info64={};
-	//By default it's assumed that target PID and current process are WOW64 processes
-	BOOL pid_wow64=TRUE;
-	BOOL cur_wow64=TRUE;
+	//By default it's assumed that target PID and current process are not WOW64 processes, i.e. run natively
+	BOOL pid_wow64=FALSE;
+	BOOL cur_wow64=FALSE;
 
 	//In case when IsWow64Process is available - check whether target PID and current process is WoW64
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
 	if (fnIsWow64Process) {
-		fnIsWow64Process(hProcess, &pid_wow64);
-		fnIsWow64Process(GetCurrentProcess(), &cur_wow64);
+		//If IsWow64Process is available and returns false - it's an actual error and we should fail
+		if (!fnIsWow64Process(hProcess, &pid_wow64)&&!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
+			return false;
 	}
 	
 	//UNICODE_STRING in RTL_USER_PROCESS_PARAMETERS usually includes terminating NULL character in it's buffer
@@ -826,15 +827,16 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 	NTSTATUS st;
 	ULONG_PTR PebBaseAddress32=0;
 	PROCESS_BASIC_INFORMATION64 proc_info64={};
-	//By default it's assumed that target PID and current process are WOW64 processes
-	BOOL pid_wow64=TRUE;
-	BOOL cur_wow64=TRUE;
+	//By default it's assumed that target PID and current process are not WOW64 processes, i.e. run natively
+	BOOL pid_wow64=FALSE;
+	BOOL cur_wow64=FALSE;
 
 	//In case when IsWow64Process is available - check whether target PID and current process is WoW64
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
 	if (fnIsWow64Process) {
-		fnIsWow64Process(hProcess, &pid_wow64);
-		fnIsWow64Process(GetCurrentProcess(), &cur_wow64);
+		//If IsWow64Process is available and returns false - it's an actual error and we should fail
+		if (!fnIsWow64Process(hProcess, &pid_wow64)&&!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
+			return {};
 	}
 	
 	//UNICODE_STRING in LDR_DATA_TABLE_ENTRY usually includes terminating NULL character in it's buffer
@@ -860,15 +862,17 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRYXX ldteXX;
 			if (ReadProcessMemory(hProcess, (LPCVOID)(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST)), &ldteXX.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL)&&ldteXX.SELECTED_MODULE_LIST.Flink) {
-				while (ldteXX.SELECTED_MODULE_LIST.Flink!=(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST))) {	//Eumerate all the list members till list closes
+				while (ldteXX.SELECTED_MODULE_LIST.Flink!=(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST))) {	//Enumerate all the list members till list closes
 					if (ReadProcessMemory(hProcess, (LPCVOID)(ldteXX.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRYXX, SELECTED_MODULE_LIST)), &ldteXX, sizeof(ldteXX), NULL)) {
 						if (ldteXX.DllBase==pebXX.ImageBaseAddress)	//Skip process image entry
 							continue;
 							
 						std::wstring mapped_buf;
-						/*if (GetMappedFileNameWrapper(hProcess, (LPVOID)ldteXX.DllBase, mapped_buf)) {
+						if (pid_wow64&&GetMappedFileNameWrapper(hProcess, (LPVOID)ldteXX.DllBase, mapped_buf)) {
+							//GetMappedFileNameWrapper is used here only to undo WoW64 redirection
+							//So if target process is not WoW64 process - no need to call GetMappedFileNameWrapper for it
 							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
-						} else {*/
+						} else {
 							//Returned paths are all in Win32 form (except image path that is skipped)
 							wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
 							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, NULL)) 
@@ -877,7 +881,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, NULL))
 								break;
 							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
-						//}
+						}
 					} else
 						break;
 				}
@@ -909,15 +913,17 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRY32 ldte32;
 			if (ReadProcessMemory(hProcess, (LPCVOID)(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST)), &ldte32.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL)&&ldte32.SELECTED_MODULE_LIST.Flink) {
-				while (ldte32.SELECTED_MODULE_LIST.Flink!=(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST))) {	//Eumerate all the list members till list closes
+				while (ldte32.SELECTED_MODULE_LIST.Flink!=(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST))) {	//Enumerate all the list members till list closes
 					if (ReadProcessMemory(hProcess, (LPCVOID)(ldte32.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY32, SELECTED_MODULE_LIST)), &ldte32, sizeof(ldte32), NULL)) {
 						if (ldte32.DllBase==peb32.ImageBaseAddress)	//Skip process image entry
 							continue;
 							
 						std::wstring mapped_buf;
-						/*if (GetMappedFileNameWrapper(hProcess, (LPVOID)(ULONG_PTR)ldte32.DllBase, mapped_buf)) {
+						if (GetMappedFileNameWrapper(hProcess, (LPVOID)(ULONG_PTR)ldte32.DllBase, mapped_buf)) {
+							//If current ptocess is 64-bit, surely we are on x64 OS and 32-bit process is run under WoW64
+							//We should use GetMappedFileNameWrapper to undo WoW64 redirection
 							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
-						} else {*/
+						} else {
 							//Returned paths are all in Win32 form (except image path that is skipped)
 							wchar_t buffer1[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
 							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, NULL)) 
@@ -926,7 +932,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, NULL))
 								break;
 							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
-						//}
+						}
 					} else
 						break;
 				}
@@ -968,7 +974,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRY64 ldte64;
 			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST), &ldte64.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL))&&ldte64.SELECTED_MODULE_LIST.Flink) {
-				while (ldte64.SELECTED_MODULE_LIST.Flink!=(peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST))) {	//Eumerate all the list members till list closes
+				while (ldte64.SELECTED_MODULE_LIST.Flink!=(peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST))) {	//Enumerate all the list members till list closes
 					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY64, SELECTED_MODULE_LIST), &ldte64, sizeof(ldte64), NULL))) {
 						if (ldte64.DllBase==peb64.ImageBaseAddress)	//Skip process image entry
 							continue;

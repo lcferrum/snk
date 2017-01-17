@@ -134,6 +134,9 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByMod:"<<__LINE__<<L": Processing modules for \""<<name<<L"\"..."<<std::endl;
+#endif
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
 		CloseHandle(hProcess);
 #if DEBUG>=3

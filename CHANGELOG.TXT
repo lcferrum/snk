@@ -1,11 +1,9 @@
-2017-XX-XX  Lcferrum <lcferrum@yandex.com>
+2017-01-17  Lcferrum <lcferrum@yandex.com>
 	
 	* Release 2.2
-	* Changed:
 	* Fixed:
-		- Fixed repeated "NOT found" message with /inr switch
-	* Added:
-	* Removed:
+		- Fixed duplicated "NOT found" message with /inr switch
+		- Fixed possible crash when using /mod, /gld, /d3d and /ogl switches
 
 2016-10-22  Lcferrum <lcferrum@yandex.com>
 	
