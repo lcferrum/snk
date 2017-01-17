@@ -1,3 +1,12 @@
+2017-XX-XX  Lcferrum <lcferrum@yandex.com>
+	
+	* Release 2.2
+	* Changed:
+	* Fixed:
+		- Fixed repeated "NOT found" message with /inr switch
+	* Added:
+	* Removed:
+
 2016-10-22  Lcferrum <lcferrum@yandex.com>
 	
 	* Release 2.1

@@ -454,7 +454,7 @@ bool Killers::KillByInr(bool param_plus)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"that is not responding NOT found"<<std::endl;
+		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
 }
