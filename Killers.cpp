@@ -297,6 +297,9 @@ bool Killers::KillByD3d(bool param_simple)
 	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByD3d:"<<__LINE__<<L": Processing modules for \""<<name<<"\"..."<<std::endl;
+#endif
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
 		CloseHandle(hProcess);
 #if DEBUG>=3
@@ -337,6 +340,9 @@ bool Killers::KillByOgl(bool param_simple)
 	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByOgl:"<<__LINE__<<L": Processing modules for \""<<name<<"\"..."<<std::endl;
+#endif
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
 		CloseHandle(hProcess);
 #if DEBUG>=3
@@ -377,6 +383,9 @@ bool Killers::KillByGld(bool param_simple)
 	bool found=ApplyToProcesses([this, param_simple, &descA, &itemA, wcrdA](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByGld:"<<__LINE__<<L": Processing modules for \""<<name<<"\"..."<<std::endl;
+#endif
 		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
 		CloseHandle(hProcess);
 #if DEBUG>=3
@@ -438,9 +447,9 @@ bool Killers::KillByInr(bool param_plus)
 	
 	PrintCommonKillPrefix();
 	if (ModeLoop())
-		std::wcout<<L"that are not responding  ";
+		std::wcout<<L"that are not responding ";
 	else
-		std::wcout<<L"that is not responding  ";
+		std::wcout<<L"that is not responding ";
 	
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {

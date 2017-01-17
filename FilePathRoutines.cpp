@@ -866,9 +866,9 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 							continue;
 							
 						std::wstring mapped_buf;
-						if (GetMappedFileNameWrapper(hProcess, (LPVOID)ldteXX.DllBase, mapped_buf)) {
+						/*if (GetMappedFileNameWrapper(hProcess, (LPVOID)ldteXX.DllBase, mapped_buf)) {
 							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
-						} else {
+						} else {*/
 							//Returned paths are all in Win32 form (except image path that is skipped)
 							wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
 							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, NULL)) 
@@ -877,7 +877,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, NULL))
 								break;
 							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
-						}
+						//}
 					} else
 						break;
 				}
@@ -915,9 +915,9 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 							continue;
 							
 						std::wstring mapped_buf;
-						if (GetMappedFileNameWrapper(hProcess, (LPVOID)(ULONG_PTR)ldte32.DllBase, mapped_buf)) {
+						/*if (GetMappedFileNameWrapper(hProcess, (LPVOID)(ULONG_PTR)ldte32.DllBase, mapped_buf)) {
 							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
-						} else {
+						} else {*/
 							//Returned paths are all in Win32 form (except image path that is skipped)
 							wchar_t buffer1[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
 							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, NULL)) 
@@ -926,7 +926,7 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, NULL))
 								break;
 							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
-						}
+						//}
 					} else
 						break;
 				}

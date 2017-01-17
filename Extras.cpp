@@ -73,7 +73,7 @@ void Extras::EnableWcout(bool value)
 
 void Extras::MessageBoxCallback(const std::wstring& mb_buffer)
 {
-	MessageBox(NULL, mb_buffer.c_str(), mb_caption.c_str(), MB_OK|MB_ICONWARNING|MB_SETFOREGROUND);
+	MessageBox(NULL, mb_buffer.c_str(), mb_caption.c_str(), MB_OK|MB_ICONWARNING|MB_SETFOREGROUND|MB_TOPMOST);
 }
 
 //Checking if DLLs are alredy loaded before LoadLibrary is cool but redundant
