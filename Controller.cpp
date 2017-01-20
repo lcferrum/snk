@@ -211,7 +211,6 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						//If BOM is missing from UTF-8 or UTF-16, param_cmd_mode can be set accordingly to force these encodings (these cases are dealt with in the code above)
 						//Otherwise missing BOM will be treated as ANSI encoding
 						if ((wcmdfile_len=MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, NULL, 0))) {
-							std::wcerr<<L"wcmdfile_len="<<wcmdfile_len<<std::endl;
 							wcmdfile_buf=new wchar_t[wcmdfile_len+2];	//+2 is for terminating NULL and leading '\n'
 							if (MultiByteToWideChar(CP_ACP, 0, (const char*)cmdfile_mem, cmdfile_len, wcmdfile_buf+1, wcmdfile_len)) {
 								wcmdfile_len+=2;

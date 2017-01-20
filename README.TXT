@@ -236,7 +236,7 @@ Settings:
                               trigger on last created process.
 +m|-m
                               Will turn 'mute' mode on/off. While in this mode,
-                              all stream output (bith stdout and stderr) is
+                              all stream output (both stdout and stderr) is
                               suppressed.
 
 5. Usage example
