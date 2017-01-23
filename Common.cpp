@@ -362,21 +362,21 @@ void PrintVersion()
 #else
 	Hout::Separator(L"Search and Kill v" SNK_STR_VERSION);
 #endif
-	Hout::EmptyLine();
-	Hout::Separator(L"Run with /hlp switch for usage information");
 #else
 #ifdef _WIN64
 	Hout::Separator(L"Search and Kill (x64 windowless) v" SNK_STR_VERSION);
 #else
 	Hout::Separator(L"Search and Kill (windowless) v" SNK_STR_VERSION);
 #endif
-	Hout::EmptyLine();
-	Hout::Separator(L"Please check README.TXT for more information");
 #endif
-	Hout::EmptyLine();
+	Hout::Separator(L"Built on " __DATE__ L" at " __TIME__);
 	Hout::Separator(L"Copyright (c) " SNK_CRIGHT_YEARS " Lcferrum");
 	Hout::Separator(L"Licensed under BSD license - see LICENSE.TXT file for details");
-#ifdef HIDDEN
+	Hout::EmptyLine();
+#ifndef HIDDEN
+	Hout::Separator(L"Run with /hlp switch for usage information");
+#else
+	Hout::Separator(L"Please check README.TXT for more information");
 	Hout::EmptyLine();
 #endif
 }
