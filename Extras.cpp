@@ -73,7 +73,11 @@ void Extras::EnableWcout(bool value)
 
 void Extras::MessageBoxCallback(const std::wstring& mb_buffer)
 {
-	MessageBox(NULL, mb_buffer.c_str(), mb_caption.c_str(), MB_OK|MB_ICONWARNING|MB_SETFOREGROUND|MB_TOPMOST|MB_SYSTEMMODAL);
+	//MessageBox is not only made foregroung and topmost, but also steals focus through AttachThreadInput hack
+	DWORD fg_tid=GetWindowThreadProcessId(GetForegroundWindow(), NULL);
+	AttachThreadInput(fg_tid, GetCurrentThreadId(), TRUE);
+	MessageBox(NULL, mb_buffer.c_str(), mb_caption.c_str(), MB_OK|MB_ICONWARNING|MB_SETFOREGROUND|MB_TOPMOST|MB_SYSTEMMODAL);	//Actually MB_TOPMOST and MB_SETFOREGROUND are rudementary - it's MB_SYSTEMMODAL that sets window to foreground and makes it topmost
+	AttachThreadInput(fg_tid, GetCurrentThreadId(), FALSE);
 }
 
 //Checking if DLLs are alredy loaded before LoadLibrary is cool but redundant

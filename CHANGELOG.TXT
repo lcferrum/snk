@@ -3,6 +3,8 @@
 	* Release 2.3
 	* Fixed:
 		- Removed odd debug output in /cmd
+	* Added:
+		- Windowless verbose output (message box) is now topmost and has input focus
 
 2017-01-17  Lcferrum <lcferrum@yandex.com>
 	
