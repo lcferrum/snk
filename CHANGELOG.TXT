@@ -3,6 +3,7 @@
 	* Release 2.3
 	* Fixed:
 		- Removed odd debug output in /cmd
+		- Fixed crash on exit when /cmd:sub is used
 	* Added:
 		- Windowless verbose output (message box) is now topmost and has input focus
 

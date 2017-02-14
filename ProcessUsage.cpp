@@ -13,8 +13,6 @@
 #define USAGE_TIMEOUT 	1500 	//ms
 
 extern pNtQuerySystemInformation fnNtQuerySystemInformation;
-extern pWow64DisableWow64FsRedirection fnWow64DisableWow64FsRedirection;
-extern pWow64RevertWow64FsRedirection fnWow64RevertWow64FsRedirection;
 
 #ifdef USE_CYCLE_TIME
 #define USER_TIME(pspi) (ULONGLONG)pspi->Reserved[2].QuadPart	//SYSTEM_PROCESS_INFORMATION.CycleTime, available since Win 7
@@ -47,25 +45,8 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 }
 
 Processes::Processes():
-	CAN(), self_pid(GetCurrentProcessId()), self_lsid(GetLogonSID(GetCurrentProcess()))
-{
-	if (fnWow64DisableWow64FsRedirection) fnWow64DisableWow64FsRedirection(&wow64_fs_redir);	//So GetLongPathName and GetFileAttributes uses correct path
-	//A note on disabling Wow64FsRedirection
-	//Microsoft discourages to do this process-wide and suggests disabling it right before the needed function call and reverting after
-	//Main concerns here being LodaLibrary calls and delayed-loaded imports that may occur after Wow64FsRedirection being disabled and failing because of that
-	//Delayed-loaded imports for Windows targets is not supported by current compiler selection (MinGW and Clang) - so it's not concern here
-	//So we just have to do all the LoadLibrary calls before disabling Wow64FsRedirection (which is already done through Extras class) and we are good to go
-	
-	EnableDebugPrivileges();	//Will set debug privileges (administrator privileges should be already present for this to actually work)
-	CoInitialize(NULL);			//COM is needed for GetLongPathName implementation from newapis.h
-}
-
-Processes::~Processes()
-{
-	FreeLogonSID(self_lsid);
-	CoUninitialize();
-	if (fnWow64RevertWow64FsRedirection) fnWow64RevertWow64FsRedirection(wow64_fs_redir);
-}
+	CAN()
+{}
 
 void Processes::DumpProcesses()
 {
@@ -162,16 +143,25 @@ void Processes::ManageProcessList(LstMode param_lst_mode)
 
 void Processes::EnumProcessUsage() 
 {
-	EnumProcessTimes(true);
+	//Previous version of Processes class kept self_lsid as class member so it had to be freed on destroy
+	//This results in non-default copy-constructor which should duplicate self_lsid with GetLengthSid/CopySid
+	//To keep things simple (get rid of non-default destructor and copy-constructor) self_lsid is now local variable
+	//Because calling EnumProcessUsage again or calling EnumProcessTimes outside of this function is currently unneeded functionality
+	PSID self_lsid=GetLogonSID(GetCurrentProcess());
+	DWORD self_pid=GetCurrentProcessId();
+	
+	EnumProcessTimes(true, self_lsid, self_pid);
 	
 	Sleep(USAGE_TIMEOUT);
 	
-	EnumProcessTimes(false);
+	EnumProcessTimes(false, self_lsid, self_pid);
 	
 	if (ModeRecent())
 		SortByRecentlyCreated();
 	else
 		SortByCpuUsage();
+	
+	FreeLogonSID(self_lsid);
 }
 
 void Processes::RequestPopulatedCAN()
@@ -209,7 +199,7 @@ void Processes::SortByRecentlyCreated()
 #endif
 }
 
-DWORD Processes::EnumProcessTimes(bool first_time)
+DWORD Processes::EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pid)
 {
 	SYSTEM_PROCESS_INFORMATION *pspi_all=NULL, *pspi_cur=NULL;
 	DWORD ret_size=0;
@@ -261,7 +251,7 @@ DWORD Processes::EnumProcessTimes(bool first_time)
 				//If we can't open process with PROCESS_QUERY_(LIMITED_)INFORMATION|(PROCESS_VM_READ) rights or can't get it's Logon SID - assume that it's a non-user process
 				if (hProcess) {
 					if (PSID pid_lsid=GetLogonSID(hProcess)) {
-						user=self_lsid?EqualSid(self_lsid, pid_lsid):true;	//If for some reason current Logon SID is unknown - assume that queried process is user one (because at least we have opened it with PROCESS_QUERY_(LIMITED_)INFORMATION and got Logon SID)
+						user=self_lsid?EqualSid(self_lsid, pid_lsid):true;	//If for some reason current Logon SID is unknown - assume that queried process belongs to user (because at least we have opened it with PROCESS_QUERY_(LIMITED_)INFORMATION and got Logon SID)
 						FreeLogonSID(pid_lsid);
 					}
 				}
@@ -284,37 +274,6 @@ DWORD Processes::EnumProcessTimes(bool first_time)
 
 	delete[] (BYTE*)pspi_all;
 	return cur_len;
-}
-
-#define SE_DEBUG_PRIVILEGE (20L)		//Grants r/w access to any process
-#define SE_BACKUP_PRIVILEGE (17L)		//Grants read access to any file
-#define SE_LOAD_DRIVER_PRIVILEGE (10L)	//Grants device driver load/unload rights [currently no use]
-#define SE_RESTORE_PRIVILEGE (18L)		//Grants write access to any file
-#define SE_SECURITY_PRIVILEGE (8L)		//Grants r/w access to audit and security messages [no use]
-	
-void Processes::EnableDebugPrivileges()
-{
-	HANDLE tokenHandle;
-	
-	//Privileges similar to Process Explorer
-	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE};
-
-	if (NT_SUCCESS(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle))) {
-		PTOKEN_PRIVILEGES privileges=(PTOKEN_PRIVILEGES)new BYTE[offsetof(TOKEN_PRIVILEGES, Privileges)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
-
-		privileges->PrivilegeCount=0;
-		for (DWORD priv: needed_privs) {
-			privileges->Privileges[privileges->PrivilegeCount].Attributes=SE_PRIVILEGE_ENABLED;
-			privileges->Privileges[privileges->PrivilegeCount].Luid.HighPart=0;
-			privileges->Privileges[privileges->PrivilegeCount].Luid.LowPart=priv;
-			privileges->PrivilegeCount++;
-		}
-
-		AdjustTokenPrivileges(tokenHandle, FALSE, privileges, 0, NULL, NULL);
-		
-		delete[] (BYTE*)privileges;
-		CloseHandle(tokenHandle);
-	}
 }
 
 //User SID identifies user that launched process. But if process was launched with RunAs - it will have SID of the RunAs user.

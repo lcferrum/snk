@@ -60,13 +60,9 @@ private:
 							//Actually it's a reference to Fallout Van Buren design docs
 							//In Van Buren "dataCAN" represents a high-capacity storage medium for mainframes
 	bool odd_enum;			//Current enum period (ODD or EVEN)
-	DWORD self_pid;
-	PSID self_lsid;
-	PVOID wow64_fs_redir;	//OldValue for Wow64DisableWow64FsRedirection/Wow64RevertWow64FsRedirection
 
-	DWORD EnumProcessTimes(bool first_time);
+	DWORD EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pid);
 	void EnumProcessUsage();
-	void EnableDebugPrivileges();
 	PSID GetLogonSID(HANDLE hProcess);	//Always free resulting PSID with FreeLogonSID
 	void FreeLogonSID(PSID lsid);
 	
@@ -109,7 +105,6 @@ protected:
 	void RequestPopulatedCAN();
 public:	
 	Processes();
-	~Processes();
 };
 
 #endif //PROCESS_H

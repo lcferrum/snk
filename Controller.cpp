@@ -24,7 +24,7 @@ template <typename ProcessesPolicy, typename KillersPolicy>
 void Controller<ProcessesPolicy, KillersPolicy>::NoArgsAllowed(const std::wstring &sw) 
 {
 	if (!ctrl_vars.args.empty())
-		std::wcerr<<L"Warning: switch "<<sw<<L" doesn't allow arguments (\""<<ctrl_vars.args<<L"\")!"<<std::endl;
+		std::wcerr<<L"Warning: switch "<<sw<<L" doesn't allow arguments: \""<<ctrl_vars.args<<L"\"!"<<std::endl;
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -182,8 +182,10 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 							wcmdfile_buf=new wchar_t[wcmdfile_len];	
 							BYTE *le_buf=(BYTE*)(wcmdfile_buf+1);
 							BYTE *be_buf=(BYTE*)cmdfile_mem;
-							for (DWORD be_pos=0; be_pos<cmdfile_len; be_pos++)
-								le_buf[be_pos+(be_pos%2?-1:1)]=be_buf[be_pos];
+							for (DWORD even_pos=0, odd_pos=1; even_pos<cmdfile_len; even_pos+=2, odd_pos+=2) {
+								le_buf[odd_pos]=be_buf[even_pos];
+								le_buf[even_pos]=be_buf[odd_pos];
+							}
 							success=true;
 						} else
 							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 BE encoded!"<<std::endl;
@@ -422,7 +424,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 			} else {
 				std::wcerr<<L"Warning: subroutine \""<<ctrl_vars.args<<"\" won't be called!"<<std::endl; 
 				ClearParamsAndArgs();
-			}				
+			}
 		} else {
 			ProcessCmdFile(rules, ctrl_vars.args.c_str(), ctrl_vars.param_cmd_mode);
 			ClearParamsAndArgs();
@@ -523,7 +525,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 			} else {
 				std::wcerr<<L"Warning: unknown switch "<<top_rule<<L"!"<<std::endl;
 				if (!ctrl_vars.args.empty()) {
-					std::wcerr<<L"Warning: no arguments allowed for unknown switch (\""<<ctrl_vars.args<<L"\")!"<<std::endl;
+					std::wcerr<<L"Warning: no arguments allowed for unknown switch: \""<<ctrl_vars.args<<L"\"!"<<std::endl;
 					ctrl_vars.args.clear();
 				}
 			}
