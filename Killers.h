@@ -17,9 +17,11 @@ private:
 	static bool WithinRect(const RECT &outer, const RECT &inner);
 	static BOOL CALLBACK EnumWndInr(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndFsc(HWND hwnd, LPARAM lParam);
+	static BOOL CALLBACK EnumWndClose(HWND hwnd, LPARAM lParam);
 	
 	virtual bool ModeBlank()=0;
 	virtual bool ModeRecent()=0;
+	virtual bool ModeClose()=0;
 	virtual bool ModeAll()=0;
 	virtual bool ModeLoop()=0;
 	virtual bool ModeBlacklist()=0;

@@ -64,18 +64,32 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name)
 		else
 			std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
 	} else {
-		//PROCESS_TERMINATE is needed for TerminateProcess
-		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE);
-									
-		if (!hProcess) {
-			std::wcout<<PID<<L" ("<<name<<L") - can't be terminated"<<std::endl;
-			return;
-		}
-		
-		TerminateProcess(hProcess, 1);
-		std::wcout<<PID<<L" ("<<name<<L") - killed"<<std::endl;
-		CloseHandle(hProcess);
+		if (!ModeClose()||EnumWindows(EnumWndClose, (LPARAM)PID)||GetLastError()) {
+			HANDLE hProcess;
+			//PROCESS_TERMINATE is needed for TerminateProcess
+			if ((hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE))&&TerminateProcess(hProcess, 1))
+				std::wcout<<PID<<L" ("<<name<<L") - killed"<<std::endl;
+			else
+				std::wcout<<PID<<L" ("<<name<<L") - can't be terminated"<<std::endl;
+			if (hProcess) CloseHandle(hProcess);
+		} else
+			std::wcout<<PID<<L" ("<<name<<L") - closed"<<std::endl;
 	}
+}
+
+BOOL CALLBACK Killers::EnumWndClose(HWND hwnd, LPARAM lParam) 
+{
+	DWORD pid;
+	if (GetWindowThreadProcessId(hwnd, &pid)&&pid==(DWORD)lParam) {
+		//Returning FALSE not only causes EnumWindows to stop enumeration, but also causes it to return FALSE (i.e. error value)
+		//To distinguish between real error and succesfull premature end of enumeration, it's better set some last-error code with SetLastError
+		//SendMessageTimeout not necessary sets non-zero last-error code if fails, so we forcing it here
+		//If function doesn't fail, last-error code is zero
+		if (!SendMessageTimeout(hwnd, WM_CLOSE, 0, 0, SMTO_ABORTIFHUNG|SMTO_BLOCK, INR_TIMEOUT, NULL))
+			SetLastError(ERROR_TIMEOUT);
+		return FALSE;
+	} else
+		return TRUE;
 }
 
 bool Killers::KillByCpu() 

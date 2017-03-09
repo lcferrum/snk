@@ -317,6 +317,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_blank=true;
 	} else if (!top_rule.compare(L"-t")) {
 		ctrl_vars.mode_blank=false;
+	} else if (!top_rule.compare(L"+c")) {
+		ctrl_vars.mode_close=true;
+	} else if (!top_rule.compare(L"-c")) {
+		ctrl_vars.mode_close=false;
 	} else if (!top_rule.compare(L"+i")) {
 		ctrl_vars.mode_ignore=true;
 	} else if (!top_rule.compare(L"-i")) {

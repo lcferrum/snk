@@ -6,6 +6,7 @@
 		- Fixed crash on exit when /cmd:sub is used
 	* Added:
 		- Windowless verbose output (message box) is now topmost and has input focus
+		- +c/-c setting (close process)
 
 2017-01-17  Lcferrum <lcferrum@yandex.com>
 	
