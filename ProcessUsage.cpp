@@ -61,7 +61,7 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 	bool applied=false;
 	
 	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
-	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); ++rit) {
 		if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())&&mutator(rit->GetPID(), rit->GetName(), rit->GetPath(), applied)) {
 			applied=true;
 			if (!ModeBlank()) rit->SetDisabled(true);
@@ -88,7 +88,7 @@ void Processes::Synchronize(Processes &ref)
 	//This happens when vector is modified - items added, deleted or reordered
 	//So pointers are valid as long as reference vector not modified
 	std::vector<PData>::iterator loc_it, ref_it;
-	for (loc_it=CAN.begin(), ref_it=ref.CAN.begin(); loc_it!=CAN.end(); loc_it++, ref_it++)
+	for (loc_it=CAN.begin(), ref_it=ref.CAN.begin(); loc_it!=CAN.end(); ++loc_it, ++ref_it)
 		loc_it->SetReference(&(*ref_it));
 }
 
@@ -105,7 +105,7 @@ void Processes::ManageProcessList(LstMode param_lst_mode)
 	bool avail_found=false;
 
 	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
-	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); rit++) {
+	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); ++rit) {
 		switch (param_lst_mode) {
 			case LST_SHOW:
 				break;
