@@ -3,6 +3,7 @@
 #include <stack>
 #include <iostream>
 #include <limits>
+#include <cstddef>		//offsetof
 #include "ProcessUsage.h"
 #include "Controller.h"
 #include "Killers.h"

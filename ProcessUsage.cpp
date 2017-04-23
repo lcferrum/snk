@@ -4,7 +4,6 @@
 #include "Extras.h"
 #include <iostream>
 #include <algorithm>
-#include <cstddef>		//offsetof
 #include <limits>		//numeric_limits
 #include <winternl.h>	//NT_SUCCESS, SYSTEM_PROCESS_INFORMATION, SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION, SYSTEM_BASIC_INFORMATION, UNICODE_STRING
 #include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
