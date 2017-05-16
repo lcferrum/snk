@@ -38,6 +38,10 @@ Or, for x86-64 build:
 
     make BUILD=MinGW-w64 HOST=x86-64
     
+To build x86 binaries with Clang 3.6.2 type the following:
+
+    make BUILD=Clang_362 HOST=x86
+
 This will compile both versions of SnK (windowless and normal). For other
 compile options please check makefile itself.
  
