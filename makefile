@@ -1,9 +1,9 @@
 # Usage:
-# make CC=COMPILER cmd
+# make BUILD=COMPILER HOST=OS_TYPE cmd
 #	Builds SnK with console output (SnK.exe)
-# make CC=COMPILER wnd
+# make BUILD=COMPILER HOST=OS_TYPE wnd
 #	Builds windowless SnK with dialog output (SnKh.exe)
-# make CC=COMPILER
+# make BUILD=COMPILER HOST=OS_TYPE
 #	Makes both versions of SnK
 # make clean
 #	Cleans directory of executables
@@ -18,10 +18,11 @@
 
 # Conditionals
 ifeq (,$(if $(filter-out upx clean,$(MAKECMDGOALS)),,$(MAKECMDGOALS)))
-ifeq (,$(filter $(CC),i686-w64-mingw32-g++ x86_64-w64-mingw32-g++ g++ clang++))
-$(info Compiler not selected! Please set CC variable.)
-$(info Possible CC values: x86_64-w64-mingw32-g++, i686-w64-mingw32-g++, g++, clang++)
-$(error CC not set)
+ifeq (,$(and $(filter $(BUILD),MinGW-w64 MinGW-w64_pthreads MinGW_472 Clang_362),$(filter $(HOST),x86-64 x86)))
+$(info Compiler and/or OS type is invalid! Please correctly set BUILD and HOST variables.)
+$(info Possible BUILD values: MinGW-w64, MinGW-w64_pthreads, MinGW_472, Clang_362)
+$(info Possible HOST values: x86-64, x86)
+$(error BUILD/HOST is invalid)
 endif
 endif
 
@@ -36,37 +37,77 @@ endif
 # Common section
 RM=rm -f
 UPX=upx
-CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX -DUNICODE -D_UNICODE $(DEBUG) $(USE_CYCLE_TIME)
+CFLAGS=-std=c++11 -Wno-write-strings -D_WIN32_WINNT=0x0502 -DNOMINMAX -DUNICODE -D_UNICODE $(USE_CYCLE_TIME)
 LDFLAGS=-lversion -lole32 -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-fixup
 COMMON_SRC=SnK.cpp Extras.cpp Common.cpp Hout.cpp Killers.cpp ProcessUsage.cpp FilePathRoutines.cpp Controller.cpp ConOut.cpp AsmPatches.S Res.rc
 UPSTREAM_INC=/c/cygwin/usr/i686-w64-mingw32/sys-root/mingw/include/
 
 # Debug specific common section
 ifdef DEBUG
-	override DEBUG:=-DDEBUG=$(DEBUG)
+	CFLAGS+=-DDEBUG=$(DEBUG) -g
 	LDFLAGS+=-g
-	CFLAGS+=-g
 else
-	LDFLAGS+=-O2 -s
 	CFLAGS+=-O2
+	LDFLAGS+=-O2 -s
 endif
 
-# Compiler specific section
-ifeq ($(CC),x86_64-w64-mingw32-g++)
+# Compiler/OS specific sections
+# N.B.:
+# i386 is minimum system requirement for Windows 95, maximum arch for apps is pentium2 (OS doesn't handle SSE instructions without patch)
+# i486 is minimum system requirement for Windows NT4, maximum arch for apps is pentium2 (OS doesn't handle SSE instructions)
+# pentium is minimum system requirement for Windows 2000
+
+# MinGW 4.7.2 with includes from current MinGW-w64
+# i386 is MinGW 4.7.2 default arch
+ifeq ($(BUILD),MinGW_472)
+	CC=g++
+	INC=-I$(UPSTREAM_INC)
+	CFLAGS+=-Wno-attributes -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
+	WNDSUBSYS=-mwindows
+	WINDRES=windres
+ifeq ($(HOST),x86-64)
+$(error not implemented)
+endif
+ifeq ($(HOST),x86)
+endif
+endif
+
+# Current MinGW-w64 with Win32 threads
+# MinGW-w64 minimum supported target 32-bit Windows version is Windows 2000
+# pentiumpro is MinGW-w64 default arch for 32-bit compiler
+ifeq ($(BUILD),MinGW-w64)
 	LDFLAGS+=-municode
 	WNDSUBSYS=-mwindows
+ifeq ($(HOST),x86-64)
+	CC=x86_64-w64-mingw32-g++
 	WINDRES=x86_64-w64-mingw32-windres
 endif
-ifeq ($(CC),i686-w64-mingw32-g++)
-	LDFLAGS+=-municode
-	WNDSUBSYS=-mwindows
+ifeq ($(HOST),x86)
+	CC=i686-w64-mingw32-g++
 	WINDRES=i686-w64-mingw32-windres
 endif
-# Extra options for outdated clang++/g++ with upstream includes to generate binaries compatible with Win 9x/NT4
-# i386 is minimum system requirement for Windows 95 (MinGW 4.7.2 default arch)
-# i486 is minimum system requirement for Windows NT4
-# It's assumed that g++ (MinGW) version is 4.7.2, clang++ (LLVM) version is 3.6.2 and includes are from MinGW-w64 4.9.2
-ifeq ($(CC),clang++)
+endif
+
+# Current MinGW-w64 with POSIX threads
+# MinGW-w64 minimum supported target 32-bit Windows version is Windows 2000
+# pentiumpro is MinGW-w64 default arch for 32-bit compiler
+ifeq ($(BUILD),MinGW-w64_pthreads)
+	LDFLAGS+=-static -lpthread -municode
+	WNDSUBSYS=-mwindows
+ifeq ($(HOST),x86-64)
+	CC=x86_64-w64-mingw32-g++
+	WINDRES=x86_64-w64-mingw32-windres
+endif
+ifeq ($(HOST),x86)
+	CC=i686-w64-mingw32-g++
+	WINDRES=i686-w64-mingw32-windres
+endif
+endif
+
+# Clang 3.6.2 with includes from current MinGW-w64
+# pentium4 is Clang 3.6.2 default arch
+ifeq ($(BUILD),Clang_362)
+	CC=clang++
 	INC=-I$(UPSTREAM_INC)
 	CFLAGS+=-target i486-pc-windows-gnu -march=i486 -Wno-ignored-attributes -Wno-deprecated-register -Wno-inconsistent-dllimport -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
 	WNDSUBSYS=-Wl,--subsystem,windows
@@ -74,12 +115,11 @@ ifeq ($(CC),clang++)
 	ifndef DEBUG
 		CFLAGS+=-Wno-unused-value
 	endif
+ifeq ($(HOST),x86-64)
+$(error not implemented)
 endif
-ifeq ($(CC),g++)
-	INC=-I$(UPSTREAM_INC)
-	CFLAGS+=-Wno-attributes -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
-	WNDSUBSYS=-mwindows
-	WINDRES=windres
+ifeq ($(HOST),x86)
+endif
 endif
 
 # Target specific section

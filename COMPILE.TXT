@@ -17,8 +17,6 @@ NT-based Windows only. General compilation steps:
 
     2) Compile it using makefile
 
-    3) After compiling, see the README.TXT file for instructions on using SnK
-
 3. Specific compiling instructions
 ----------------------------------
 Current distribution only supports MinGW, MinGW-w64 and Clang. Though
@@ -34,11 +32,11 @@ case.
 When using MinGW-w64 from under cygwin, switch to SnK source directory and
 type (for x86 build):
 
-    make CC=i686-w64-mingw32-g++
+    make BUILD=MinGW-w64 HOST=x86
     
 Or, for x86-64 build:
 
-    make CC=x86_64-w64-mingw32-g++
+    make BUILD=MinGW-w64 HOST=x86-64
     
 This will compile both versions of SnK (windowless and normal). For other
 compile options please check makefile itself.

@@ -495,7 +495,7 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 		DWORD pid;
 
 		//This is the way Windows checks if application is hung - using IsHungAppWindow
-		//Mechanism behind IsHungAppWindow considers window hung if it's thread:
+		//Logic behind IsHungAppWindow considers window hung if it's thread:
 		//	isn't waiting for input
 		//	isn't in startup processing
 		//	hasn't called PeekMessage() within some time interval (5 sec for IsHungAppWindow)
