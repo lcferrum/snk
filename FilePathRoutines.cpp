@@ -607,7 +607,7 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 		if (!NT_SUCCESS(st)||!proc_info.PebBaseAddress) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
-				std::wcerr<<L"" __FILE__ ":GetFP_PEB:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileName) failed - information class not supported!"<<std::endl;
+				std::wcerr<<L"" __FILE__ ":GetFP_PEB:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed - information class not supported!"<<std::endl;
 #endif
 			return false;
 		}

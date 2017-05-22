@@ -18,6 +18,7 @@ typedef struct _LANGANDCODEPAGE {
 } LANGANDCODEPAGE;
 
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
+extern pNtQueryInformationProcess fnNtQueryInformationProcess;
 
 #ifdef _WIN64
 #define EnumDisplayDevicesWrapper EnumDisplayDevices
@@ -116,13 +117,14 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 	
 	PrintCommonKillPrefix();
 	if (ModeLoop())
-		std::wcout<<L"that match wildcard(s) ";
+		std::wcout<<L"that match wildcard(s) \"";
 	else
-		std::wcout<<L"that matches wildcard(s) ";
+		std::wcout<<L"that matches wildcard(s) \"";
+	std::wcout<<arg_wcard;
 	
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str())) {
-			if (!applied)  std::wcout<<L"\""<<arg_wcard<<L"\" FOUND:"<<std::endl;
+			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -132,7 +134,7 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"\""<<arg_wcard<<L"\" NOT found"<<std::endl;
+		std::wcout<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -143,7 +145,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 		arg_wcard=L"";
 	
 	PrintCommonKillPrefix();
-	std::wcout<<L"having modules that match wildcard(s) ";
+	std::wcout<<L"having modules that match wildcard(s) \""<<arg_wcard;
 	
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
@@ -160,7 +162,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 #endif
 
 		if (CheckModListNames(mlist, param_full, arg_wcard)) {
-			if (!applied) std::wcout<<L"\""<<arg_wcard<<L"\" FOUND:"<<std::endl;
+			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -170,33 +172,84 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"\""<<arg_wcard<<L"\" NOT found"<<std::endl;
+		std::wcout<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
 
-bool Killers::KillByPid(const wchar_t* arg_parray) 
+bool Killers::KillByPid(bool param_parent, const wchar_t* arg_parray) 
+{
+	if (param_parent)
+		return KillParentPid();
+	else
+		return KillPidsInArray(arg_parray);
+}
+
+bool Killers::KillParentPid() 
+{
+	ULONG_PTR parent_pid=0;	//0 is idle process PID and which can't be parent of any process
+
+	if (fnNtQueryInformationProcess) {
+		PROCESS_BASIC_INFORMATION proc_info;
+		if (NT_SUCCESS(fnNtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), NULL))) {
+			parent_pid=proc_info.InheritedFromUniqueProcessId;
+		} else {
+#if DEBUG>=2
+			std::wcerr<<L"" __FILE__ ":KillParentPid:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed!"<<std::endl;
+#endif
+		}
+	} else {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":KillParentPid:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
+#endif
+	}
+	
+	PrintCommonKillPrefix();
+	if (ModeLoop())
+		std::wcout<<L"that match parent PID ";
+	else
+		std::wcout<<L"that matches parent PID ";
+	
+	bool found=parent_pid&&ApplyToProcesses([this, parent_pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+		if (PID==parent_pid) {
+			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"NOT found"<<std::endl;
+		return false;
+	}
+}
+
+bool Killers::KillPidsInArray(const wchar_t* arg_parray) 
 {
 	std::vector<ULONG_PTR> uptr_array;
 	
 	if (!arg_parray||!PidListCmp(arg_parray, uptr_array))
 		arg_parray=L"";
-	
+
 #if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":KillByPid:"<<__LINE__<<L": Dumping generated PID list for \""<<arg_parray<<L"\"..."<<std::endl;
+	std::wcerr<<L"" __FILE__ ":KillPidsInArray:"<<__LINE__<<L": Dumping generated PID list for \""<<arg_parray<<L"\"..."<<std::endl;
 	for (ULONG_PTR &uptr_i: uptr_array)
 		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
 #endif
 	
 	PrintCommonKillPrefix();
 	if (ModeLoop())
-		std::wcout<<L"that match PID(s) ";
+		std::wcout<<L"that match PID(s) \"";
 	else
-		std::wcout<<L"that matches PID(s) ";
+		std::wcout<<L"that matches PID(s) \"";
+	std::wcout<<arg_parray;
 	
 	bool found=!uptr_array.empty()&&ApplyToProcesses([this, arg_parray, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (PidListCmp(uptr_array, PID)) {
-			if (!applied) std::wcout<<L"\""<<arg_parray<<L"\" FOUND:"<<std::endl;
+			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -206,7 +259,7 @@ bool Killers::KillByPid(const wchar_t* arg_parray)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"\""<<arg_parray<<L"\" NOT found"<<std::endl;
+		std::wcout<<L"\" NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -445,12 +498,6 @@ bool Killers::KillByInr(bool param_plus)
 {
 	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId returns PID as DWORD
 
-#if DEBUG>=2
-	if (!fnNtUserHungWindowFromGhostWindow) {
-		std::wcerr<<L"" __FILE__ ":KillByInr:"<<__LINE__<<L": NtUserHungWindowFromGhostWindow not found!"<<std::endl;
-	}
-#endif
-
 	//Unfortunately, can't use those pretty capture-less lambdas here because of calling conventions
 	//By default lambda calling conventions is __cdecl, which is OK on x86-64 because CALLBACK is also __cdecl here
 	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
@@ -659,6 +706,12 @@ bool Killers::KillByFgd(bool param_anywnd)
 	DWORD pid;
 	WNDCLASS dummy_wnd;
 	HWND hwnd=GetForegroundWindow();
+	
+#if DEBUG>=2
+	if (!fnNtUserHungWindowFromGhostWindow) {
+		std::wcerr<<L"" __FILE__ ":KillByFgd:"<<__LINE__<<L": NtUserHungWindowFromGhostWindow not found!"<<std::endl;
+	}
+#endif
 	
 	//Same thing with "Ghost" class ATOM as in KillByInr
 	//In case of foreground app is hung, code below will ensure that we won't accidentially kill actual "ghost" window owner (dwm or explorer)

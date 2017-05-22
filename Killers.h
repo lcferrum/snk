@@ -12,6 +12,8 @@ private:
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
 	bool CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
+	bool KillParentPid();
+	bool KillPidsInArray(const wchar_t* arg_parray);
 	
 	static bool IsTaskWindow(HWND hwnd);
 	static bool WithinRect(const RECT &outer, const RECT &inner);
@@ -43,7 +45,8 @@ protected:
 	//Kills process with highest cpu load which PID belongs to PID array
 	//PIDs are decimal (no prefix), hexadecimal ("0x"/"0X" prefix) or octal ("0" prefix) unsigned integers
 	//arg_parray - array of PIDs to match (delimeted by comma or semicolon, can include descending or ascending ranges)
-	bool KillByPid(const wchar_t* arg_parray);
+	//If param_parent - ignores arg_parray and uses parent process PID instead
+	bool KillByPid(bool param_parent, const wchar_t* arg_parray);
 	
 	//Kills process with highest cpu load that uses DirectX (Direct3D)
 	//If param_simple - uses process modules names to find DirectX process

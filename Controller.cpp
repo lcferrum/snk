@@ -470,9 +470,12 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		RequestPopulatedCAN();
 		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/pid:parent")) {
+		ctrl_vars.param_parent=true;
 	} else if (!top_rule.compare(L"/pid")) {
 		RequestPopulatedCAN();
-		done=IsDone(KillByPid(ctrl_vars.args.c_str()));
+		if (ctrl_vars.param_parent) NoArgsAllowed(top_rule);
+		done=IsDone(KillByPid(ctrl_vars.param_parent, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/d3d:simple")) {
 		ctrl_vars.param_simple=true;
