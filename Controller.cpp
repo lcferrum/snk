@@ -17,7 +17,7 @@ extern pEnableWcout fnEnableWcout;
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 Controller<ProcessesPolicy, KillersPolicy>::Controller():
-	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, sec_mutex(NULL)
+	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, args_stack(), sec_mutex(NULL)
 {}
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -294,6 +294,24 @@ void Controller<ProcessesPolicy, KillersPolicy>::ClearParamsAndArgs()
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
+std::wstring Controller<ProcessesPolicy, KillersPolicy>::ExpandEnvironmentStringsWrapper(const std::wstring &args)
+{
+	wchar_t dummy_buf;
+
+	//Documentation says that lpDst parameter is optional but Win 95 version of this function actually fails if lpDst is NULL
+	//So using dummy buffer to get needed buffer length (function returns length in characters including terminating NULL)
+	//If returned length is 0 - it is an error
+	if (DWORD buf_len=ExpandEnvironmentStrings(args.c_str(), &dummy_buf, 0)) {
+		wchar_t string_buf[buf_len];
+		//Ensuring that returned length is expected length
+		if (ExpandEnvironmentStrings(args.c_str(), string_buf, buf_len)<=buf_len) 
+			return string_buf;
+	}
+	
+	return args;
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
 bool Controller<ProcessesPolicy, KillersPolicy>::IsDone(bool sw_res)
 {
 	if (ModeIgnore())
@@ -321,6 +339,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_close=true;
 	} else if (!top_rule.compare(L"-c")) {
 		ctrl_vars.mode_close=false;
+	} else if (!top_rule.compare(L"+e")) {
+		ctrl_vars.mode_env=true;
+	} else if (!top_rule.compare(L"-e")) {
+		ctrl_vars.mode_env=false;
 	} else if (!top_rule.compare(L"+i")) {
 		ctrl_vars.mode_ignore=true;
 	} else if (!top_rule.compare(L"-i")) {
@@ -382,6 +404,9 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		RequestPopulatedCAN();
 		ManageProcessList(ctrl_vars.param_lst_mode);
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/trm")) {
+		done=true;
+		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/bpp")) {
 		NoArgsAllowed(top_rule);
 		MessageBeep(MB_ICONINFORMATION);
@@ -390,6 +415,22 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 	} else if (!top_rule.compare(L"/prn")) {
 		std::wcout<<ctrl_vars.args<<std::endl;
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/psh")) {
+		args_stack.push(ctrl_vars.args);
+		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/pop")) {
+		std::wstring new_args;
+		if (!args_stack.empty()) {
+			new_args=std::move(args_stack.top());
+			args_stack.pop();
+		}
+		if (ctrl_vars.args.empty()) {
+			ClearParamsAndArgs();
+			ctrl_vars.args=std::move(new_args);
+		} else {
+			SetEnvironmentVariable(ctrl_vars.args.c_str(), new_args.c_str());
+			ClearParamsAndArgs();
+		}
 	} else if (!top_rule.compare(L"/sec")) {
 		//Not affected by ignore, loop and negate modes
 		NoArgsAllowed(top_rule);
@@ -421,6 +462,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 				sub_controller.Synchronize(*this);
 				//******** DO NOT MODIFY LOCAL CAN BEYOND THIS POINT ********
 				while ((sub_ret=sub_controller.MakeItDeadInternal(sub_rules))==MID_NONE);
+				args_stack=std::move(sub_controller.args_stack);
 				if (sub_controller.sec_mutex!=sec_mutex) CloseHandle(sub_controller.sec_mutex);
 				if (fnEnableWcout) fnEnableWcout(!ctrl_vars.mode_mute);
 				done=IsDone(sub_ret==MID_EMPTY);
@@ -522,7 +564,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		done=IsDone(KillByFgd(ctrl_vars.param_anywnd));
 		ClearParamsAndArgs();
 	} else if (top_rule.front()==L'=') {
-		ctrl_vars.args=top_rule.substr(1);
+		if (ctrl_vars.mode_env)
+			ctrl_vars.args=ExpandEnvironmentStringsWrapper(top_rule.substr(1));
+		else
+			ctrl_vars.args=top_rule.substr(1);
 	} else {
 		if (top_rule.front()==L'+'||top_rule.front()==L'-') {
 			std::wcerr<<L"Warning: unknown setting "<<top_rule<<L"!"<<std::endl;
@@ -558,6 +603,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 	if (fnEnableWcout) fnEnableWcout(true);
 	
 	ctrl_vars={true};
+	std::stack<std::wstring>().swap(args_stack);
 }
 
 template class Controller<Processes, Killers>;

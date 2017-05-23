@@ -41,6 +41,7 @@ private:
 		bool mode_whitelist;
 		bool mode_mute;
 		bool mode_close;
+		bool mode_env;
 		//We should be able to change values of all variables in union by assigning something to it's largest member (should be param_first/param_second)
 		//Don't expect bool (param_first/param_second type) to be the largest because size of bool is implementation defined 
 		//Test with static_assert for other types to be smaller or equal in size
@@ -64,6 +65,8 @@ private:
 		std::wstring args;
 	} ctrl_vars;
 	
+	std::stack<std::wstring> args_stack;
+	
 	//Windows will close mutex handle automatically when the process terminates
 	HANDLE sec_mutex;
 	
@@ -74,6 +77,7 @@ private:
 	void WaitForUserInput();
 	bool SecuredExecution();
 	DWORD IsBOM(DWORD bom);
+	std::wstring ExpandEnvironmentStringsWrapper(const std::wstring &args);
 	bool IsDone(bool sw_res);
 	bool ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
 	MIDStatus MakeItDeadInternal(std::stack<std::wstring> &rules);
