@@ -9,7 +9,7 @@
 	* Added:
 		- +c/-c setting (close process)
 		- +e/-e setting (expand environment variables)
-		- /trm switch (unconditionally return positive result)
+		- /end switch (unconditionally return positive result)
 		- /psh switch (push argument to argumet stack)
 		- /pop switch (pop argument from argument stack)
 		- 'parent' parameter for /pid switch

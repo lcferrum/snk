@@ -404,7 +404,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		RequestPopulatedCAN();
 		ManageProcessList(ctrl_vars.param_lst_mode);
 		ClearParamsAndArgs();
-	} else if (!top_rule.compare(L"/trm")) {
+	} else if (!top_rule.compare(L"/end")) {
 		done=true;
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/bpp")) {
