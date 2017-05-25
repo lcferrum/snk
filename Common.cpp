@@ -287,7 +287,7 @@ void PrintUsage()
 	Hout::Separator(L"/mod[:full]=WCARDS", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load that has module which name matches one of wildcars (case-insensitive, with globbing).",
 					4);
-	Hout::Separator(L"/pid=PIDS", 2);
+	Hout::Separator(L"/pid[:parent|=PIDS]", 2);
 	Hout::Paragraph(L"Kill process with highest cpu load which PID belongs to PID array.",
 					4);
 	Hout::Separator(L"/d3d[:simple]", 2);
@@ -313,6 +313,15 @@ void PrintUsage()
 					4);
 	Hout::Separator(L"/lst[:clrmask|:invmask]", 2);
 	Hout::Paragraph(L"List currently available processes and continue execution.",
+					4);
+	Hout::Separator(L"/psh=ARGUMENT", 2);
+	Hout::Paragraph(L"Push argument to argument stack and continue execution.",
+					4);
+	Hout::Separator(L"/pop[=ENV_VAR]", 2);
+	Hout::Paragraph(L"Pop argument from argument stack and continue execution.",
+					4);
+	Hout::Separator(L"/end", 2);
+	Hout::Paragraph(L"Unconditionally exit program.",
 					4);
 	Hout::EmptyLine();
 	Hout::Separator(L"Settings:");
@@ -345,6 +354,12 @@ void PrintUsage()
 					4);
 	Hout::Separator(L"+m|-m", 2);
 	Hout::Paragraph(L"Turn 'mute' mode on/off.",
+					4);
+	Hout::Separator(L"+c|-c", 2);
+	Hout::Paragraph(L"Turn 'close' mode on/off.",
+					4);
+	Hout::Separator(L"+e|-e", 2);
+	Hout::Paragraph(L"Turn 'expand environment variables' mode on/off.",
 					4);
 #else
 	Hout::Separator(L"Usage: SnKh [settings_block|swith[:parametres][=argument]] ...");

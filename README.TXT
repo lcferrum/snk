@@ -154,14 +154,16 @@ Switches:
                               unknown character) and  '*' (zero or more unknown
                               characters). Will return positive result if
                               process was found.
-/pid=PIDS      
+/pid[:parent|=PIDS]
                               Kill process which PID belongs to PID array and
                               has highest cpu load. PID array consists of PIDs,
                               delimeted by comma or semicolon, and can include
                               descending or ascending ranges. PID must be 
                               decimal (no prefix), hexadecimal ('0x'/'0X' 
                               prefix) or octal ('0' prefix) unsigned integer.
-                              Will return positive result if process was found.
+                              If 'parent', instead of using supplied PID array,
+                              will use paren process PID. Will return positive
+                              result if process was found.
 /cmd[:sub][:utf8|:utf16]=FILE
                               Will load additional commands from file and
                               continue execution. Encoding is auto-detected
@@ -184,6 +186,19 @@ Switches:
                               result. If 'invmask', will swap blacklist with
                               whitelist and show result. In any case - will
                               continue execution afterwards.
+/psh=ARGUMENT
+                              Push argument to argument stack and continue
+                              execution.
+/pop[=ENV_VAR]
+                              Pop argument from argument stack. Popped argument
+                              will be used as argument for the next switch in
+                              case that switch won't supply it's own argument
+                              (empty or not). If ENV_VAR is supplied - argument
+                              will be popped to environment variable ENV_VAR.
+                              In either case execution will continue.
+/end
+                              Unconditionally (i.e. ignoring 'ignore' and
+                              'negate' modes) return positive result.
 
 Settings:
 
@@ -238,6 +253,16 @@ Settings:
                               Will turn 'mute' mode on/off. While in this mode,
                               all stream output (both stdout and stderr) is
                               suppressed.
++c|-c
+                              Will turn 'close' mode on/off. While in this mode,
+                              instead of terminating app there SnK will try to
+                              close it in ordinary way. If app won't respond to
+                              close action, it will be terminated.
++e|-e
+                              Will turn 'expand environment variables' mode
+                              on/off. While in this mode, all the environmet
+                              variables passed inside arguments will be
+                              expanded before being passed to switch.
 
 5. Usage example
 ----------------                              
