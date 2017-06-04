@@ -13,10 +13,10 @@ Licensed under BSD license - see LICENSE.TXT file for details.
 Search and Kill (SnK) is a console tool that automatically searches for certain
 Windows processes and kills them. Search is accomplished according to SnK input
 arguments. This tool is mainly designed to be run with keyboard shortcut. This
-could be done through creating special Windows shortcut to SnK 
-(http://support.microsoft.com/kb/310417) or by using specialised software like
-AutoHotkey (http://www.autohotkey.com/). Sample AHK script is included: check 
-out SnKSampleScript.ahk file.
+could be done with SnK HotkeySuite, that was specifically designed for use with
+SnK (https://github.com/lcferrum/snk_hotkeysuite), or by using automation
+software like AutoHotkey (http://www.autohotkey.com/). Sample AHK script is
+included: check out SnKSampleScript.ahk file.
 
 3. Where to get
 ---------------
@@ -33,7 +33,7 @@ Main project homepage is at GitHub:
 --------
 Usage (SnK with console output): 
        SnK [settings_block|swith[:parametres][=argument]] ...
-       
+
 Usage (windowless SnK with dialog output):
        SnKh [settings_block|swith[:parametres][=argument]] ...
 
@@ -58,31 +58,31 @@ properties due to emerged console window.
 
 Switches:
 
-/hlp                          
+/hlp
                               Print usage information and exit. Can only be
                               used as first argument, ignored otherwise.
-/ver                          
+/ver
                               Print version information and exit. Can only be
                               used as first argument, ignored otherwise.
-/bpp                          
+/bpp
                               Make standart Windows 'informational beep' and
                               continue execution.
 /prn=TEXT
                               Echo-like switch - will print to stdout whatever
                               passed to it and continue execution.
-/sec                          
+/sec
                               Secured execution. Will return positive result if
                               there is another instance already running that
                               has executed this switch. Use before other
                               switches with verbose mode to prevent
                               accidentiall subsequent execution of program.
-/cpu                          
+/cpu
                               Kill process with highest cpu load. Will return
                               positive result if process was found. Can return
                               negative result only if there were no user
                               processes running and 'query all processes'
                               mode was turned off.
-/d3d[:simple]         
+/d3d[:simple]
                               Kill process that uses Direct3D and has highest
                               cpu load. If 'simple', will use process modules
                               names to find Direct3D process. Otherwise, will
@@ -90,7 +90,7 @@ Switches:
                               somewhat less precise but faster. Please check 
                               DetectMatrix.html for more information. Will 
                               return positive result if process was found.
-/ogl[:simple]         
+/ogl[:simple]
                               Kill process that uses OpenGL and has highest cpu
                               load. If 'simple', will use process modules names
                               to find OpenGL process. Otherwise, will use
@@ -98,7 +98,7 @@ Switches:
                               less precise but faster. Please check 
                               DetectMatrix.html for more information. Will 
                               return positive result if process was found.
-/gld[:simple]       
+/gld[:simple]
                               Kill process that uses Glide and has highest cpu
                               load. If 'simple', will use process modules names
                               to find Glide process. Otherwise, will use
@@ -106,7 +106,7 @@ Switches:
                               less precise but faster. Please check 
                               DetectMatrix.html for more information. Will 
                               return positive result if process was found.
-/inr[:plus]          
+/inr[:plus]
                               Kill process that is not responding and has
                               highest cpu load. By default will use standard
                               Windows procedure (IsHungAppWindow) to check if
@@ -116,7 +116,7 @@ Switches:
                               This will help with artificially hung apps (e.g.
                               SuspendThread'ed) Will return positive result if
                               process was found.
-/fsc[:anywnd][:primary]          
+/fsc[:anywnd][:primary]
                               Kill process that is running in fullscreen and
                               has highest cpu load. Works with multi-monitor
                               setups. By default only exclusive fullscreen and
@@ -125,7 +125,7 @@ Switches:
                               type, borderless or not. If 'primary', will check
                               only windows that belong to primary display. Will
                               return positive result if process was found.
-/fgd[:anywnd]         
+/fgd[:anywnd]
                               Kill process which window is in foreground. 
                               Though there is always a foreground window, this
                               switch may return nothing if foreground process
@@ -134,7 +134,7 @@ Switches:
                               processes' mode was turned off. If 'anywnd', will
                               also include 'non-task' windows. Will return 
                               positive result if process was found.
-/pth[:full]=WCARDS      
+/pth[:full]=WCARDS
                               Kill process which name matches one of the 
                               wildcards (delimeted by semicolon) and has
                               highest cpu load. Matching is always 
@@ -144,7 +144,7 @@ Switches:
                               unknown character) and  '*' (zero or more unknown
                               characters). Will return positive result if
                               process was found.
-/mod[:full]=WCARDS      
+/mod[:full]=WCARDS
                               Kill process that has a module which name matches
                               one of the wildcards (delimeted by semicolon) and
                               has highest cpu load. Matching is always 
@@ -202,15 +202,15 @@ Switches:
 
 Settings:
 
-+t|-t                         
++t|-t
                               Will turn 'test' mode on/off. While in test mode,
                               switches only display information about found
                               processes but don't kill them.
-+v|-v                         
++v|-v
                               Will turn 'verbose' mode on/off. While in verbose
                               mode, program will prompt user to press 'enter'
                               before exit.
-+a|-a                         
++a|-a
                               Will turn 'query all processes' mode on/off.
                               While in this mode, process with highest cpu load
                               will be searched among all processes and not just
@@ -265,7 +265,7 @@ Settings:
                               expanded before being passed to switch.
 
 5. Usage example
-----------------                              
+----------------
 Example:
        SnK /sec +vt /bpp /d3d /ogl:simple -t /pth="*Skype*"
        
