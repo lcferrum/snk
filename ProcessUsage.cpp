@@ -21,22 +21,22 @@ extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 #define KERNEL_TIME(pspi) pspi->KernelTime.QuadPart
 #endif
 
-bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur)
+bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, EnumPhase enum_phase_cur)
 {
 	if (crt_time!=crt_time_cur) return false;
 	
 	prc_time_dlt=(prck_time_cur-prck_time_prv)+(prcu_time_cur-prcu_time_prv);	//Won't check for overflow here because delta should be really small for both process times, assuming short query interval
 	prck_time_prv=prck_time_cur;
 	prcu_time_prv=prcu_time_cur;
-	odd_enum=!odd_enum;
+	enum_phase=enum_phase_cur;
 	
 	return true;
 }
 
 //Assuming that UNICODE_STRING not necessary terminated
 //Complex expression in prc_time_dlt initialization is (paranoid) overflow check
-PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool odd_enum, UNICODE_STRING name, const std::wstring &path, bool system):
-	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), odd_enum(odd_enum), ref(NULL)
+PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, EnumPhase enum_phase, UNICODE_STRING name, const std::wstring &path, bool system):
+	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), enum_phase(enum_phase), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
 	if (!this->path.empty())
@@ -44,7 +44,7 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 }
 
 Processes::Processes():
-	CAN()
+	CAN(), enum_phase(UNINIT)
 {}
 
 void Processes::DumpProcesses()
@@ -163,7 +163,7 @@ void Processes::EnumProcessUsage()
 	FreeLogonSID(self_lsid);
 }
 
-void Processes::RequestPopulatedCAN()
+void Processes::RequestPopulatedCAN(bool finalize=true)
 {
 	if (CAN.empty())
 		EnumProcessUsage();
@@ -210,9 +210,12 @@ DWORD Processes::EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pi
 		CAN.clear();
 		FPRoutines::FillDriveList();
 		FPRoutines::FillServiceMap();
+		enum_phase=TICK;
+	} else if (enum_phase==TICK) {	//Flipping enum_phase
+		enum_phase=TOCK;
+	} else {
+		enum_phase=TICK;
 	}
-	
-	odd_enum=!odd_enum;	//Flipping odd_enum
 	
 	if (!fnNtQuerySystemInformation) {
 #if DEBUG>=2

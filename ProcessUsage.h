@@ -13,7 +13,7 @@ private:
 	ULONGLONG prcu_time_prv;	//Process user time from the last update
 	ULONGLONG crt_time;			//Process creation time
 	ULONGLONG prc_time_dlt;		//Process time delta = current kernel+user time - previous kernel+user time
-	bool odd_enum;				//Enum period when this PID was last updated (ODD or EVEN)
+	EnumPhase enum_phase;		//Enum phase when this PID was last updated (TICK or TOCK)
 	ULONG_PTR pid;				//In NT internal structures it is HANDLE aka PVOID (though public Win API function treat PID as DWORD), so cast it to ULONG_PTR like MS recommends
 	bool discarded;				//Indicates that process is now untouchable and will be omitted from any queries
 	bool disabled;				//Indicates that process has already been killed (or at least was tried to be killed) and should be omitted from any further queries
@@ -22,6 +22,8 @@ private:
 	std::wstring path;			//Full path to the process executable
 	PData *ref;					//Reference instead of current object could be used for some methods
 public:
+	enum EnumPhase:char {UNINIT=0, TICK, TOCK};
+	
 	bool operator<(const PData &right) const {
 		return prc_time_dlt<right.prc_time_dlt;
 	}
@@ -43,8 +45,8 @@ public:
 	std::wstring GetName() const { return name; }
 	std::wstring GetPath() const { return path; }
 
-	bool ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur);
-	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool odd_enum, UNICODE_STRING name, const std::wstring &path, bool system);
+	bool ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, EnumPhase enum_phase_cur);
+	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, EnumPhase enum_phase, UNICODE_STRING name, const std::wstring &path, bool system);
 };
 
 //This is common parent for cross delegation of ApplyToProcesses function with Killers policy
@@ -59,7 +61,7 @@ private:
 	std::vector<PData> CAN;	//Stupid name stuck from the previous version
 							//Actually it's a reference to Fallout Van Buren design docs
 							//In Van Buren "dataCAN" represents a high-capacity storage medium for mainframes
-	bool odd_enum;			//Current enum period (ODD or EVEN)
+	EnumPhase enum_phase;	//Current enum phase (TICK or TOCK)
 
 	DWORD EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pid);
 	void EnumProcessUsage();
@@ -102,7 +104,8 @@ protected:
 	
 	//Alerts ProcessUsage that processes should be enumerated because someone needs CAN
 	//If processes was already succesfully enumerated (CAN is not empty) - nothing will be done
-	void RequestPopulatedCAN();
+	//If finalize is not true - won't compute delta ("fast" mode)
+	void RequestPopulatedCAN(bool finalize=true);
 public:	
 	Processes();
 };
