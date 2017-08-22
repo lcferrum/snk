@@ -21,21 +21,21 @@ extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 #define KERNEL_TIME(pspi) pspi->KernelTime.QuadPart
 #endif
 
-bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, EnumPhase enum_phase_cur)
+bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur)
 {
 	if (crt_time!=crt_time_cur) return false;
 	
 	prc_time_dlt=(prck_time_cur-prck_time_prv)+(prcu_time_cur-prcu_time_prv);	//Won't check for overflow here because delta should be really small for both process times, assuming short query interval
 	prck_time_prv=prck_time_cur;
 	prcu_time_prv=prcu_time_cur;
-	enum_phase=enum_phase_cur;
+	enum_phase++;
 	
 	return true;
 }
 
 //Assuming that UNICODE_STRING not necessary terminated
 //Complex expression in prc_time_dlt initialization is (paranoid) overflow check
-PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, EnumPhase enum_phase, UNICODE_STRING name, const std::wstring &path, bool system):
+PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, unsigned char enum_phase, UNICODE_STRING name, const std::wstring &path, bool system):
 	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), enum_phase(enum_phase), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
@@ -44,7 +44,7 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 }
 
 Processes::Processes():
-	CAN(), enum_phase(UNINIT)
+	CAN(), enum_phase(0)
 {}
 
 void Processes::DumpProcesses()
@@ -149,11 +149,11 @@ void Processes::EnumProcessUsage()
 	PSID self_lsid=GetLogonSID(GetCurrentProcess());
 	DWORD self_pid=GetCurrentProcessId();
 	
-	EnumProcessTimes(true, self_lsid, self_pid);
+	EnumProcessTimes(self_lsid, self_pid);
 	
 	Sleep(USAGE_TIMEOUT);
 	
-	EnumProcessTimes(false, self_lsid, self_pid);
+	EnumProcessTimes(self_lsid, self_pid);
 	
 	if (ModeRecent())
 		SortByRecentlyCreated();
@@ -198,7 +198,7 @@ void Processes::SortByRecentlyCreated()
 #endif
 }
 
-DWORD Processes::EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pid)
+DWORD Processes::EnumProcessTimes(PSID self_lsid, DWORD self_pid)
 {
 	SYSTEM_PROCESS_INFORMATION *pspi_all=NULL, *pspi_cur=NULL;
 	DWORD ret_size=0;
@@ -206,15 +206,9 @@ DWORD Processes::EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pi
 	NTSTATUS st;
 	std::vector<PData>::iterator pd;
 	
-	if (first_time) {
-		CAN.clear();
+	if (!enum_phase) {
 		FPRoutines::FillDriveList();
 		FPRoutines::FillServiceMap();
-		enum_phase=TICK;
-	} else if (enum_phase==TICK) {	//Flipping enum_phase
-		enum_phase=TOCK;
-	} else {
-		enum_phase=TICK;
 	}
 	
 	if (!fnNtQuerySystemInformation) {
@@ -261,7 +255,7 @@ DWORD Processes::EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pi
 				//It was observed that SYSTEM_PROCESS_INFORMATION.ImageName sometimes has mangled name - with partial or completely omitted extension
 				//Process Explorer shows the same thing, so it has something to do with particular processes
 				//So it's better to use wildcard in place of extension when killing process using it's name (and not full file path) to circumvent such situation
-				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, odd_enum, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !user));
+				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, enum_phase, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !user));
 				
 				if (hProcess) CloseHandle(hProcess);
 			}
@@ -271,9 +265,10 @@ DWORD Processes::EnumProcessTimes(bool first_time, PSID self_lsid, DWORD self_pi
 	}
 	
 	//Unneeded PIDs (which enum period doesn't match current) will be erased
-	if (!first_time)
-		CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [this](const PData &data){ return data.GetOddEnum()!=odd_enum; }), CAN.end());
+	if (enum_phase)
+		CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [this](const PData &data){ return data.GetEnumPhase()!=enum_phase; }), CAN.end());
 
+	enum_phase++;
 	delete[] (BYTE*)pspi_all;
 	return cur_len;
 }
