@@ -13,7 +13,7 @@ private:
 	ULONGLONG prcu_time_prv;	//Process user time from the last update
 	ULONGLONG crt_time;			//Process creation time
 	ULONGLONG prc_time_dlt;		//Process time delta = current kernel+user time - previous kernel+user time
-	unsigned char enum_phase;	//Enum phase when this PID was last updated
+	bool odd_enum;				//Enum period when this PID was last updated (ODD or EVEN)
 	ULONG_PTR pid;				//In NT internal structures it is HANDLE aka PVOID (though public Win API function treat PID as DWORD), so cast it to ULONG_PTR like MS recommends
 	bool discarded;				//Indicates that process is now untouchable and will be omitted from any queries
 	bool disabled;				//Indicates that process has already been killed (or at least was tried to be killed) and should be omitted from any further queries
@@ -33,7 +33,7 @@ public:
 	ULONG_PTR GetPID() const { return pid; }
 	ULONGLONG GetDelta() const { return prc_time_dlt; }
 	ULONGLONG GetCrtTime() const { return crt_time; }
-	bool GetEnumPhase() const { return enum_phase; }
+	bool GetOddEnum() const { return odd_enum; }
 	bool GetSystem() const { return system; }
 	bool GetDiscarded() const { return discarded; }
 	void SetDiscarded(bool value) { discarded=value; }
@@ -44,7 +44,7 @@ public:
 	std::wstring GetPath() const { return path; }
 
 	bool ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur);
-	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, unsigned char enum_phase, UNICODE_STRING name, const std::wstring &path, bool system);
+	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool odd_enum, UNICODE_STRING name, const std::wstring &path, bool system);
 };
 
 //This is common parent for cross delegation of ApplyToProcesses function with Killers policy
@@ -56,13 +56,13 @@ protected:
 //This is default Processes policy, that is intended to be used on NT based OSes
 class Processes: virtual protected ProcessesCrossBase {
 private:
-	std::vector<PData> CAN;		//Stupid name stuck from the previous version
-								//Actually it's a reference to Fallout Van Buren design docs
-								//In Van Buren "dataCAN" represents a high-capacity storage medium for mainframes
-	unsigned char enum_phase;	//Current enum phase
+	std::vector<PData> CAN;	//Stupid name stuck from the previous version
+							//Actually it's a reference to Fallout Van Buren design docs
+							//In Van Buren "dataCAN" represents a high-capacity storage medium for mainframes
+	bool invalid;			//CAN is invalid and needs to be repopulated
+	bool odd_enum;			//Current enum period (ODD or EVEN)
 
-	DWORD EnumProcessTimes(bool forced, PSID self_lsid, DWORD self_pid);
-	void EnumProcessUsage();
+	DWORD EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid);
 	PSID GetLogonSID(HANDLE hProcess);	//Always free resulting PSID with FreeLogonSID
 	void FreeLogonSID(PSID lsid);
 	
@@ -70,6 +70,7 @@ private:
 	virtual bool ModeLoop()=0;
 	virtual bool ModeBlank()=0;
 	virtual bool ModeRecent()=0;
+	virtual bool ModeFast()=0;
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 protected:
@@ -102,8 +103,10 @@ protected:
 	
 	//Alerts ProcessUsage that processes should be enumerated because someone needs CAN
 	//If processes was already succesfully enumerated (CAN is not empty) - nothing will be done
-	//If finalize is not true - won't compute delta ("fast" mode)
-	void RequestPopulatedCAN(bool finalize=true);
+	void RequestPopulatedCAN();
+	
+	//Invalidates current CAN and causes it to be recreated on next RequestPopulatedCAN call
+	void InvalidateCAN();
 public:	
 	Processes();
 };

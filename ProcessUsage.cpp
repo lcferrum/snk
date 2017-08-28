@@ -28,15 +28,15 @@ bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONG
 	prc_time_dlt=(prck_time_cur-prck_time_prv)+(prcu_time_cur-prcu_time_prv);	//Won't check for overflow here because delta should be really small for both process times, assuming short query interval
 	prck_time_prv=prck_time_cur;
 	prcu_time_prv=prcu_time_cur;
-	enum_phase++;
+	odd_enum=!odd_enum;
 	
 	return true;
 }
 
 //Assuming that UNICODE_STRING not necessary terminated
 //Complex expression in prc_time_dlt initialization is (paranoid) overflow check
-PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, unsigned char enum_phase, UNICODE_STRING name, const std::wstring &path, bool system):
-	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), enum_phase(enum_phase), ref(NULL)
+PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool odd_enum, UNICODE_STRING name, const std::wstring &path, bool system):
+	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), odd_enum(odd_enum), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
 	if (!this->path.empty())
@@ -44,7 +44,7 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 }
 
 Processes::Processes():
-	CAN(), enum_phase(0)
+	CAN(), invalid(true), odd_enum(false)
 {}
 
 void Processes::DumpProcesses()
@@ -140,33 +140,40 @@ void Processes::ManageProcessList(LstMode param_lst_mode)
 	}
 }
 
-void Processes::EnumProcessUsage() 
+void Processes::RequestPopulatedCAN()
 {
 	//Previous version of Processes class kept self_lsid as class member so it had to be freed on destroy
 	//This results in non-default copy-constructor which should duplicate self_lsid with GetLengthSid/CopySid
 	//To keep things simple (get rid of non-default destructor and copy-constructor) self_lsid is now local variable
-	//Because calling EnumProcessUsage again or calling EnumProcessTimes outside of this function is currently unneeded functionality
-	PSID self_lsid=GetLogonSID(GetCurrentProcess());
-	DWORD self_pid=GetCurrentProcessId();
-	
-	EnumProcessTimes(self_lsid, self_pid);
-	
-	Sleep(USAGE_TIMEOUT);
-	
-	EnumProcessTimes(self_lsid, self_pid);
-	
-	if (ModeRecent())
-		SortByRecentlyCreated();
-	else
-		SortByCpuUsage();
-	
-	FreeLogonSID(self_lsid);
+	//Because calling EnumProcessUsage outside of this function is currently unneeded functionality
+
+	if (invalid) {
+		PSID self_lsid=GetLogonSID(GetCurrentProcess());
+		DWORD self_pid=GetCurrentProcessId();
+		
+		EnumProcessUsage(true, self_lsid, self_pid);
+		
+		if (!ModeFast()) {
+			Sleep(USAGE_TIMEOUT);
+			
+			EnumProcessUsage(false, self_lsid, self_pid);
+			
+			if (ModeRecent())
+				SortByRecentlyCreated();
+			else
+				SortByCpuUsage();
+		} else if (ModeRecent()) {
+			SortByRecentlyCreated();
+		}
+		
+		FreeLogonSID(self_lsid);
+		invalid=false;
+	}
 }
 
-void Processes::RequestPopulatedCAN(bool finalize=true)
+void InvalidateCAN()
 {
-	if (CAN.empty())
-		EnumProcessUsage();
+	invalid=true;
 }
 
 void Processes::SortByCpuUsage()
@@ -198,7 +205,7 @@ void Processes::SortByRecentlyCreated()
 #endif
 }
 
-DWORD Processes::EnumProcessTimes(PSID self_lsid, DWORD self_pid)
+DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid)
 {
 	SYSTEM_PROCESS_INFORMATION *pspi_all=NULL, *pspi_cur=NULL;
 	DWORD ret_size=0;
@@ -206,14 +213,17 @@ DWORD Processes::EnumProcessTimes(PSID self_lsid, DWORD self_pid)
 	NTSTATUS st;
 	std::vector<PData>::iterator pd;
 	
-	if (!enum_phase) {
+	if (first_time) {
+		CAN.clear();
 		FPRoutines::FillDriveList();
 		FPRoutines::FillServiceMap();
 	}
 	
+	odd_enum=!odd_enum;	//Flipping odd_enum
+	
 	if (!fnNtQuerySystemInformation) {
 #if DEBUG>=2
-		std::wcerr<<L"" __FILE__ ":EnumProcessTimes:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
+		std::wcerr<<L"" __FILE__ ":EnumProcessUsage:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
 #endif
 		return 0;
 	}
@@ -255,7 +265,7 @@ DWORD Processes::EnumProcessTimes(PSID self_lsid, DWORD self_pid)
 				//It was observed that SYSTEM_PROCESS_INFORMATION.ImageName sometimes has mangled name - with partial or completely omitted extension
 				//Process Explorer shows the same thing, so it has something to do with particular processes
 				//So it's better to use wildcard in place of extension when killing process using it's name (and not full file path) to circumvent such situation
-				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, enum_phase, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !user));
+				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, odd_enum, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !user));
 				
 				if (hProcess) CloseHandle(hProcess);
 			}
@@ -265,10 +275,9 @@ DWORD Processes::EnumProcessTimes(PSID self_lsid, DWORD self_pid)
 	}
 	
 	//Unneeded PIDs (which enum period doesn't match current) will be erased
-	if (enum_phase)
-		CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [this](const PData &data){ return data.GetEnumPhase()!=enum_phase; }), CAN.end());
+	if (!first_time)
+		CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [this](const PData &data){ return data.GetOddEnum()!=odd_enum; }), CAN.end());
 
-	enum_phase++;
 	delete[] (BYTE*)pspi_all;
 	return cur_len;
 }

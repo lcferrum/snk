@@ -42,6 +42,7 @@ private:
 		bool mode_mute;
 		bool mode_close;
 		bool mode_env;
+		bool mode_fast;
 		//We should be able to change values of all variables in union by assigning something to it's largest member (should be param_first/param_second)
 		//Don't expect bool (param_first/param_second type) to be the largest because size of bool is implementation defined 
 		//Test with static_assert for other types to be smaller or equal in size
@@ -89,6 +90,7 @@ private:
 	virtual bool ModeBlank() { return ctrl_vars.mode_blank||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
 	virtual bool ModeRecent() { return ctrl_vars.mode_recent; }
 	virtual bool ModeClose() { return ctrl_vars.mode_close; }
+	virtual bool ModeFast() { return ctrl_vars.mode_fast; }
 	virtual bool ModeBlacklist() { return ctrl_vars.mode_blacklist&&!ctrl_vars.mode_whitelist; }
 	virtual bool ModeWhitelist() { return ctrl_vars.mode_whitelist&&!ctrl_vars.mode_blacklist; }
 public:

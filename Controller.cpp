@@ -360,11 +360,22 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 	} else if (!top_rule.compare(L"-a")) {
 		ctrl_vars.mode_all=false;
 	} else if (!top_rule.compare(L"+r")) {
-		ctrl_vars.mode_recent=true;
-		SortByRecentlyCreated();
+		if (ctrl_vars.mode_recent==false) {
+			SortByRecentlyCreated();
+			ctrl_vars.mode_recent=true;
+		}
 	} else if (!top_rule.compare(L"-r")) {
-		ctrl_vars.mode_recent=false;
-		SortByCpuUsage();
+		if (ctrl_vars.mode_recent==true) {
+			SortByCpuUsage();
+			ctrl_vars.mode_recent=false;
+		}
+	} else if (!top_rule.compare(L"+f")) {
+		ctrl_vars.mode_fast=true;
+	} else if (!top_rule.compare(L"-f")) {
+		if (ctrl_vars.mode_fast==true) {
+			InvalidateCAN();
+			ctrl_vars.mode_fast=false;
+		}
 	} else if (!top_rule.compare(L"+m")) {
 		ctrl_vars.mode_mute=true;
 		if (fnEnableWcout) fnEnableWcout(false);
