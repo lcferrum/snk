@@ -369,13 +369,6 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 			SortByCpuUsage();
 			ctrl_vars.mode_recent=false;
 		}
-	} else if (!top_rule.compare(L"+f")) {
-		ctrl_vars.mode_fast=true;
-	} else if (!top_rule.compare(L"-f")) {
-		if (ctrl_vars.mode_fast==true) {
-			InvalidateCAN();
-			ctrl_vars.mode_fast=false;
-		}
 	} else if (!top_rule.compare(L"+m")) {
 		ctrl_vars.mode_mute=true;
 		if (fnEnableWcout) fnEnableWcout(false);
@@ -411,9 +404,20 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 			ctrl_vars.param_lst_mode=LstMode::INV_MASK;
 		else
 			DiscardedParam(top_rule);
+	} else if (!top_rule.compare(L"/lst:reset")) {
+		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
+			ctrl_vars.param_lst_mode=LstMode::RST_CAN;
+		else
+			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst")) {
-		RequestPopulatedCAN();
+		if (ctrl_vars.param_lst_mode==LstMode::RST_CAN)
+			InvalidateCAN();
+		else
+			RequestPopulatedCAN();
 		ManageProcessList(ctrl_vars.param_lst_mode);
+		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/ffd")) {
+		RequestPopulatedCAN(false);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/end")) {
 		done=true;

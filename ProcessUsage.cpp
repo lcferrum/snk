@@ -28,15 +28,15 @@ bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONG
 	prc_time_dlt=(prck_time_cur-prck_time_prv)+(prcu_time_cur-prcu_time_prv);	//Won't check for overflow here because delta should be really small for both process times, assuming short query interval
 	prck_time_prv=prck_time_cur;
 	prcu_time_prv=prcu_time_cur;
-	odd_enum=!odd_enum;
+	tick_not_tock=!tick_not_tock;
 	
 	return true;
 }
 
 //Assuming that UNICODE_STRING not necessary terminated
 //Complex expression in prc_time_dlt initialization is (paranoid) overflow check
-PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool odd_enum, UNICODE_STRING name, const std::wstring &path, bool system):
-	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), odd_enum(odd_enum), ref(NULL)
+PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool system):
+	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), tick_not_tock(tick_not_tock), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
 	if (!this->path.empty())
@@ -44,7 +44,7 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 }
 
 Processes::Processes():
-	CAN(), invalid(true), odd_enum(false)
+	CAN(), invalid(true), tick_not_tock(false)
 {}
 
 void Processes::DumpProcesses()
@@ -101,6 +101,12 @@ void Processes::ManageProcessList(LstMode param_lst_mode)
 	}
 #endif
 
+	if (param_lst_mode==RST_CAN) {
+		//Actual RST_CAN handling occurs in Controller
+		std::wcout<<L"Process information was reset"<<std::endl;
+		return;
+	}
+
 	bool avail_found=false;
 
 	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
@@ -140,7 +146,7 @@ void Processes::ManageProcessList(LstMode param_lst_mode)
 	}
 }
 
-void Processes::RequestPopulatedCAN()
+void Processes::RequestPopulatedCAN(bool full)
 {
 	//Previous version of Processes class kept self_lsid as class member so it had to be freed on destroy
 	//This results in non-default copy-constructor which should duplicate self_lsid with GetLengthSid/CopySid
@@ -153,7 +159,7 @@ void Processes::RequestPopulatedCAN()
 		
 		EnumProcessUsage(true, self_lsid, self_pid);
 		
-		if (!ModeFast()) {
+		if (full) {
 			Sleep(USAGE_TIMEOUT);
 			
 			EnumProcessUsage(false, self_lsid, self_pid);
@@ -171,7 +177,7 @@ void Processes::RequestPopulatedCAN()
 	}
 }
 
-void InvalidateCAN()
+void Processes::InvalidateCAN()
 {
 	invalid=true;
 }
@@ -219,7 +225,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 		FPRoutines::FillServiceMap();
 	}
 	
-	odd_enum=!odd_enum;	//Flipping odd_enum
+	tick_not_tock=!tick_not_tock;	//Flipping tick_not_tock
 	
 	if (!fnNtQuerySystemInformation) {
 #if DEBUG>=2
@@ -265,7 +271,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 				//It was observed that SYSTEM_PROCESS_INFORMATION.ImageName sometimes has mangled name - with partial or completely omitted extension
 				//Process Explorer shows the same thing, so it has something to do with particular processes
 				//So it's better to use wildcard in place of extension when killing process using it's name (and not full file path) to circumvent such situation
-				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, odd_enum, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !user));
+				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !user));
 				
 				if (hProcess) CloseHandle(hProcess);
 			}
@@ -276,7 +282,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	
 	//Unneeded PIDs (which enum period doesn't match current) will be erased
 	if (!first_time)
-		CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [this](const PData &data){ return data.GetOddEnum()!=odd_enum; }), CAN.end());
+		CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [this](const PData &data){ return data.GetTickNotTock()!=tick_not_tock; }), CAN.end());
 
 	delete[] (BYTE*)pspi_all;
 	return cur_len;
