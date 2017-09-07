@@ -767,7 +767,7 @@ bool Killers::KillByWnd(const wchar_t* arg_wcard)
 	if (wcslen(arg_wcard)) EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
 	
 	PrintCommonKillPrefix();
-	std::wcout<<L"which window title matches wildcard(s) \"";
+	std::wcout<<L"which window title matches wildcard \"";
 	std::wcout<<arg_wcard;
 
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
