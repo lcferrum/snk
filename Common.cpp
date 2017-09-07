@@ -77,11 +77,14 @@ bool PathWildcardCmp(const wchar_t* wild, const wchar_t* string)
 
 bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, const wchar_t* delim, bool is_path) 
 {
-	wchar_t buffer[wcslen(wild)+1];
-	wcscpy(buffer, wild);
-	
-	for (wchar_t* token=wcstok(buffer, delim); token; token=wcstok(NULL, delim))
-		if (is_path?PathWildcardCmp(token, string):WildcardCmp(token, string)) return true;
+	if (delim) {
+		wchar_t buffer[wcslen(wild)+1];
+		wcscpy(buffer, wild);
+		for (wchar_t* token=wcstok(buffer, delim); token; token=wcstok(NULL, delim))
+			if (is_path?PathWildcardCmp(token, string):WildcardCmp(token, string)) return true;
+	} else {
+		if (is_path?PathWildcardCmp(wild, string):WildcardCmp(wild, string)) return true;
+	}
 	
 	return false;
 }

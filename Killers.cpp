@@ -807,7 +807,7 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 			wchar_t title_buf[title_len+1];
 			DWORD pid;
 			if (GetWindowText(hwnd, title_buf, title_len+1)&&
-				MultiWildcardCmp(wcard, title_buf, L";", false)&&
+				MultiWildcardCmp(wcard, title_buf, NULL, false)&&
 				GetWindowThreadProcessId(real_hwnd, &pid))
 				dw_array.push_back(pid);
 		}
