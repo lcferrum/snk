@@ -481,6 +481,7 @@ bool Killers::KillByGld(bool param_simple)
 }
 
 //Checks if window is task-window - window that is eligible to be shown in Task Bar and Task Switcher (Alt+Tab)
+//N.B.: Ghost windows are also task windows
 bool Killers::IsTaskWindow(HWND hwnd)
 {
 	LONG_PTR lpStyleEx=GetWindowLongPtr(hwnd, GWL_EXSTYLE);
@@ -534,11 +535,12 @@ bool Killers::KillByInr(bool param_plus)
 
 BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam) 
 {
-	bool plus_version=std::get<0>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
-	std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
 	ATOM ghost_atom=std::get<2>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
 					
 	if (IsTaskWindow(hwnd)) {	//Filtering out non-task windows because they can be erroneously reported as hung
+		bool plus_version=std::get<0>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
+		std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<bool, std::vector<DWORD>&, ATOM>*)lParam);
+
 		DWORD pid;
 
 		//This is the way Windows checks if application is hung - using IsHungAppWindow
@@ -624,7 +626,9 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary)
 	//At least we can use tuples so not to litter class definition with structs
 	if (!disp_array.empty()) {
 		//Test if disp_array is empty before passing it to EnumWndFsc or some udefined behavior might happen!
-		std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&> enum_wnd_tuple(param_anywnd, param_primary, dw_array, disp_array);
+		//Same thing with "Ghost" class ATOM as in KillByInr
+		WNDCLASS dummy_wnd;
+		std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM> enum_wnd_tuple(param_anywnd, param_primary, dw_array, disp_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
 		EnumWindows(EnumWndFsc, (LPARAM)&enum_wnd_tuple);
 	}
 	
@@ -653,12 +657,14 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary)
 //This will also guarantee that display vector is non-empty in this callback
 BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam) 
 {
-	bool any_wnd=std::get<0>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
-	bool pri_disp=std::get<1>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
-	std::vector<DWORD> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
-	std::vector<RECT> &disp_array=std::get<3>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&>*)lParam);
+	ATOM ghost_atom=std::get<4>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
 	
-	if (IsTaskWindow(hwnd)) {	//Filtering out non-task windows to speed up the search
+	if (IsTaskWindow(hwnd)&&GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom) {	//Filtering out non-task windows and "ghost" windows to speed up the search and not kill dwm/explorer accidentally
+		bool any_wnd=std::get<0>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
+		bool pri_disp=std::get<1>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
+		std::vector<DWORD> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
+		std::vector<RECT> &disp_array=std::get<3>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
+
 		RECT client_rect;
 		RECT window_rect;
 		if (GetClientRect(hwnd, &client_rect)&&GetWindowRect(hwnd, &window_rect)) {
@@ -745,4 +751,67 @@ bool Killers::KillByFgd(bool param_anywnd)
 		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
+}
+
+bool Killers::KillByWnd(const wchar_t* arg_wcard)
+{
+	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId returns PID as DWORD
+
+	//Unfortunately, can't use those pretty capture-less lambdas here because of calling conventions
+	//By default lambda calling conventions is __cdecl, which is OK on x86-64 because CALLBACK is also __cdecl here
+	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
+	//At least we can use tuples so not to litter class definition with structs
+	//Same thing with "Ghost" class ATOM as in KillByInr
+	WNDCLASS dummy_wnd;
+	std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM> enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
+	if (wcslen(arg_wcard)) EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
+	
+	PrintCommonKillPrefix();
+	std::wcout<<L"which window title matches wildcard(s) \"";
+	std::wcout<<arg_wcard;
+
+	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
+			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"\" NOT found"<<std::endl;
+		return false;
+	}
+}
+
+BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam) 
+{
+	if (IsTaskWindow(hwnd)) {	//Filtering out non-task windows to speed up the search
+		const wchar_t* wcard=std::get<0>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
+		std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
+		ATOM ghost_atom=std::get<2>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
+		
+		HWND real_hwnd=hwnd;
+		
+		if (GetClassLongPtr(hwnd, GCW_ATOM)==ghost_atom) {
+			if (fnNtUserHungWindowFromGhostWindow)
+				real_hwnd=fnNtUserHungWindowFromGhostWindow(hwnd);
+			else
+				return true;
+		}
+		
+		if (int title_len=GetWindowTextLength(hwnd)) {
+			wchar_t title_buf[title_len+1];
+			DWORD pid;
+			if (GetWindowText(hwnd, title_buf, title_len+1)&&
+				MultiWildcardCmp(wcard, title_buf, L";", false)&&
+				GetWindowThreadProcessId(real_hwnd, &pid))
+				dw_array.push_back(pid);
+		}
+	}
+
+	return true;
 }

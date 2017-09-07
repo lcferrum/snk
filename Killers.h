@@ -18,6 +18,7 @@ private:
 	static bool IsTaskWindow(HWND hwnd);
 	static bool WithinRect(const RECT &outer, const RECT &inner);
 	static BOOL CALLBACK EnumWndInr(HWND hwnd, LPARAM lParam);
+	static BOOL CALLBACK EnumWndWnd(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndFsc(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndClose(HWND hwnd, LPARAM lParam);
 	
@@ -79,6 +80,10 @@ protected:
 	//By default filters out windows that doesn't show in task bar
 	//If param_anywnd - doesn't apply task bar filter
 	bool KillByFgd(bool param_anywnd);
+	
+	//Kills process with highest cpu load which window title matches one of wildcars (case-insensitive, with globbing)
+	//arg_wcard - wildcards to match (delimeted by semicolon)
+	bool KillByWnd(const wchar_t* arg_wcard);
 public:
 	Killers();
 };
