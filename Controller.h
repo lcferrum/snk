@@ -26,6 +26,7 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 	using KillersPolicy::KillByFsc;
 	using KillersPolicy::KillByFgd;
 	using KillersPolicy::KillByWnd;
+	using KillersPolicy::KillByUsr;
 private:
 	enum CmdMode:char {CMDCP_AUTO=0, CMDCP_UTF8, CMDCP_UTF16};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
 	enum MIDStatus:char {MID_HIT, MID_NONE, MID_EMPTY};

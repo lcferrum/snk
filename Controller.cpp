@@ -582,6 +582,12 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByFgd(ctrl_vars.param_anywnd));
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/usr:full")) {
+		ctrl_vars.param_full=true;
+	} else if (!top_rule.compare(L"/usr")) {
+		RequestPopulatedCAN();
+		done=IsDone(KillByUsr(ctrl_vars.param_full, ctrl_vars.args.c_str()));
+		ClearParamsAndArgs();
 	} else if (top_rule.front()==L'=') {
 		if (ctrl_vars.mode_env)
 			ctrl_vars.args=ExpandEnvironmentStringsWrapper(top_rule.substr(1));

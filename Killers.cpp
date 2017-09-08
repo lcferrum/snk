@@ -755,6 +755,9 @@ bool Killers::KillByFgd(bool param_anywnd)
 
 bool Killers::KillByWnd(const wchar_t* arg_wcard)
 {
+	if (!arg_wcard)
+		arg_wcard=L"";
+
 	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId returns PID as DWORD
 
 	//Unfortunately, can't use those pretty capture-less lambdas here because of calling conventions
@@ -767,8 +770,7 @@ bool Killers::KillByWnd(const wchar_t* arg_wcard)
 	if (wcslen(arg_wcard)) EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
 	
 	PrintCommonKillPrefix();
-	std::wcout<<L"which window title matches wildcard \"";
-	std::wcout<<arg_wcard;
+	std::wcout<<L"which window title matches wildcard \""<<arg_wcard;
 
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
@@ -814,4 +816,77 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 	}
 
 	return true;
+}
+
+bool Killers::CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool incl_domain)
+{
+	bool res=false;
+
+	if (HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION)) {
+		HANDLE hToken;
+		if (OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
+			DWORD dwSize;
+			if(!GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize)&&GetLastError()==ERROR_INSUFFICIENT_BUFFER) {
+				PTOKEN_USER ptu=(PTOKEN_USER)new BYTE[dwSize];
+				if (GetTokenInformation(hToken, TokenUser, (PVOID)ptu, dwSize, &dwSize)) {
+					DWORD account_len=0;
+					DWORD domain_len=0;
+					SID_NAME_USE sid_type;
+					if (LookupAccountSid(NULL, ptu->User.Sid, NULL, &account_len, NULL, &domain_len, &sid_type)==FALSE&&account_len&&domain_len) {
+						wchar_t account[account_len];
+						wchar_t domain[domain_len];
+						if (LookupAccountSid(NULL, ptu->User.Sid, account, &account_len, domain, &domain_len, &sid_type)) {
+#if DEBUG>=3
+							std::wcerr<<L"" __FILE__ ":CheckProcessUserName:"<<__LINE__<<L": DOMAIN=\""<<domain<<"\" USER=\""<<account<<"\""<<std::endl;
+#endif
+							if (incl_domain) {
+								std::wstring fname(domain);
+								fname.push_back(L'\\');
+								fname.append(account);
+								res=MultiWildcardCmp(wcard, fname.c_str(), L";,");
+							} else {
+								res=MultiWildcardCmp(wcard, account, L";,");
+							}
+						}
+					}
+				}
+				
+				delete[] (BYTE*)ptu;
+			}
+			
+			CloseHandle(hToken);
+		}
+
+		CloseHandle(hProcess);
+	}
+	
+	return res;
+}
+
+bool Killers::KillByUsr(bool param_full, const wchar_t* arg_wcard) 
+{
+	if (!arg_wcard)
+		arg_wcard=L"";
+	
+	PrintCommonKillPrefix();
+	std::wcout<<L"which user name match wildcard(s) \""<<arg_wcard;
+	
+	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":KillByUsr:"<<__LINE__<<L": Getting user name for \""<<name<<"\"..."<<std::endl;
+#endif	
+		if (CheckProcessUserName(PID, arg_wcard, param_full)) {
+			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"\" NOT found"<<std::endl;
+		return false;
+	}
 }

@@ -12,6 +12,7 @@ private:
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
 	bool CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
+	bool CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool incl_domain);
 	bool KillParentPid();
 	bool KillPidsInArray(const wchar_t* arg_parray);
 	
@@ -81,9 +82,14 @@ protected:
 	//If param_anywnd - doesn't apply task bar filter
 	bool KillByFgd(bool param_anywnd);
 	
-	//Kills process with highest cpu load which window title matches one of wildcars (case-insensitive, with globbing)
-	//arg_wcard - wildcards to match (delimeted by semicolon)
+	//Kills process with highest cpu load which window title matches wildcard (case-insensitive, with globbing)
+	//arg_wcard - wildcard to match
 	bool KillByWnd(const wchar_t* arg_wcard);
+	
+	//Kills process with highest cpu load which user name matches one of wildcards (case-insensitive, with globbing)
+	//arg_wcard - wildcards to match (delimeted by comma or semicolon)
+	//If param_full - uses full user name (DOMAIN\NAME), otherwise uses just name (NAME)
+	bool KillByUsr(bool param_full, const wchar_t* arg_wcard);
 public:
 	Killers();
 };
