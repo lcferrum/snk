@@ -4,6 +4,8 @@
 #include <iostream>
 #include <limits>
 #include <cstddef>		//offsetof
+#include <winternl.h>	//NT_SUCCESS, SYSTEM_HANDLE_INFORMATION, SYSTEM_HANDLE_ENTRY
+#include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
 #include "ProcessUsage.h"
 #include "Controller.h"
 #include "Killers.h"
@@ -14,9 +16,11 @@
 extern pWcoutMessageBox fnWcoutMessageBox;
 extern pWow64DisableWow64FsRedirection fnWow64DisableWow64FsRedirection;
 extern pWow64RevertWow64FsRedirection fnWow64RevertWow64FsRedirection;
+extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 extern template class Controller<Processes, Killers>;
 
 void EnableDebugPrivileges();
+void ImpersonateLocalSystem();
 
 #ifdef OBSOLETE_WMAIN
 typedef struct {
@@ -55,6 +59,7 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	
 	CoInitialize(NULL);			//COM is needed for GetLongPathName implementation from newapis.h
 	EnableDebugPrivileges();	//Will set debug privileges (administrator privileges should be already present for this to actually work)
+	ImpersonateLocalSystem();
 	PVOID wow64_fs_redir;		//OldValue for Wow64DisableWow64FsRedirection/Wow64RevertWow64FsRedirection
 	if (fnWow64DisableWow64FsRedirection) fnWow64DisableWow64FsRedirection(&wow64_fs_redir);	//So GetLongPathName and GetFileAttributes uses correct path
 	//A note on disabling Wow64FsRedirection
@@ -103,4 +108,78 @@ void EnableDebugPrivileges()
 		delete[] (BYTE*)privileges;
 		CloseHandle(tokenHandle);
 	}
+}
+
+/*
+  typedef struct _SYSTEM_HANDLE_ENTRY {
+    ULONG OwnerPid;
+    BYTE ObjectType;
+    BYTE HandleFlags;
+    USHORT HandleValue;
+    PVOID ObjectPointer;
+    ULONG AccessMask;
+  } SYSTEM_HANDLE_ENTRY, *PSYSTEM_HANDLE_ENTRY;
+
+  typedef struct _SYSTEM_HANDLE_INFORMATION {
+    ULONG Count;
+    SYSTEM_HANDLE_ENTRY Handle[1];
+  } SYSTEM_HANDLE_INFORMATION, *PSYSTEM_HANDLE_INFORMATION;
+*/
+
+void ImpersonateLocalSystem()
+{
+	if (!fnNtQuerySystemInformation) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
+#endif
+		return;
+	}
+
+	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
+	//NtQuerySystemInformation(SystemHandleInformation) retreives unknown number of SYSTEM_HANDLE_ENTRY structures
+	//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
+	//Each iteration buffer size is increased by 4KB
+	SYSTEM_HANDLE_INFORMATION *pshi=NULL;
+	DWORD ret_size=0, cur_len=0;
+	NTSTATUS st;
+	
+	do {
+		delete[] (BYTE*)pshi;
+		pshi=(SYSTEM_HANDLE_INFORMATION*)new BYTE[(cur_len+=4096)];
+	} while ((st=fnNtQuerySystemInformation(SystemHandleInformation, pshi, cur_len, &ret_size))==STATUS_INFO_LENGTH_MISMATCH);
+	
+	if (!NT_SUCCESS(st)||!ret_size) {
+		delete[] (BYTE*)pshi;
+		return;
+	}
+	
+#if DEBUG>=3
+	std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
+	std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": SYSTEM_HANDLE_INFORMATION.Count="<<pshi->Count<<std::endl;
+#endif
+
+	HANDLE hCurToken;	//Token for the current process
+	if (pshi->Count&&OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hCurToken)) {
+		DWORD pid=GetCurrentProcessId();
+		
+		//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
+		//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
+		ULONG entry_idx=pshi->Count;
+		BYTE token_type=0;
+
+		do {
+			entry_idx--;
+			if (reinterpret_cast<HANDLE>(pshi->Handle[entry_idx].HandleValue)==hCurToken&&pshi->Handle[entry_idx].OwnerPid==pid) {
+				token_type=pshi->Handle[entry_idx].ObjectType;
+				break;
+			}
+		} while (entry_idx);
+		
+		if (token_type) {
+		}
+		
+		CloseHandle(hCurToken);
+	}
+	
+	delete[] (BYTE*)pshi;
 }

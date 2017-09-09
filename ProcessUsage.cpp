@@ -5,7 +5,6 @@
 #include <iostream>
 #include <algorithm>
 #include <limits>		//numeric_limits
-#include <winternl.h>	//NT_SUCCESS, SYSTEM_PROCESS_INFORMATION, SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION, SYSTEM_BASIC_INFORMATION, UNICODE_STRING
 #include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
 #include <psapi.h>
 
@@ -248,6 +247,10 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 		delete[] (BYTE*)pspi_all;
 		return 0;
 	}
+	
+#if DEBUG>=3
+	std::wcerr<<L"" __FILE__ ":EnumProcessUsage:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
+#endif
 	
 	cur_len=0;
 	pspi_cur=pspi_all;

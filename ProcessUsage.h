@@ -5,7 +5,7 @@
 #include <string>
 #include <functional>
 #include <windows.h>
-#include <winternl.h>
+#include <winternl.h>	//NT_SUCCESS, SYSTEM_PROCESS_INFORMATION, SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION, SYSTEM_BASIC_INFORMATION, UNICODE_STRING
 
 class PData {
 private:
