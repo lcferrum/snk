@@ -20,7 +20,8 @@ extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 extern template class Controller<Processes, Killers>;
 
 void EnableDebugPrivileges();
-void ImpersonateLocalSystem();
+bool ImpersonateLocalSystem();
+bool ImpersonateLocalSystemNT4();
 
 #ifdef OBSOLETE_WMAIN
 typedef struct {
@@ -59,7 +60,7 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	
 	CoInitialize(NULL);			//COM is needed for GetLongPathName implementation from newapis.h
 	EnableDebugPrivileges();	//Will set debug privileges (administrator privileges should be already present for this to actually work)
-	ImpersonateLocalSystem();
+	if (!ImpersonateLocalSystem()) ImpersonateLocalSystemNT4();
 	PVOID wow64_fs_redir;		//OldValue for Wow64DisableWow64FsRedirection/Wow64RevertWow64FsRedirection
 	if (fnWow64DisableWow64FsRedirection) fnWow64DisableWow64FsRedirection(&wow64_fs_redir);	//So GetLongPathName and GetFileAttributes uses correct path
 	//A note on disabling Wow64FsRedirection
@@ -111,14 +112,16 @@ void EnableDebugPrivileges()
 	}
 }
 
-void ImpersonateLocalSystem()
+bool ImpersonateLocalSystem()
 {
 	if (!fnNtQuerySystemInformation) {
 #if DEBUG>=2
 		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
 #endif
-		return;
+		return false;
 	}
+	
+	bool imp_successful=false;
 
 	HANDLE hCurToken;	//Token for the current process
 	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hCurToken)) {
@@ -154,8 +157,7 @@ void ImpersonateLocalSystem()
 					if (AllocateAndInitializeSid(&sia_nt, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &ssid)) {
 						//Search SYSTEM_HANDLE_INFORMATION for Local System token
 						//Search is carried out from the beginning - processes launched by Local System are happen to be at start of the list
-						bool token_found=false;
-						for (entry_idx=0; entry_idx<pshi->Count&&!token_found; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==token_type) {
+						for (entry_idx=0; entry_idx<pshi->Count&&!imp_successful; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==token_type) {
 							if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_DUP_HANDLE)) {
 								//ImpersonateLoggedOnUser requires hToken to have TOKEN_QUERY|TOKEN_DUPLICATE rights if it's primary token and TOKEN_QUERY|TOKEN_IMPERSONATE if it's impersonation token
 								//Under NT4 impersonating logged on user with impersonation token duplicated from another process actualy have deteriorating effects on OpenProcessToken
@@ -166,9 +168,9 @@ void ImpersonateLocalSystem()
 										PTOKEN_USER ptu=(PTOKEN_USER)new BYTE[ret_size];
 										if (GetTokenInformation(hSysToken, TokenUser, (PVOID)ptu, ret_size, &ret_size)&&EqualSid(ptu->User.Sid, ssid)) {
 #if DEBUG>=3
-											std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(PID="<<pshi->Handle[entry_idx].OwnerPid<<L"): "<<((token_found=ImpersonateLoggedOnUser(hSysToken))?L"TRUE":L"FALSE")<<std::endl;
+											std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(PID="<<pshi->Handle[entry_idx].OwnerPid<<L"): "<<((imp_successful=ImpersonateLoggedOnUser(hSysToken))?L"TRUE":L"FALSE")<<std::endl;
 #else
-											token_found=ImpersonateLoggedOnUser(hSysToken);
+											imp_successful=ImpersonateLoggedOnUser(hSysToken);
 #endif
 										}
 										delete[] (BYTE*)ptu;
@@ -188,4 +190,11 @@ void ImpersonateLocalSystem()
 		delete[] (BYTE*)pshi;
 		CloseHandle(hCurToken);
 	}
+	
+	return imp_successful;
+}
+
+bool ImpersonateLocalSystemNT4()
+{
+	return false;
 }
