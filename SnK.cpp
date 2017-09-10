@@ -156,9 +156,9 @@ void ImpersonateLocalSystem()
 						//Search is carried out from the beginning - processes launched by Local System are happen to be at start of the list
 						bool token_found=false;
 						for (entry_idx=0; entry_idx<pshi->Count&&!token_found; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==token_type) {
-							if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_QUERY_INFORMATION|PROCESS_DUP_HANDLE)) {
+							if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_DUP_HANDLE)) {
 								//ImpersonateLoggedOnUser requires hToken to have TOKEN_QUERY|TOKEN_DUPLICATE rights if it's primary token and TOKEN_QUERY|TOKEN_IMPERSONATE if it's impersonation token
-								//Under NT4 imersonating logged on user with impersonation token duplicated from another process actualy have deteriorating effects on OpenProcessToken
+								//Under NT4 impersonating logged on user with impersonation token duplicated from another process actualy have deteriorating effects on OpenProcessToken
 								//So we are excluding TOKEN_IMPERSONATE from DuplicateHandle's dwDesiredAccess so ImpersonateLoggedOnUser would fail on impersonation tokens
 								HANDLE hSysToken;	//Local System token
 								if (DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, GetCurrentProcess(), &hSysToken, TOKEN_QUERY|TOKEN_DUPLICATE, FALSE, 0)) {
