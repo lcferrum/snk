@@ -138,7 +138,6 @@ void ImpersonateLocalSystem()
 		if (NT_SUCCESS(st)&&ret_size&&pshi->Count) {
 #if DEBUG>=3
 			std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
-			std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": SYSTEM_HANDLE_INFORMATION.Count="<<pshi->Count<<std::endl;
 #endif
 			//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
 			//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
@@ -157,17 +156,20 @@ void ImpersonateLocalSystem()
 						//Search is carried out from the beginning - processes launched by Local System are happen to be at start of the list
 						bool token_found=false;
 						for (entry_idx=0; entry_idx<pshi->Count&&!token_found; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==token_type) {
-							if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_DUP_HANDLE)) {
+							if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_QUERY_INFORMATION|PROCESS_DUP_HANDLE)) {
+								//ImpersonateLoggedOnUser requires hToken to have TOKEN_QUERY|TOKEN_DUPLICATE rights if it's primary token and TOKEN_QUERY|TOKEN_IMPERSONATE if it's impersonation token
+								//Under NT4 imersonating logged on user with impersonation token duplicated from another process actualy have deteriorating effects on OpenProcessToken
+								//So we are excluding TOKEN_IMPERSONATE from DuplicateHandle's dwDesiredAccess so ImpersonateLoggedOnUser would fail on impersonation tokens
 								HANDLE hSysToken;	//Local System token
-								if (DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, GetCurrentProcess(), &hSysToken, TOKEN_QUERY|TOKEN_DUPLICATE|TOKEN_IMPERSONATE, FALSE, 0)) {
+								if (DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, GetCurrentProcess(), &hSysToken, TOKEN_QUERY|TOKEN_DUPLICATE, FALSE, 0)) {
 									if(!GetTokenInformation(hSysToken, TokenUser, NULL, 0, &ret_size)&&GetLastError()==ERROR_INSUFFICIENT_BUFFER) {
 										PTOKEN_USER ptu=(PTOKEN_USER)new BYTE[ret_size];
 										if (GetTokenInformation(hSysToken, TokenUser, (PVOID)ptu, ret_size, &ret_size)&&EqualSid(ptu->User.Sid, ssid)) {
 #if DEBUG>=3
-											std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": Local System token found, PID="<<pshi->Handle[entry_idx].OwnerPid<<std::endl;
-											std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser="<<(ImpersonateLoggedOnUser(hSysToken)?L"TRUE":L"FALSE")<<std::endl;
+											std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(PID="<<pshi->Handle[entry_idx].OwnerPid<<L"): "<<((token_found=ImpersonateLoggedOnUser(hSysToken))?L"TRUE":L"FALSE")<<std::endl;
+#else
+											token_found=ImpersonateLoggedOnUser(hSysToken);
 #endif
-											token_found=true;
 										}
 										delete[] (BYTE*)ptu;
 									}
