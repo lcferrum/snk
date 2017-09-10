@@ -74,6 +74,7 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	controller.MakeItDead(rules);
 	
 	if (fnWow64RevertWow64FsRedirection) fnWow64RevertWow64FsRedirection(wow64_fs_redir);
+	RevertToSelf();
 	CoUninitialize();
 
 	return 0;
@@ -110,22 +111,6 @@ void EnableDebugPrivileges()
 	}
 }
 
-/*
-  typedef struct _SYSTEM_HANDLE_ENTRY {
-    ULONG OwnerPid;
-    BYTE ObjectType;
-    BYTE HandleFlags;
-    USHORT HandleValue;
-    PVOID ObjectPointer;
-    ULONG AccessMask;
-  } SYSTEM_HANDLE_ENTRY, *PSYSTEM_HANDLE_ENTRY;
-
-  typedef struct _SYSTEM_HANDLE_INFORMATION {
-    ULONG Count;
-    SYSTEM_HANDLE_ENTRY Handle[1];
-  } SYSTEM_HANDLE_INFORMATION, *PSYSTEM_HANDLE_INFORMATION;
-*/
-
 void ImpersonateLocalSystem()
 {
 	if (!fnNtQuerySystemInformation) {
@@ -135,51 +120,70 @@ void ImpersonateLocalSystem()
 		return;
 	}
 
-	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
-	//NtQuerySystemInformation(SystemHandleInformation) retreives unknown number of SYSTEM_HANDLE_ENTRY structures
-	//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
-	//Each iteration buffer size is increased by 4KB
-	SYSTEM_HANDLE_INFORMATION *pshi=NULL;
-	DWORD ret_size=0, cur_len=0;
-	NTSTATUS st;
-	
-	do {
-		delete[] (BYTE*)pshi;
-		pshi=(SYSTEM_HANDLE_INFORMATION*)new BYTE[(cur_len+=4096)];
-	} while ((st=fnNtQuerySystemInformation(SystemHandleInformation, pshi, cur_len, &ret_size))==STATUS_INFO_LENGTH_MISMATCH);
-	
-	if (!NT_SUCCESS(st)||!ret_size) {
-		delete[] (BYTE*)pshi;
-		return;
-	}
-	
-#if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
-	std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": SYSTEM_HANDLE_INFORMATION.Count="<<pshi->Count<<std::endl;
-#endif
-
 	HANDLE hCurToken;	//Token for the current process
-	if (pshi->Count&&OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hCurToken)) {
-		DWORD pid=GetCurrentProcessId();
+	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hCurToken)) {
+		SYSTEM_HANDLE_INFORMATION *pshi=NULL;
+		DWORD ret_size=0, cur_len=0;
+		NTSTATUS st;
 		
-		//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
-		//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
-		ULONG entry_idx=pshi->Count;
-		BYTE token_type=0;
-
+		//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
+		//NtQuerySystemInformation(SystemHandleInformation) retreives unknown number of SYSTEM_HANDLE_ENTRY structures
+		//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
+		//Each iteration buffer size is increased by 4KB
 		do {
-			entry_idx--;
-			if (reinterpret_cast<HANDLE>(pshi->Handle[entry_idx].HandleValue)==hCurToken&&pshi->Handle[entry_idx].OwnerPid==pid) {
-				token_type=pshi->Handle[entry_idx].ObjectType;
-				break;
-			}
-		} while (entry_idx);
+			delete[] (BYTE*)pshi;
+			pshi=(SYSTEM_HANDLE_INFORMATION*)new BYTE[(cur_len+=4096)];
+		} while ((st=fnNtQuerySystemInformation(SystemHandleInformation, pshi, cur_len, &ret_size))==STATUS_INFO_LENGTH_MISMATCH);
 		
-		if (token_type) {
+		if (NT_SUCCESS(st)&&ret_size&&pshi->Count) {
+#if DEBUG>=3
+			std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
+			std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": SYSTEM_HANDLE_INFORMATION.Count="<<pshi->Count<<std::endl;
+#endif
+			//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
+			//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
+			DWORD pid=GetCurrentProcessId();
+			ULONG entry_idx=pshi->Count;
+			BYTE token_type;
+			do {
+				entry_idx--;
+				if ((HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue==hCurToken&&pshi->Handle[entry_idx].OwnerPid==pid) {
+					token_type=pshi->Handle[entry_idx].ObjectType;
+					//Get Local System SID
+					PSID ssid;
+					SID_IDENTIFIER_AUTHORITY sia_nt=SECURITY_NT_AUTHORITY;
+					if (AllocateAndInitializeSid(&sia_nt, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &ssid)) {
+						//Search SYSTEM_HANDLE_INFORMATION for Local System token
+						//Search is carried out from the beginning - processes launched by Local System are happen to be at start of the list
+						bool token_found=false;
+						for (entry_idx=0; entry_idx<pshi->Count&&!token_found; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==token_type) {
+							if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_DUP_HANDLE)) {
+								HANDLE hSysToken;	//Local System token
+								if (DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, GetCurrentProcess(), &hSysToken, TOKEN_QUERY|TOKEN_DUPLICATE|TOKEN_IMPERSONATE, FALSE, 0)) {
+									if(!GetTokenInformation(hSysToken, TokenUser, NULL, 0, &ret_size)&&GetLastError()==ERROR_INSUFFICIENT_BUFFER) {
+										PTOKEN_USER ptu=(PTOKEN_USER)new BYTE[ret_size];
+										if (GetTokenInformation(hSysToken, TokenUser, (PVOID)ptu, ret_size, &ret_size)&&EqualSid(ptu->User.Sid, ssid)) {
+#if DEBUG>=3
+											std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": Local System token found, PID="<<pshi->Handle[entry_idx].OwnerPid<<std::endl;
+											std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser="<<(ImpersonateLoggedOnUser(hSysToken)?L"TRUE":L"FALSE")<<std::endl;
+#endif
+											token_found=true;
+										}
+										delete[] (BYTE*)ptu;
+									}
+									CloseHandle(hSysToken);
+								}
+								CloseHandle(hProcess);
+							}
+						}
+						FreeSid(ssid);
+					}
+					break;
+				}
+			} while (entry_idx);
 		}
 		
+		delete[] (BYTE*)pshi;
 		CloseHandle(hCurToken);
 	}
-	
-	delete[] (BYTE*)pshi;
 }
