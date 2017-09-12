@@ -1,7 +1,6 @@
 #include "FilePathRoutines.h"
 #include "Common.h"
 #include "Extras.h"
-#include <iostream>
 #include <map>
 #include <cstddef>		//offsetof
 #include <stdexcept>	//out_of_range
@@ -14,6 +13,10 @@
 #define COMPILE_NEWAPIS_STUBS
 #define WANT_GETLONGPATHNAME_WRAPPER
 #include <newapis.h>	//Probe_GetLongPathName
+
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 //Version of PROCESS_BASIC_INFORMATION with x86_64 align
 typedef struct _PROCESS_BASIC_INFORMATION64 {

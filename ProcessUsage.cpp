@@ -234,7 +234,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	}
 
 	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
-	//NtQuerySystemInformation(SystemProcessInformation) retreives not only SYSTEM_PROCESS_INFORMATION structure but also an array of SYSTEM_THREAD structures and UNICODE_STRING with name for each process
+	//NtQuerySystemInformation(SystemProcessInformation) retreives not only array  of SYSTEM_PROCESS_INFORMATION structures but also an array of SYSTEM_THREAD structures and UNICODE_STRING with name for each process
 	//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
 	//Each iteration buffer size is increased by 4KB
 	//For SYSTEM_PROCESS_INFORMATION buffer can be really large - like several hundred kilobytes

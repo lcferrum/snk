@@ -45,7 +45,8 @@ Extras::Extras(bool hidden, const wchar_t* caption):
 	}
 }
 
-Extras::~Extras() {
+Extras::~Extras() 
+{
 	wcout_win32.Deactivate();	//Don't wait for destructor, deactivate Win32WcostreamBuf before unloading functions
 	wcerr_win32.Deactivate();
 	UnloadFunctions();

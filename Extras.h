@@ -2,8 +2,8 @@
 #define EXTRA_H
 
 #include "ConOut.h"
-#include <functional>
 #include <memory>
+#include <functional>
 #include <windows.h>
 #include <winternl.h>
 

@@ -258,6 +258,56 @@ bool CheckIfFileExists(const wchar_t* fpath)
 		return false;
 }
 
+PTOKEN_USER GetTokenUserInformation(HANDLE hToken)
+{
+	DWORD dwSize;
+	PTOKEN_USER ptu=NULL;
+	if(!GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize)&&GetLastError()==ERROR_INSUFFICIENT_BUFFER) {
+		ptu=(PTOKEN_USER)new BYTE[dwSize];
+		if (!GetTokenInformation(hToken, TokenUser, (PVOID)ptu, dwSize, &dwSize)) {
+			delete[] (BYTE*)ptu;
+			ptu=NULL;
+		}
+	}
+	return ptu;
+}
+
+void FreeTokenUserInformation(PTOKEN_USER ptu)
+{
+	delete[] (BYTE*)ptu;
+}
+
+namespace TypicalBufferSize {
+	DWORD buffer_shi=0;
+	DWORD buffer_spi=0;
+	DWORD buffer_pbi=0;
+	DWORD buffer_spii=0;
+}
+
+DWORD TypicalBufferSize::SystemHandleInformation(DWORD size)
+{
+	if (size) buffer_shi=size;
+	return buffer_shi;
+}
+
+DWORD TypicalBufferSize::SystemProcessInformation(DWORD size)
+{
+	if (size) buffer_spi=size;
+	return buffer_spi;
+}
+
+DWORD TypicalBufferSize::ProcessBasicInformation(DWORD size)
+{
+	if (size) buffer_pbi=size;
+	return buffer_pbi;
+}
+
+DWORD TypicalBufferSize::SystemProcessIdInformation(DWORD size)
+{
+	if (size) buffer_spii=size;
+	return buffer_spii;
+}
+
 void PrintUsage() 
 {
 #ifndef HIDDEN
