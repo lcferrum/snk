@@ -238,7 +238,7 @@ bool CheckIfFileExists(const wchar_t* fpath)
 		return false;
 	//Ballad about full vs relative paths
 	//CheckIfFileExists needs full path: i.e. path which can't be misinterpreted - it should stay the same regardless of CWD, CD or PATH variable
-	//It needs it because it is hevaily used in scenarios where real path should be reconstructed from some nonsense
+	//It needs it because it is heavily used in scenarios where real path should be reconstructed from some nonsense
 	//And some of this nonsense may look like relative path and be falsely reported as something that might be real
 	//In the end, there is no relative-path based algorithms in SnK - only name and full-path based
 	//Here MS have an official paper about which paths are considred relative/full on Windows: https://msdn.microsoft.com/library/windows/desktop/aa365247.aspx#paths

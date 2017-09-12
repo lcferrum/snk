@@ -56,6 +56,7 @@ bool AccessHacks::EnableDebugPrivileges()
 
 bool AccessHacks::PrivateEnableDebugPrivileges()
 {
+	//Actually calling all the thing second time if it was already succesfully called won't do any harm - it will also succeed
 	if (acc_state&ACC_DEBUGENABLED) return true;
 
 	HANDLE tokenHandle;
@@ -92,6 +93,7 @@ bool AccessHacks::Wow64DisableWow64FsRedirection()
 
 bool AccessHacks::PrivateWow64DisableWow64FsRedirection()
 {
+	//Actually calling Wow64DisableWow64FsRedirection second time (with saved OldValue or new one) if it was already succesfully called won't do any harm - it will also succeed
 	if (!fnWow64DisableWow64FsRedirection) return false;
 	if (acc_state&ACC_WOW64FSREDIRDISABLED) return true;
 	
@@ -110,8 +112,8 @@ void AccessHacks::Wow64RevertWow64FsRedirection()
 void AccessHacks::PrivateWow64RevertWow64FsRedirection()
 {
 	if (fnWow64RevertWow64FsRedirection&&acc_state&ACC_WOW64FSREDIRDISABLED) {
-		if (fnWow64RevertWow64FsRedirection(wow64_fs_redir))
-			acc_state&=~ACC_WOW64FSREDIRDISABLED;
+		fnWow64RevertWow64FsRedirection(wow64_fs_redir);
+		acc_state&=~ACC_WOW64FSREDIRDISABLED;
 	}
 }
 
@@ -151,8 +153,8 @@ void AccessHacks::RevertToSelf()
 void AccessHacks::PrivateRevertToSelf()
 {
 	if (acc_state&ACC_LOCALSYSTEMIMPERSONATED) {
-		if (::RevertToSelf())
-			acc_state&=~ACC_LOCALSYSTEMIMPERSONATED;
+		::RevertToSelf();
+		acc_state&=~ACC_LOCALSYSTEMIMPERSONATED;
 	}
 }
 
