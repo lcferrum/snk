@@ -129,6 +129,9 @@ bool AccessHacks::PrivateImpersonateLocalSystem()
 	
 	if (hSysToken) {
 		if (ImpersonateLoggedOnUser(hSysToken)) {
+#if DEBUG>=3
+			std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(CACHED TOKEN): TRUE"<<std::endl;
+#endif
 			acc_state|=ACC_WOW64FSREDIRDISABLED;
 			return true;
 		} else {
@@ -315,7 +318,7 @@ bool AccessHacks::ImpersonateLocalSystemSecondary()
 				if (OpenProcessToken(hProcess, TOKEN_QUERY|TOKEN_DUPLICATE, &hToken)) {
 					if (PTOKEN_USER sys_tu=GetTokenUserInformation(hToken)) {
 						if (EqualSid(sys_tu->User.Sid, ssid)) {
-							//Whoa, someone was stupid enough to leave Local System DACL with TOKEN_DUPLICATE right for current user
+							//Whoa, somehow we have Local System DACL with TOKEN_DUPLICATE right for current user
 							if (DuplicateTokenEx(hToken, TOKEN_QUERY|TOKEN_DUPLICATE, NULL, SecurityImpersonation, TokenPrimary, &hSysToken)) {
 #if DEBUG>=3
 								std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystemSecondary:"<<__LINE__<<L": ImpersonateLoggedOnUser(PID="<<(ULONG_PTR)pspi_cur->UniqueProcessId<<L") (1): "<<((imp_successful=ImpersonateLoggedOnUser(hSysToken))?L"TRUE":L"FALSE")<<std::endl;
