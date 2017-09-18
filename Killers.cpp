@@ -826,32 +826,29 @@ bool Killers::CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool inc
 		HANDLE hToken;
 		if (OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
 			DWORD dwSize;
-			if(!GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize)&&GetLastError()==ERROR_INSUFFICIENT_BUFFER) {
-				PTOKEN_USER ptu=(PTOKEN_USER)new BYTE[dwSize];
-				if (GetTokenInformation(hToken, TokenUser, (PVOID)ptu, dwSize, &dwSize)) {
-					DWORD account_len=0;
-					DWORD domain_len=0;
-					SID_NAME_USE sid_type;
-					if (LookupAccountSid(NULL, ptu->User.Sid, NULL, &account_len, NULL, &domain_len, &sid_type)==FALSE&&account_len&&domain_len) {
-						wchar_t account[account_len];
-						wchar_t domain[domain_len];
-						if (LookupAccountSid(NULL, ptu->User.Sid, account, &account_len, domain, &domain_len, &sid_type)) {
+			if(PTOKEN_USER ptu=GetTokenUserInformation(hToken)) {
+				DWORD account_len=0;
+				DWORD domain_len=0;
+				SID_NAME_USE sid_type;
+				if (LookupAccountSid(NULL, ptu->User.Sid, NULL, &account_len, NULL, &domain_len, &sid_type)==FALSE&&account_len&&domain_len) {
+					wchar_t account[account_len];
+					wchar_t domain[domain_len];
+					if (LookupAccountSid(NULL, ptu->User.Sid, account, &account_len, domain, &domain_len, &sid_type)) {
 #if DEBUG>=3
-							std::wcerr<<L"" __FILE__ ":CheckProcessUserName:"<<__LINE__<<L": DOMAIN=\""<<domain<<"\" USER=\""<<account<<"\""<<std::endl;
+						std::wcerr<<L"" __FILE__ ":CheckProcessUserName:"<<__LINE__<<L": DOMAIN=\""<<domain<<"\" USER=\""<<account<<"\""<<std::endl;
 #endif
-							if (incl_domain) {
-								std::wstring fname(domain);
-								fname.push_back(L'\\');
-								fname.append(account);
-								res=MultiWildcardCmp(wcard, fname.c_str(), L";,");
-							} else {
-								res=MultiWildcardCmp(wcard, account, L";,");
-							}
+						if (incl_domain) {
+							std::wstring fname(domain);
+							fname.push_back(L'\\');
+							fname.append(account);
+							res=MultiWildcardCmp(wcard, fname.c_str(), L";,");
+						} else {
+							res=MultiWildcardCmp(wcard, account, L";,");
 						}
 					}
 				}
 				
-				delete[] (BYTE*)ptu;
+				FreeTokenUserInformation(ptu);
 			}
 			
 			CloseHandle(hToken);

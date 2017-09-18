@@ -64,7 +64,7 @@ private:
 
 	DWORD EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid);
 	PSID GetLogonSID(HANDLE hProcess);	//Always free resulting PSID with FreeLogonSID
-	void FreeLogonSID(PSID lsid);
+	void FreeLogonSID(PSID lsid) { delete[] (BYTE*)lsid; }
 	
 	virtual bool ModeAll()=0;
 	virtual bool ModeLoop()=0;

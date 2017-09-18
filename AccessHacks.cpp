@@ -127,25 +127,46 @@ bool AccessHacks::PrivateImpersonateLocalSystem()
 {
 	if (acc_state&ACC_LOCALSYSTEMIMPERSONATED) return true;
 	
-	if (hSysToken) {
-		if (ImpersonateLoggedOnUser(hSysToken)) {
+	PSID ssid;
+	SID_IDENTIFIER_AUTHORITY sia_nt=SECURITY_NT_AUTHORITY;
+	if (!AllocateAndInitializeSid(&sia_nt, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &ssid))
+		return false;
+	
+	PTOKEN_USER own_tu;
+	HANDLE hOwnToken;
+	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
+		own_tu=GetTokenUserInformation(hOwnToken);
+		CloseHandle(hOwnToken);
+		if (own_tu) {
+			if (EqualSid(own_tu->User.Sid, ssid)) {
 #if DEBUG>=3
-			std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(CACHED TOKEN): TRUE"<<std::endl;
+				std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": Already Local System"<<std::endl;
 #endif
-			acc_state|=ACC_WOW64FSREDIRDISABLED;
-			return true;
-		} else {
-			CloseHandle(hSysToken);
-			hSysToken=NULL;
+				acc_state|=ACC_WOW64FSREDIRDISABLED;
+			} else {
+				if (hSysToken) {
+					if (ImpersonateLoggedOnUser(hSysToken)) {
+#if DEBUG>=3
+						std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(CACHED TOKEN): TRUE"<<std::endl;
+#endif
+						acc_state|=ACC_WOW64FSREDIRDISABLED;
+					} else {
+						CloseHandle(hSysToken);
+						hSysToken=NULL;
+					}
+				}
+
+				if (!hSysToken) if (ImpersonateLocalSystemPrimary()||ImpersonateLocalSystemSecondary()) {
+					acc_state|=ACC_LOCALSYSTEMIMPERSONATED;
+				}
+			}
+
+			FreeTokenUserInformation(own_tu);
 		}
 	}
-
-	if (ImpersonateLocalSystemPrimary()||ImpersonateLocalSystemSecondary()) {
-		acc_state|=ACC_LOCALSYSTEMIMPERSONATED;
-		return true;
-	}
 	
-	return false;
+	FreeSid(ssid);
+	return acc_state&ACC_WOW64FSREDIRDISABLED;
 }
 
 void AccessHacks::RevertToSelf()

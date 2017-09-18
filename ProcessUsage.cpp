@@ -297,38 +297,23 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 PSID Processes::GetLogonSID(HANDLE hProcess)
 {
 	HANDLE hToken;
-	DWORD dwLength=0;
-	PTOKEN_GROUPS ptg;
 	PSID lsid=NULL;
 	
 	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
-	if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken))
-		return NULL;
-
-	//If GetTokenInformation doesn't fail with ERROR_INSUFFICIENT_BUFFER - something went wrong
-	if (GetTokenInformation(hToken, TokenGroups, NULL, 0, &dwLength)||GetLastError()!=ERROR_INSUFFICIENT_BUFFER) {
+	if (OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
+		if (PTOKEN_GROUPS ptg=GetTokenGroupsInformation(hToken)) {
+			DWORD dwLength;
+			for (DWORD i=0; i<ptg->GroupCount; i++) 
+				if (ptg->Groups[i].Attributes&SE_GROUP_LOGON_ID) {	//It's a Logon SID
+					dwLength=GetLengthSid(ptg->Groups[i].Sid);
+					lsid=(PSID)new BYTE[dwLength];
+					CopySid(dwLength, lsid, ptg->Groups[i].Sid);
+					break;
+				}
+			FreeTokenGroupsInformation(ptg);
+		}
 		CloseHandle(hToken);
-		return NULL;
 	}
 	
-	ptg=(PTOKEN_GROUPS)new BYTE[dwLength];
-	
-	if (GetTokenInformation(hToken, TokenGroups, (LPVOID)ptg, dwLength, &dwLength)) {
-		for (DWORD i=0; i<ptg->GroupCount; i++) 
-			if (ptg->Groups[i].Attributes&SE_GROUP_LOGON_ID) {	//It's a Logon SID
-				dwLength=GetLengthSid(ptg->Groups[i].Sid);
-				lsid=(PSID)new BYTE[dwLength];
-				CopySid(dwLength, lsid, ptg->Groups[i].Sid);
-				break;
-			}
-	}
-	
-	CloseHandle(hToken);
-	delete[] (BYTE*)ptg;
 	return lsid;
-}
-
-void Processes::FreeLogonSID(PSID lsid)
-{
-	delete[] (BYTE*)lsid;
 }

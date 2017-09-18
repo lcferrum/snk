@@ -28,8 +28,11 @@ bool CheckIfFileExists(const wchar_t* fpath);
 
 std::wstring GetNamePartFromFullPath(const std::wstring& fpath);
 
-PTOKEN_USER GetTokenUserInformation(HANDLE hToken);
-void FreeTokenUserInformation(PTOKEN_USER ptu);
+LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS TokenInformationClass);
+inline PTOKEN_USER GetTokenUserInformation(HANDLE hToken) { return (PTOKEN_USER)GetTokenInformationWrapper(hToken, TokenUser); }
+inline void FreeTokenUserInformation(PTOKEN_USER ptu) { delete[] (BYTE*)ptu; }
+inline PTOKEN_GROUPS GetTokenGroupsInformation(HANDLE hToken) { return (PTOKEN_GROUPS)GetTokenInformationWrapper(hToken, TokenGroups); }
+inline void FreeTokenGroupsInformation(PTOKEN_GROUPS ptg) { delete[] (BYTE*)ptg; }
 
 //OpenProcessWrapper will try to remove PROCESS_VM_READ access flag and change PROCESS_QUERY_INFORMATION to PROCESS_QUERY_LIMITED_INFORMATION if it can't open process with supplied dwDesiredAccess
 //dwMandatory contains access flags that OpenProcessWrapper shoudn't remove (or change) from dwDesiredAccess to try to open process with more relaxed access requirements

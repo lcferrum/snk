@@ -258,23 +258,18 @@ bool CheckIfFileExists(const wchar_t* fpath)
 		return false;
 }
 
-PTOKEN_USER GetTokenUserInformation(HANDLE hToken)
+LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS TokenInformationClass)
 {
 	DWORD dwSize;
-	PTOKEN_USER ptu=NULL;
-	if(!GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize)&&GetLastError()==ERROR_INSUFFICIENT_BUFFER) {
-		ptu=(PTOKEN_USER)new BYTE[dwSize];
-		if (!GetTokenInformation(hToken, TokenUser, (PVOID)ptu, dwSize, &dwSize)) {
-			delete[] (BYTE*)ptu;
-			ptu=NULL;
+	LPVOID pti=NULL;
+	if(!GetTokenInformation(TokenHandle, TokenInformationClass, NULL, 0, &dwSize)&&GetLastError()==ERROR_INSUFFICIENT_BUFFER) {
+		pti=(LPVOID)new BYTE[dwSize];
+		if (!GetTokenInformation(TokenHandle, TokenInformationClass, pti, dwSize, &dwSize)) {
+			delete[] (BYTE*)pti;
+			pti=NULL;
 		}
 	}
-	return ptu;
-}
-
-void FreeTokenUserInformation(PTOKEN_USER ptu)
-{
-	delete[] (BYTE*)ptu;
+	return pti;
 }
 
 namespace TypicalBufferSize {
