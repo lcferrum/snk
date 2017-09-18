@@ -275,8 +275,6 @@ LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS To
 namespace TypicalBufferSize {
 	DWORD buffer_shi=0;
 	DWORD buffer_spi=0;
-	DWORD buffer_pbi=0;
-	DWORD buffer_spii=0;
 }
 
 DWORD TypicalBufferSize::SystemHandleInformation(DWORD size)
@@ -291,16 +289,31 @@ DWORD TypicalBufferSize::SystemProcessInformation(DWORD size)
 	return buffer_spi;
 }
 
-DWORD TypicalBufferSize::ProcessBasicInformation(DWORD size)
-{
-	if (size) buffer_pbi=size;
-	return buffer_pbi;
+namespace CachedBuffer {
+	SYSTEM_HANDLE_INFORMATION* buffer_shi=NULL;
+	SYSTEM_PROCESS_INFORMATION* buffer_spi=NULL;
 }
 
-DWORD TypicalBufferSize::SystemProcessIdInformation(DWORD size)
+SYSTEM_HANDLE_INFORMATION* CachedBuffer::SystemHandleInformation(SYSTEM_HANDLE_INFORMATION *buf)
 {
-	if (size) buffer_spii=size;
-	return buffer_spii;
+	if (buf) buffer_shi=buf;
+	return buffer_shi;
+}
+
+void CachedBuffer::FreeSystemHandleInformation()
+{
+	delete[] (BYTE*)buffer_shi;
+}
+
+SYSTEM_PROCESS_INFORMATION* CachedBuffer::SystemProcessInformation(SYSTEM_PROCESS_INFORMATION *buf)
+{
+	if (buf) buffer_spi=buf;
+	return buffer_spi;
+}
+
+void CachedBuffer::FreeSystemProcessInformation()
+{
+	delete[] (BYTE*)buffer_spi;
 }
 
 void PrintUsage() 

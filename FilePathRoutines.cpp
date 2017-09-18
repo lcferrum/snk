@@ -730,7 +730,7 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	//MaximumLength length is actual Length plus terminating character, so when function succeed Buffer will already contain terminating NULL
 	do {
 		delete[] processIdInfo.ImageName.Buffer;
-		processIdInfo.ImageName.Buffer=(wchar_t*)new BYTE[(processIdInfo.ImageName.MaximumLength+=512)];  //each iteration buffer size is increased by 0.5 KB
+		processIdInfo.ImageName.Buffer=(wchar_t*)new BYTE[(processIdInfo.ImageName.MaximumLength+=1024)];  //each iteration buffer size is increased by 1 KB
 	} while ((st=fnNtQuerySystemInformation(SystemProcessIdInformation, &processIdInfo, sizeof(SYSTEM_PROCESS_ID_INFORMATION), NULL))==STATUS_INFO_LENGTH_MISMATCH);
 	
 	if (!NT_SUCCESS(st)) {

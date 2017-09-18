@@ -71,6 +71,9 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	AccessHacks::RevertToSelf();
 	
 	CoUninitialize();
+	
+	CachedBuffer::FreeSystemHandleInformation();
+	CachedBuffer::FreeSystemProcessInformation();
 
 	return 0;
 }
