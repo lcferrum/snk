@@ -298,6 +298,9 @@ void FPRoutines::FillServiceMap()
 				//lpBinaryPathName is an expanded HKLM\SYSTEM\CurrentControlSet\services\*\ImagePath key passed as lpCommandLine to CreateProcess function (lpApplicationName is NULL)
 				//It means that it is a command line of some kind, with a first argument not necessary being fully qualified path, and we should parse it accordingly
 				//Below is an algorithm implementing set of parsing rules for CreateProcess' lpCommandLine as described in https://msdn.microsoft.com/library/windows/desktop/ms682425.aspx
+				//N.B.: 
+				//It won't work with paths that use slash instead of backslash as path separator
+				//Historically backslash IS the path separator used in Windows, but Win32 API actually works with both slash and backslash
 				int nArgs;
 				if (LPWSTR *szArglist=CommandLineToArgvW(pqsc->lpBinaryPathName, &nArgs)) {
 					std::wstring combined_path;
