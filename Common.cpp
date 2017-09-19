@@ -303,6 +303,7 @@ SYSTEM_HANDLE_INFORMATION* CachedBuffer::SystemHandleInformation(SYSTEM_HANDLE_I
 void CachedBuffer::FreeSystemHandleInformation()
 {
 	delete[] (BYTE*)buffer_shi;
+	buffer_shi=NULL;
 }
 
 SYSTEM_PROCESS_INFORMATION* CachedBuffer::SystemProcessInformation(SYSTEM_PROCESS_INFORMATION *buf)
@@ -314,6 +315,7 @@ SYSTEM_PROCESS_INFORMATION* CachedBuffer::SystemProcessInformation(SYSTEM_PROCES
 void CachedBuffer::FreeSystemProcessInformation()
 {
 	delete[] (BYTE*)buffer_spi;
+	buffer_spi=NULL;
 }
 
 void PrintUsage() 

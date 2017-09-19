@@ -14,8 +14,9 @@ private:
 	PSECURITY_DESCRIPTOR pOrigSD;	//Saved original token security descriptor used in RevertDaclPermissions
 	PACL pOrigDACL;					//Saved original token DACL (actually points to someplace in pOrigSD) used in RevertDaclPermissions
 	
-	bool ImpersonateLocalSystemPrimary();
-	bool ImpersonateLocalSystemSecondary();
+	bool ImpersonateLocalSystemVista(PSID ssid);
+	bool ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken);
+	bool ImpersonateLocalSystemNT4(PSID ssid, PSID usid);
 	bool GrantDaclPermissions(HANDLE hToken, PSID pSid, DWORD dwAccessPermissions);
 	void RevertDaclPermissions(HANDLE hToken);
 	
