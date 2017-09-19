@@ -72,8 +72,8 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	
 	CoUninitialize();
 	
-	CachedBuffer::FreeSystemHandleInformation();
-	CachedBuffer::FreeSystemProcessInformation();
+	CachedNtQuerySystemProcessInformation(NULL, true);
+	CachedNtQuerySystemHandleInformation(NULL, true);
 
 	return 0;
 }

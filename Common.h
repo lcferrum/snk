@@ -40,20 +40,7 @@ inline void FreeTokenGroupsInformation(PTOKEN_GROUPS ptg) { delete[] (BYTE*)ptg;
 HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMandatory=0);
 inline HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &&dwDesiredAccess, DWORD dwMandatory=0) { return OpenProcessWrapper(dwProcessId, dwDesiredAccess, dwMandatory); }
 
-//Typical buffer sizes for various NtQuerySystemInformation calls
-//Store and get them here so not to guess them every time these functions are called
-namespace TypicalBufferSize {
-	DWORD SystemHandleInformation(DWORD size=0);
-	DWORD SystemProcessInformation(DWORD size=0);
-}
-
-//Cached buffers for various NtQuerySystemInformation calls
-//Store and get them here so not to query them if cached version is ok
-namespace CachedBuffer {
-	SYSTEM_HANDLE_INFORMATION* SystemHandleInformation(SYSTEM_HANDLE_INFORMATION *buf=NULL);
-	void FreeSystemHandleInformation();
-	SYSTEM_PROCESS_INFORMATION* SystemProcessInformation(SYSTEM_PROCESS_INFORMATION *buf=NULL);
-	void FreeSystemProcessInformation();
-}
+bool CachedNtQuerySystemProcessInformation(SYSTEM_PROCESS_INFORMATION** spi_buffer, bool clear_cache=false);
+bool CachedNtQuerySystemHandleInformation(SYSTEM_HANDLE_INFORMATION** shi_buffer, bool clear_cache=false);
 
 #endif //COMMON_H

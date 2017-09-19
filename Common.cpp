@@ -1,8 +1,12 @@
 #include "Hout.h"
+#include "Extras.h"
 #include "Common.h"
 #include "Version.h"
 #include <algorithm>
 #include <iostream>
+#include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
+
+extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 
 //Original WildcardCmp: 
 // Written by Jack Handy <jakkhandy@hotmail.com>
@@ -272,50 +276,68 @@ LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS To
 	return pti;
 }
 
-namespace TypicalBufferSize {
-	DWORD buffer_shi=0;
-	DWORD buffer_spi=0;
-}
+namespace CachedNtQuerySystemInformation {
+	BYTE* spi_cache=NULL;
+	DWORD spi_size=0;
+	BYTE* shi_cache=NULL;
+	DWORD shi_size=0;
+	bool Wrapper(SYSTEM_INFORMATION_CLASS class_name, DWORD &class_size, BYTE* &class_cache, BYTE** class_buffer, bool clear_cache);
+};
 
-DWORD TypicalBufferSize::SystemHandleInformation(DWORD size)
+bool CachedNtQuerySystemInformation::Wrapper(SYSTEM_INFORMATION_CLASS class_name, DWORD &class_size, BYTE* &class_cache, BYTE** class_buffer, bool clear_cache)
 {
-	if (size) buffer_shi=size;
-	return buffer_shi;
+	if (!fnNtQuerySystemInformation) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":CachedNtQuerySystemInformation::Wrapper:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
+#endif
+		return false;
+	}
+	
+	if (clear_cache) {
+		delete[] class_cache;
+		class_cache=NULL;
+	} 
+	
+	if (!class_buffer)
+		return true;
+	
+	if (class_cache) {
+		*class_buffer=class_cache;
+		return true;
+	}
+
+	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
+	//We can't tell for sure how many bytes will be needed to store system information and can be really large - like several hundred kilobytes
+	DWORD ret_size, cur_size;
+	NTSTATUS st;
+	//WIP: double buffer instead adding 4KB?
+	for (ret_size=0, cur_size=class_size, st=STATUS_INFO_LENGTH_MISMATCH; st==STATUS_INFO_LENGTH_MISMATCH; delete[] class_cache, cur_size+=4096) {
+		class_cache=new BYTE[cur_size];
+		st=fnNtQuerySystemInformation(class_name, class_cache, cur_size, &ret_size);
+	}
+	
+	if (NT_SUCCESS(st)&&ret_size) {
+		*class_buffer=class_cache;
+		class_size=ret_size;	//WIP: add to size some increment so next uncached call will make less cycles?
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":CachedNtQuerySystemInformation::Wrapper:"<<__LINE__<<L": NtQuerySystemInformation("<<class_name<<L").ReturnLength="<<ret_size<<std::endl;
+#endif	
+		return true;
+	} else {
+		delete[] class_cache;
+		class_cache=NULL;
+		return false;
+	}
 }
 
-DWORD TypicalBufferSize::SystemProcessInformation(DWORD size)
+bool CachedNtQuerySystemProcessInformation(SYSTEM_PROCESS_INFORMATION** spi_buffer, bool clear_cache)
 {
-	if (size) buffer_spi=size;
-	return buffer_spi;
+	return CachedNtQuerySystemInformation::Wrapper(SystemProcessInformation, CachedNtQuerySystemInformation::spi_size, CachedNtQuerySystemInformation::spi_cache, (BYTE**)&spi_buffer, clear_cache);
 }
 
-namespace CachedBuffer {
-	SYSTEM_HANDLE_INFORMATION* buffer_shi=NULL;
-	SYSTEM_PROCESS_INFORMATION* buffer_spi=NULL;
-}
-
-SYSTEM_HANDLE_INFORMATION* CachedBuffer::SystemHandleInformation(SYSTEM_HANDLE_INFORMATION *buf)
+bool CachedNtQuerySystemHandleInformation(SYSTEM_HANDLE_INFORMATION** shi_buffer, bool clear_cache)
 {
-	if (buf) buffer_shi=buf;
-	return buffer_shi;
-}
-
-void CachedBuffer::FreeSystemHandleInformation()
-{
-	delete[] (BYTE*)buffer_shi;
-	buffer_shi=NULL;
-}
-
-SYSTEM_PROCESS_INFORMATION* CachedBuffer::SystemProcessInformation(SYSTEM_PROCESS_INFORMATION *buf)
-{
-	if (buf) buffer_spi=buf;
-	return buffer_spi;
-}
-
-void CachedBuffer::FreeSystemProcessInformation()
-{
-	delete[] (BYTE*)buffer_spi;
-	buffer_spi=NULL;
+	return CachedNtQuerySystemInformation::Wrapper(SystemHandleInformation, CachedNtQuerySystemInformation::shi_size, CachedNtQuerySystemInformation::shi_cache, (BYTE**)&shi_buffer, clear_cache);
 }
 
 void PrintUsage() 
