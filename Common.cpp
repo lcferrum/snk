@@ -298,8 +298,9 @@ bool CachedNtQuerySystemInformation::Wrapper(SYSTEM_INFORMATION_CLASS class_name
 		class_cache=NULL;
 	} 
 	
-	if (!class_buffer)
+	if (!class_buffer) {
 		return true;
+	}
 	
 	if (class_cache) {
 		*class_buffer=class_cache;
@@ -332,12 +333,12 @@ bool CachedNtQuerySystemInformation::Wrapper(SYSTEM_INFORMATION_CLASS class_name
 
 bool CachedNtQuerySystemProcessInformation(SYSTEM_PROCESS_INFORMATION** spi_buffer, bool clear_cache)
 {
-	return CachedNtQuerySystemInformation::Wrapper(SystemProcessInformation, CachedNtQuerySystemInformation::spi_size, CachedNtQuerySystemInformation::spi_cache, (BYTE**)&spi_buffer, clear_cache);
+	return CachedNtQuerySystemInformation::Wrapper(SystemProcessInformation, CachedNtQuerySystemInformation::spi_size, CachedNtQuerySystemInformation::spi_cache, (BYTE**)spi_buffer, clear_cache);
 }
 
 bool CachedNtQuerySystemHandleInformation(SYSTEM_HANDLE_INFORMATION** shi_buffer, bool clear_cache)
 {
-	return CachedNtQuerySystemInformation::Wrapper(SystemHandleInformation, CachedNtQuerySystemInformation::shi_size, CachedNtQuerySystemInformation::shi_cache, (BYTE**)&shi_buffer, clear_cache);
+	return CachedNtQuerySystemInformation::Wrapper(SystemHandleInformation, CachedNtQuerySystemInformation::shi_size, CachedNtQuerySystemInformation::shi_cache, (BYTE**)shi_buffer, clear_cache);
 }
 
 void PrintUsage() 
