@@ -109,6 +109,15 @@ bool Killers::KillByCpu()
 	}
 }
 
+void Killers::PrintCommonWildcardInfix(const wchar_t* arg_wcard, const wchar_t* delim)
+{
+	if (wcspbrk(arg_wcard, delim))
+		std::wcout<<L"wildcards \"";
+	else
+		std::wcout<<L"wildcard \"";
+	std::wcout<<arg_wcard;
+}
+
 bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard) 
 {
 	if (!arg_wcard)
@@ -116,10 +125,10 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 	
 	PrintCommonKillPrefix();
 	if (ModeLoop())
-		std::wcout<<L"that match wildcard(s) \"";
+		std::wcout<<L"that match ";
 	else
-		std::wcout<<L"that matches wildcard(s) \"";
-	std::wcout<<arg_wcard;
+		std::wcout<<L"that matches ";
+	PrintCommonWildcardInfix(arg_wcard);
 	
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str(), param_full)) {
@@ -144,7 +153,8 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 		arg_wcard=L"";
 	
 	PrintCommonKillPrefix();
-	std::wcout<<L"having modules that match wildcard(s) \""<<arg_wcard;
+	std::wcout<<L"having modules that match ";
+	PrintCommonWildcardInfix(arg_wcard);
 	
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
@@ -202,12 +212,11 @@ bool Killers::KillParentPid()
 		std::wcerr<<L"" __FILE__ ":KillParentPid:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
 #endif
 	}
-	
-	PrintCommonKillPrefix();
-	if (ModeLoop())
-		std::wcout<<L"that match parent PID ";
+
+	if (ModeAll())
+		std::wcout<<L"Process that matches parent PID ";
 	else
-		std::wcout<<L"that matches parent PID ";
+		std::wcout<<L"User process that matches parent PID ";
 	
 	bool found=parent_pid&&ApplyToProcesses([this, parent_pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (PID==parent_pid) {
@@ -294,11 +303,18 @@ bool Killers::KillPidsInArray(const wchar_t* arg_parray)
 		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
 #endif
 	
-	PrintCommonKillPrefix();
-	if (ModeLoop())
-		std::wcout<<L"that match PID(s) \"";
-	else
-		std::wcout<<L"that matches PID(s) \"";
+	if (uptr_array.size()>1) {
+		PrintCommonKillPrefix();
+		if (ModeLoop())
+			std::wcout<<L"that match PIDs \"";
+		else
+			std::wcout<<L"that matches PIDs \"";
+	} else {
+		if (ModeAll())
+			std::wcout<<L"Process that matches PID \"";
+		else
+			std::wcout<<L"User process that matches PID \"";	
+	}
 	std::wcout<<arg_parray;
 	
 	bool found=!uptr_array.empty()&&ApplyToProcesses([this, arg_parray, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
@@ -784,8 +800,10 @@ bool Killers::KillByFgd(bool param_anywnd)
 			hwnd=NULL;
 	}
 
-	PrintCommonKillPrefix();
-	std::wcout<<L"which window is in foreground ";
+	if (ModeAll())
+		std::wcout<<L"Process which window is in foreground ";
+	else
+		std::wcout<<L"User process which window is in foreground ";
 	
 	//IsTaskWindow() limits the scope and prevents from triggering on dialogs belonging to task-windows
 	//But it also protects from accidentially killing explorer or other unrelated background app
@@ -920,7 +938,8 @@ bool Killers::KillByUsr(bool param_full, const wchar_t* arg_wcard)
 		arg_wcard=L"";
 	
 	PrintCommonKillPrefix();
-	std::wcout<<L"which user name match wildcard(s) \""<<arg_wcard;
+	std::wcout<<L"which user name matches ";
+	PrintCommonWildcardInfix(arg_wcard, L";,");
 	
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 #if DEBUG>=3

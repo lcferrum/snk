@@ -10,6 +10,7 @@ class Killers: virtual protected ProcessesCrossBase {
 private:
 	void KillProcess(DWORD PID, const std::wstring &name);
 	void PrintCommonKillPrefix();
+	void PrintCommonWildcardInfix(const wchar_t* arg_wcard, const wchar_t* delim=L";");
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
 	bool CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
