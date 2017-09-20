@@ -201,6 +201,7 @@ bool Win32WcostreamBuf::WriteBuffer()
 				if (!WriteConsole(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
 					return false;
 			} else {
+				//std::wostream exp(orig_buf);
 				//Using fwrite(stdout) instead of wcout
 				if (fwrite(pbase(), sizeof(wchar_t), datalen, wc_type==WCOUT?stdout:stderr)!=datalen)
 					return false;

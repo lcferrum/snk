@@ -441,7 +441,7 @@ bool AccessHacks::GrantDaclPermissions(HANDLE hToken, PSID pSid, DWORD dwAccessP
 		EXPLICIT_ACCESS ea_for_sid;
 		PACL pNewDACL;
 		ea_for_sid.grfAccessPermissions=dwAccessPermissions;
-		ea_for_sid.grfAccessMode=GRANT_ACCESS;	//This ACCESS_MODE combines the specified rights with any existing allowed or denied rights of the trustee.
+		ea_for_sid.grfAccessMode=GRANT_ACCESS;	//This ACCESS_MODE combines the specified rights with any existing allowed or denied rights of the trustee
 		ea_for_sid.grfInheritance=NO_INHERITANCE;
 		ea_for_sid.Trustee.pMultipleTrustee=NULL;
 		ea_for_sid.Trustee.MultipleTrusteeOperation=NO_MULTIPLE_TRUSTEE;
