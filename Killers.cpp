@@ -6,7 +6,6 @@
 #include <sstream>
 #include <iomanip>
 #include <tuple>
-#include <vector>
 #include <algorithm>
 #include <cstdio>
 
@@ -227,11 +226,66 @@ bool Killers::KillParentPid()
 	}
 }
 
+bool Killers::PidListPrepare(const wchar_t* pid_list, std::vector<ULONG_PTR> &uptr_array) 
+{
+	if (!pid_list)
+		return false;
+	
+	ULONG_PTR dw_pri, dw_sec, *pdw_cur=&dw_pri;
+	wchar_t* rtok;
+	bool cnv_err=false;
+	
+	wchar_t buffer[wcslen(pid_list)+1];
+	wcscpy(buffer, pid_list);
+	
+	for (wchar_t* token=wcstok(buffer, L",;"); token; token=wcstok(NULL, L",;")) {
+		for(;;) {
+			if (!*token||*token==L'-'||*token==L'+'||*token==L' ') {
+				cnv_err=true;
+				break;
+			}
+			*pdw_cur=wcstoul(token, &rtok, 0);
+			if ((*pdw_cur==0&&rtok==token)||(*pdw_cur==ULONG_MAX&&errno==ERANGE)||(*rtok&&(*rtok!=L'-'||pdw_cur!=&dw_pri))) {
+				cnv_err=true;
+				break;
+			}
+			if (*rtok) {
+				token=rtok+1;
+				pdw_cur=&dw_sec;
+			} else {
+				if (pdw_cur==&dw_sec) {
+					for (DWORD dw_i=dw_pri; uptr_array.push_back(dw_i), dw_i!=dw_sec; dw_pri<=dw_sec?dw_i++:dw_i--);
+					pdw_cur=&dw_pri;
+				} else
+					uptr_array.push_back(dw_pri);
+				break;
+			}
+		}
+		if (cnv_err) {
+			std::wcerr<<L"Warning: PID list \""<<pid_list<<L"\" is malformed, error in token \""<<token<<L"\"!"<<std::endl;
+			uptr_array.clear();
+			return false;
+		}
+	}
+	
+	//All this hassle with sorting, erasing and following binary_search is to speed up performance with big PID arrays
+	//Because intended use for this function is mass PID killing or killing single PIDs from vaguely known range
+	std::sort(uptr_array.begin(), uptr_array.end());
+	uptr_array.erase(std::unique(uptr_array.begin(), uptr_array.end()), uptr_array.end());
+	
+	return true;
+}
+
+inline bool Killers::PidListCompare(std::vector<ULONG_PTR> &uptr_array, ULONG_PTR pid) 
+{
+	return std::binary_search(uptr_array.begin(), uptr_array.end(), pid);
+}
+
 bool Killers::KillPidsInArray(const wchar_t* arg_parray) 
 {
 	std::vector<ULONG_PTR> uptr_array;
 	
-	if (!arg_parray||!PidListCmp(arg_parray, uptr_array))
+	if (!arg_parray||!PidListPrepare(arg_parray, uptr_array))
 		arg_parray=L"";
 
 #if DEBUG>=3
@@ -248,7 +302,7 @@ bool Killers::KillPidsInArray(const wchar_t* arg_parray)
 	std::wcout<<arg_parray;
 	
 	bool found=!uptr_array.empty()&&ApplyToProcesses([this, arg_parray, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (PidListCmp(uptr_array, PID)) {
+		if (PidListCompare(uptr_array, PID)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;

@@ -3,6 +3,7 @@
 
 #include "ProcessUsage.h"
 #include <string>
+#include <vector>
 #include <windows.h>
 
 class Killers: virtual protected ProcessesCrossBase {
@@ -13,6 +14,8 @@ private:
 	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
 	bool CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool incl_domain);
+	bool PidListPrepare(const wchar_t* pid_list, std::vector<ULONG_PTR> &uptr_array);
+	bool PidListCompare(std::vector<ULONG_PTR> &uptr_array, ULONG_PTR pid);
 	bool KillParentPid();
 	bool KillPidsInArray(const wchar_t* arg_parray);
 	

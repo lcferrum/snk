@@ -2,7 +2,6 @@
 #include "Extras.h"
 #include "Common.h"
 #include "Version.h"
-#include <algorithm>
 #include <iostream>
 #include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
 
@@ -135,63 +134,6 @@ void MakeRulesFromArgv(int argc, wchar_t** argv, std::stack<std::wstring> &rules
 #endif
 }
 
-bool PidListCmp(const wchar_t* pid_list, std::vector<ULONG_PTR> *uptr_array, const ULONG_PTR *pid) 
-{
-	std::vector<ULONG_PTR> local_uptr_array;
-	
-	if (!uptr_array)
-		uptr_array=&local_uptr_array;
-	
-	if (pid_list) {
-		wchar_t buffer[wcslen(pid_list)+1];
-		wcscpy(buffer, pid_list);
-		
-		ULONG_PTR dw_pri, dw_sec, *pdw_cur=&dw_pri;
-		wchar_t* rtok;
-		bool cnv_err=false;
-		
-		for (wchar_t* token=wcstok(buffer, L",;"); token; token=wcstok(NULL, L",;")) {
-			for(;;) {
-				if (!*token||*token==L'-'||*token==L'+'||*token==L' ') {
-					cnv_err=true;
-					break;
-				}
-				*pdw_cur=wcstoul(token, &rtok, 0);
-				if ((*pdw_cur==0&&rtok==token)||(*pdw_cur==ULONG_MAX&&errno==ERANGE)||(*rtok&&(*rtok!=L'-'||pdw_cur!=&dw_pri))) {
-					cnv_err=true;
-					break;
-				}
-				if (*rtok) {
-					token=rtok+1;
-					pdw_cur=&dw_sec;
-				} else {
-					if (pdw_cur==&dw_sec) {
-						for (DWORD dw_i=dw_pri; uptr_array->push_back(dw_i), dw_i!=dw_sec; dw_pri<=dw_sec?dw_i++:dw_i--);
-						pdw_cur=&dw_pri;
-					} else
-						uptr_array->push_back(dw_pri);
-					break;
-				}
-			}
-			if (cnv_err) {
-				std::wcerr<<L"Warning: PID list \""<<pid_list<<L"\" is malformed, error in token \""<<token<<L"\"!"<<std::endl;
-				uptr_array->clear();
-				return false;
-			}
-		}
-		
-		//All this hassle with sorting, erasing and following binary_search is to speed up performance with big PID arrays
-		//Because intended use for this function is mass PID killing or killing single PIDs from vaguely known range
-		std::sort(uptr_array->begin(), uptr_array->end());
-		uptr_array->erase(std::unique(uptr_array->begin(), uptr_array->end()), uptr_array->end());
-	}
-	
-	if (pid)
-		return std::binary_search(uptr_array->begin(), uptr_array->end(), *pid);
-	else
-		return true;
-}
-
 HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMandatory) 
 {
 	//If OpenProcess with provided dwDesiredAccess succeeded - return resulting hProcess
@@ -225,7 +167,7 @@ HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMan
 
 std::wstring GetNamePartFromFullPath(const std::wstring& fpath)
 {
-	//Instead of using clumsy _wsplitpath use std::wstring magick nowing that supplied path is full one
+	//Instead of using clumsy _wsplitpath use std::wstring magick knowing that supplied path is full one
 	size_t last_backslash;
 	if ((last_backslash=fpath.find_last_of(L'\\'))!=std::wstring::npos&&last_backslash<fpath.length())
 		return fpath.substr(last_backslash+1);
