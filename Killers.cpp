@@ -122,7 +122,7 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 	std::wcout<<arg_wcard;
 	
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str())) {
+		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str(), param_full)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -390,7 +390,7 @@ bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str
 bool Killers::CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard) 
 {
 	for (const std::pair<std::wstring, std::wstring> &module: mlist)
-		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str())) return true;
+		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str(), full)) return true;
 	
 	return false;
 }
@@ -863,7 +863,7 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 			wchar_t title_buf[title_len+1];
 			DWORD pid;
 			if (GetWindowText(hwnd, title_buf, title_len+1)&&
-				MultiWildcardCmp(wcard, title_buf, NULL, false)&&
+				MultiWildcardCmp(wcard, title_buf, false, NULL)&&
 				GetWindowThreadProcessId(real_hwnd, &pid))
 				dw_array.push_back(pid);
 		}
@@ -895,9 +895,9 @@ bool Killers::CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool inc
 							std::wstring fname(domain);
 							fname.push_back(L'\\');
 							fname.append(account);
-							res=MultiWildcardCmp(wcard, fname.c_str(), L";,");
+							res=MultiWildcardCmp(wcard, fname.c_str(), true, L";,");
 						} else {
-							res=MultiWildcardCmp(wcard, account, L";,");
+							res=MultiWildcardCmp(wcard, account, false, L";,");
 						}
 					}
 				}

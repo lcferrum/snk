@@ -78,7 +78,7 @@ bool PathWildcardCmp(const wchar_t* wild, const wchar_t* string)
 	return !*wild;
 }
 
-bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, const wchar_t* delim, bool is_path) 
+bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, bool is_path, const wchar_t* delim) 
 {
 	if (delim) {
 		wchar_t buffer[wcslen(wild)+1];
