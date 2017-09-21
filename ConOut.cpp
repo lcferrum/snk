@@ -197,8 +197,8 @@ bool Win32WcostreamBuf::WriteBuffer()
 			//Only it has a bug on early implementations (before Vista) where it doesn't distinguish widechar version of LF from single char LF and just adds single byte CR before every encountered LF byte
 			//Finally, whatever is used internally in stdout when it is connected to console (and not redirected to file/pipe) - it's definetely not WriteConsoleW and there will be some nasty underlying UTF16->MBCS conversion involved
 			//In the end, the only safe way to do widechar console output on Win32 is using own streambuf where:
-			//	Unredirected output (where stdout is connected to actual console) uses native UNICODE Win32 function WriteConsoleW
-			//	Redirected output (where stdout is connected to file/pipe) uses WriteFile and handles CR->CRLF converson on it's own
+			//	Unredirected output (where stdout is connected to actual console) uses native Win32 UNICODE vesrion of WriteConsole (WriteConsoleW)
+			//	Redirected output (where stdout is connected to file/pipe) uses native Win32 WriteFile and handles CR->CRLF converson on it's own
 			
 			if (stdstream_type==GUICON||stdstream_type==CON) {
 				DWORD written;		
