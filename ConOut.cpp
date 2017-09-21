@@ -190,18 +190,22 @@ bool Win32WcostreamBuf::WriteBuffer()
 	if (datalen) {
 		if (enabled) {
 			//Widechar console output causes a shitstorm of issues on Win32
-			//First of all, _O_U16TEXT mode is a must on stdout handle or wcout will fail on first unicode character
-			//But unfortunately even if wcout not failing now, output to console is crappy most time
-			//Unicode characters may be shown incorrectly, there may be spaces after each of output characters or only the very first character of all output will be displayed
-			//The only safe way to do widechar console output is using native Win32 function - WriteConsole
-			//For redirected output wcout is still ok and even better than WriteFile - it will not mangle new lines
+			//First of all, _O_U16TEXT mode is a must on stdout handle or wprintf/fwrite(stdout) will fail on first unicode character (we don't do it because stdout is completely bypassed here)
+			//Second, even though wcout uses stdout in underlying code, with it's default streambuf on Win32 it will convert all output to some MBCS codepage before writing it to stdout
+			//And there is nothing you can do about it, short of supplying own streambuf (exactly what we are doing)
+			//Third, all stdout output in standard Win32 C/C++ libs implementation comes down to calling internally write(stdout) from MSVCRT that automatically changes LF to CRLF
+			//Only it has a bug on early implementations (before Vista) where it doesn't distinguish widechar version of LF from single char LF and just adds single byte CR before every encountered LF byte
+			//Finally, whatever is used internally in stdout when it is connected to console (and not redirected to file/pipe) - it's definetely not WriteConsoleW and there will be some nasty underlying UTF16->MBCS conversion involved
+			//In the end, the only safe way to do widechar console output on Win32 is using own streambuf where:
+			//	Unredirected output (where stdout is connected to actual console) uses native UNICODE Win32 function WriteConsoleW
+			//	Redirected output (where stdout is connected to file/pipe) uses WriteFile and handles CR->CRLF converson on it's own
+			
 			if (stdstream_type==GUICON||stdstream_type==CON) {
 				DWORD written;		
 				//If GUICON/CON - hstdstream is guaranteed to be valid
 				if (!WriteConsole(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
 					return false;
 			} else {
-				//std::wostream exp(orig_buf);
 				//Using fwrite(stdout) instead of wcout
 				if (fwrite(pbase(), sizeof(wchar_t), datalen, wc_type==WCOUT?stdout:stderr)!=datalen)
 					return false;
