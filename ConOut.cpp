@@ -158,6 +158,7 @@ bool Win32WcostreamBuf::AttachAdditionalOutput(AoutCallbackType aout)
 	if (!aout)
 		return false;
 	
+	sync();
 	aout_proc=aout;
 	
 	return true;
@@ -168,6 +169,7 @@ bool Win32WcostreamBuf::DetachAdditionalOutput()
 	if (!aout_proc)
 		return false;
 	
+	sync();
 	aout_proc=nullptr;
 	aout_buf.clear();
 	
