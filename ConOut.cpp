@@ -43,8 +43,7 @@ void Win32WcostreamBuf::OutputEnabled(bool value)
 
 bool Win32WcostreamBuf::Activate()
 {
-	if (active)
-		return false;	
+	if (active) return false;	
 
 	if ((hstdstream=GetStdHandle(wc_type==WCOUT?STD_OUTPUT_HANDLE:STD_ERROR_HANDLE))!=INVALID_HANDLE_VALUE) {
 		DWORD conmode;
@@ -65,10 +64,10 @@ bool Win32WcostreamBuf::Activate()
 				} else
 					stdstream_type=BADCON;
 			}
-		} else if (filetype==FILE_TYPE_DISK||filetype==FILE_TYPE_PIPE)	
+		} else if (filetype==FILE_TYPE_DISK||filetype==FILE_TYPE_PIPE) {
 			//Stdstream is redirected to file or pipe
 			stdstream_type=REDIR;		
-		else if (GetConsoleMode(hstdstream, &conmode)) {
+		} else if (GetConsoleMode(hstdstream, &conmode)) {
 			//Stdstream is a console
 			if (console_attached) {
 				console_attached++;
@@ -107,11 +106,7 @@ bool Win32WcostreamBuf::Activate()
 
 bool Win32WcostreamBuf::Deactivate()
 {
-	if (!active)
-		return false;
-	
-	aout_proc=nullptr;
-	aout_buf.clear();
+	if (!active) return false;
 	
 	sync();
 	
@@ -160,7 +155,7 @@ bool Win32WcostreamBuf::Deactivate()
 
 bool Win32WcostreamBuf::AttachAdditionalOutput(AoutCallbackType aout)
 {
-	if (!aout||aout_proc)
+	if (!aout)
 		return false;
 	
 	aout_proc=aout;
@@ -168,9 +163,20 @@ bool Win32WcostreamBuf::AttachAdditionalOutput(AoutCallbackType aout)
 	return true;
 }
 
+bool Win32WcostreamBuf::DetachAdditionalOutput()
+{
+	if (!aout_proc)
+		return false;
+	
+	aout_proc=nullptr;
+	aout_buf.clear();
+	
+	return true;
+}
+
 bool Win32WcostreamBuf::CallAdditionalOutput()
 {
-	if (!aout_proc||!active)
+	if (!aout_proc)
 		return false;
 	
 	sync();
@@ -182,9 +188,6 @@ bool Win32WcostreamBuf::CallAdditionalOutput()
 
 bool Win32WcostreamBuf::WriteBuffer()
 {
-	if (!active)
-		return false;
-	
 	//Not checking validness of pointers and data length because virtual members that can directly affect them are not implemented
 	ptrdiff_t datalen=pptr()-pbase();
 	if (datalen) {
@@ -205,7 +208,7 @@ bool Win32WcostreamBuf::WriteBuffer()
 				//If GUICON/CON - hstdstream is guaranteed to be valid
 				if (!WriteConsole(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
 					return false;
-			} else {
+			} else if (stdstream_type==REDIR||stdstream_type==GEN) {
 				//Using fwrite(stdout) instead of wcout
 				if (fwrite(pbase(), sizeof(wchar_t), datalen, wc_type==WCOUT?stdout:stderr)!=datalen)
 					return false;

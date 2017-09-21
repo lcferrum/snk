@@ -49,6 +49,7 @@ public:
 	
 	bool Activate();
 	bool AttachAdditionalOutput(AoutCallbackType aout);
+	bool DetachAdditionalOutput();
 	void OutputEnabled(bool value);
 	bool CallAdditionalOutput();
 	bool Deactivate();
