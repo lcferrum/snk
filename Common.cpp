@@ -220,9 +220,9 @@ LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS To
 
 namespace CachedNtQuerySystemInformation {
 	BYTE* spi_cache=NULL;
-	DWORD spi_size=0;
+	DWORD spi_size=153600;	//150KB
 	BYTE* shi_cache=NULL;
-	DWORD shi_size=0;
+	DWORD shi_size=204800;	//200KB
 	bool Wrapper(SYSTEM_INFORMATION_CLASS class_name, DWORD &class_size, BYTE* &class_cache, BYTE** class_buffer, bool clear_cache);
 };
 
@@ -251,17 +251,18 @@ bool CachedNtQuerySystemInformation::Wrapper(SYSTEM_INFORMATION_CLASS class_name
 
 	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
 	//We can't tell for sure how many bytes will be needed to store system information and can be really large - like several hundred kilobytes
-	DWORD ret_size, cur_size;
+	DWORD ret_size=0, cur_size=class_size;
 	NTSTATUS st;
-	//WIP: double buffer instead adding 4KB?
-	for (ret_size=0, cur_size=class_size, st=STATUS_INFO_LENGTH_MISMATCH; st==STATUS_INFO_LENGTH_MISMATCH; delete[] class_cache, cur_size+=4096) {
+	for (;;) {
 		class_cache=new BYTE[cur_size];
-		st=fnNtQuerySystemInformation(class_name, class_cache, cur_size, &ret_size);
+		if ((st=fnNtQuerySystemInformation(class_name, class_cache, cur_size, &ret_size))!=STATUS_INFO_LENGTH_MISMATCH) break;
+		delete[] class_cache;
+		cur_size*=2;
 	}
 	
 	if (NT_SUCCESS(st)&&ret_size) {
 		*class_buffer=class_cache;
-		class_size=ret_size;	//WIP: add to size some increment so next uncached call will make less cycles?
+		class_size=ret_size+4096;
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":CachedNtQuerySystemInformation::Wrapper:"<<__LINE__<<L": NtQuerySystemInformation("<<class_name<<L").ReturnLength="<<ret_size<<std::endl;
 #endif	

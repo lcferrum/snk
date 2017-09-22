@@ -10,7 +10,7 @@ extern pGetConsoleWindow fnGetConsoleWindow;
 int Win32WcostreamBuf::console_attached=0;
 
 Win32WcostreamBuf::Win32WcostreamBuf(WCType wc_type):
-	obuf(), active(false), enabled(true), wc_type(wc_type), orig_mode(-1), orig_buf(NULL), stdstream_type(NONE), 
+	obuf(), active(false), enabled(true), wc_type(wc_type), orig_buf(NULL), stdstream_type(NONE), 
 	hstdstream(INVALID_HANDLE_VALUE), aout_buf(), aout_proc()
 {
 	setp(obuf, obuf+W32WBUF_OBUFLEN-1);	//-1 is for quick version of LF->CRLF conversion where LF just terminates buffer
@@ -79,14 +79,6 @@ bool Win32WcostreamBuf::Activate()
 			stdstream_type=GEN;
 	}
 	
-	if (stdstream_type!=CON&&stdstream_type!=GUICON) {
-		//Will prevent stdout/stderr failing on Cyrillic and Ideographic wide character output (console still have to support them)
-		//Warning: this will also break output of sbcs/mbcs characters (only wstring and wchar_t now allowed)
-		//_O_U16TEXT is UTF-16 w/o BOM
-		fflush(wc_type==WCOUT?stdout:stderr);
-		orig_mode=_setmode(_fileno(wc_type==WCOUT?stdout:stderr), _O_U16TEXT);
-	}
-	
 	switch (wc_type) {
 		case WCOUT:
 			orig_buf=std::wcout.rdbuf(this);
@@ -122,12 +114,6 @@ bool Win32WcostreamBuf::Deactivate()
 			break;
 	}
 
-	if (orig_mode!=-1) {
-		fflush(wc_type==WCOUT?stdout:stderr);
-		_setmode(_fileno(wc_type==WCOUT?stdout:stderr), orig_mode);
-		orig_mode=-1;
-	}
-	
 	//The gentelmen rule: if you are using attached console or merely unsuccesfully attached it - it's your responsibility to free it if no one needs it anymore
 	if (stdstream_type==GUICON||stdstream_type==BADCON) {
 		if (!--console_attached) {
@@ -203,9 +189,11 @@ bool Win32WcostreamBuf::WriteBuffer()
 			//Finally, whatever is used internally in stdout when it is connected to console (and not redirected to file/pipe) - it's definetely not WriteConsoleW and there will be some nasty underlying UTF16->MBCS conversion involved
 			//In the end, the only safe way to do widechar console output on Win32 is using own streambuf where:
 			//	Unredirected output (where stdout is connected to actual console) uses native Win32 UNICODE vesrion of WriteConsole (WriteConsoleW)
-			//	Redirected output (where stdout is connected to file/pipe) uses native Win32 WriteFile and handles CR->CRLF converson on it's own
+			//	Redirected output (where stdout is connected to file/pipe) uses native Win32 WriteFile and handles LF->CRLF converson on it's own
 			
 			if (stdstream_type==GUICON||stdstream_type==CON) {
+				//Because we are building app in UNICODE, WriteConsole is alias for WriteConsoleW here
+				//WriteConsoleW is used here just to emphasize that it is indeed widechar console output
 				DWORD written;		
 				if (!WriteConsoleW(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
 					return false;
@@ -219,10 +207,15 @@ bool Win32WcostreamBuf::WriteBuffer()
 				wchar_t* crlf_buf=NULL;
 				wchar_t* cnv_buf=pbase();
 				
-				//Fast version of LF->CRLF conversion - buffer is just terminated with LF
+				//Fast version of LF->CRLF conversion - buffer just terminated with LF
 				if (lf_cnt==1&&*(pptr()-1)==L'\n') {
-					*(pptr()-1)=L'\r';
-					*pptr()=L'\n';	//It is guaranteed that pptr() points to valid memory location because setp was called with pend=obuf+W32WBUF_OBUFLEN-1
+					//It is guaranteed that pptr() points to valid memory location because setp was called with pend=obuf+W32WBUF_OBUFLEN-1
+					//Hack below assumes that wchat_t is UTF16 LE
+					//0x000A000D is represented in memory as L"\r\n" (CRLF) on LE platforms
+					//On Windows wchar_t is indeed UTF16 LE (even for versions of NT that run on bi-endian platforms)
+					//But by C++ standard wchar_t is implementation defined so, just in case, test that we really dealing with 2 byte wchar_t
+					static_assert(sizeof(wchar_t)==2, L"sizeof(wchar_t) should be exactly 2 bytes");
+					*(DWORD*)(pptr()-1)=0x000A000D;
 				//Standard version of LF->CRLF conversion
 				} else if (lf_cnt) {
 					wchar_t* crlf_iter=cnv_buf=crlf_buf=new wchar_t[cnv_size];
@@ -242,6 +235,7 @@ bool Win32WcostreamBuf::WriteBuffer()
 				if (!write_ok||written!=cnv_size)
 					return false;
 			}
+			
 			//If we have additional output active - write data to it's buffer
 			if (aout_proc)
 				aout_buf.append(pbase(), datalen);

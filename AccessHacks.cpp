@@ -193,31 +193,10 @@ bool AccessHacks::ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken)
 	//N.B.:
 	//Though NT4 method will work here and it's less memory consuming, this method is preferable for 2k-XP because it is non-intrusive
 
-	if (!fnNtQuerySystemInformation) {
-#if DEBUG>=2
-		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem2k:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
-#endif
-		return false;
-	}
-	
 	bool imp_successful=false;
-	SYSTEM_HANDLE_INFORMATION *pshi=NULL;
-	DWORD ret_size=0, cur_len=0;
-	NTSTATUS st;
+	SYSTEM_HANDLE_INFORMATION *pshi;
 	
-	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
-	//NtQuerySystemInformation(SystemHandleInformation) retreives unknown number of SYSTEM_HANDLE_ENTRY structures
-	//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
-	//Each iteration buffer size is increased by 4KB
-	do {
-		delete[] (BYTE*)pshi;
-		pshi=(SYSTEM_HANDLE_INFORMATION*)new BYTE[(cur_len+=4096)];
-	} while ((st=fnNtQuerySystemInformation(SystemHandleInformation, pshi, cur_len, &ret_size))==STATUS_INFO_LENGTH_MISMATCH);
-	
-	if (NT_SUCCESS(st)&&ret_size&&pshi->Count) {
-#if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem2k:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
-#endif
+	if (CachedNtQuerySystemHandleInformation(&pshi)&&pshi->Count) {
 		//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
 		//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
 		DWORD pid=GetCurrentProcessId();
@@ -256,8 +235,6 @@ bool AccessHacks::ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken)
 		} while (entry_idx);
 	}
 	
-	delete[] (BYTE*)pshi;
-	
 	//Set hSysToken to NULL on unsuccessfull impersonation because caching algorithm relies on it to be NULL if impersonation was not succesfull
 	if (!imp_successful) hSysToken=NULL;
 	return imp_successful;
@@ -277,35 +254,13 @@ bool AccessHacks::ImpersonateLocalSystemVista(PSID ssid)
 	//Local System processes on Vista+ happen to have their token DACL with TOKEN_DUPLICATE rights set for the users that have enough rights to open them for TOKEN_QUERY
 	//This doesn't happen on previous OS versions - here we have to set needed DACL permissions manually for this method to work (see ImpersonateLocalSystem2k)
 
-	if (!fnNtQuerySystemInformation) {
-#if DEBUG>=2
-		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystemVista:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
-#endif
-		return false;
-	}
-	
 	bool imp_successful=false;
-
-	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
-	//NtQuerySystemInformation(SystemProcessInformation) retreives not only array  of SYSTEM_PROCESS_INFORMATION structures but also an array of SYSTEM_THREAD structures and UNICODE_STRING with name for each process
-	//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
-	//Each iteration buffer size is increased by 4KB
-	//For SYSTEM_PROCESS_INFORMATION buffer can be really large - like several hundred kilobytes
-	SYSTEM_PROCESS_INFORMATION *pspi_all=NULL, *pspi_cur=NULL;
-	DWORD ret_size=0, cur_len=0;
-	NTSTATUS st;
-	do {
-		delete[] (BYTE*)pspi_all;
-		pspi_all=(SYSTEM_PROCESS_INFORMATION*)new BYTE[(cur_len+=4096)];
-	} while ((st=fnNtQuerySystemInformation(SystemProcessInformation, pspi_all, cur_len, &ret_size))==STATUS_INFO_LENGTH_MISMATCH);
+	SYSTEM_PROCESS_INFORMATION *pspi_all;
 	
-	//First step is to find a process with Local System token
-	//We try to open it with TOKEN_QUERY|TOKEN_DUPLICATE right away
-	if (NT_SUCCESS(st)&&ret_size) {
-#if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystemVista:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
-#endif	
-		pspi_cur=pspi_all;
+	if (CachedNtQuerySystemProcessInformation(&pspi_all)) {
+		//First step is to find a process with Local System token
+		//We try to open it with TOKEN_QUERY|TOKEN_DUPLICATE right away
+		SYSTEM_PROCESS_INFORMATION *pspi_cur=pspi_all;
 		while (pspi_cur&&!imp_successful) {
 			if (HANDLE hProcess=OpenProcessWrapper((ULONG_PTR)pspi_cur->UniqueProcessId, PROCESS_QUERY_INFORMATION)) {
 				HANDLE hToken=NULL;
@@ -333,8 +288,6 @@ bool AccessHacks::ImpersonateLocalSystemVista(PSID ssid)
 		}
 	}
 	
-	delete[] (BYTE*)pspi_all;
-
 	//Set hSysToken to NULL on unsuccessfull impersonation because caching algorithm relies on it to be NULL if impersonation was not succesfull
 	if (!imp_successful) hSysToken=NULL;
 	return imp_successful;
@@ -354,37 +307,15 @@ bool AccessHacks::ImpersonateLocalSystemNT4(PSID ssid, PSID usid)
 	//This method works on NT4+, given that user have enough rights
 	//Though it most likely find it's way only on NT4 because we have other working non-intrusive methods for newer OSes 
 
-	if (!fnNtQuerySystemInformation) {
-#if DEBUG>=2
-		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystemNT4:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
-#endif
-		return false;
-	}
-	
 	bool imp_successful=false;
-
-	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
-	//NtQuerySystemInformation(SystemProcessInformation) retreives not only array  of SYSTEM_PROCESS_INFORMATION structures but also an array of SYSTEM_THREAD structures and UNICODE_STRING with name for each process
-	//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
-	//Each iteration buffer size is increased by 4KB
-	//For SYSTEM_PROCESS_INFORMATION buffer can be really large - like several hundred kilobytes
-	SYSTEM_PROCESS_INFORMATION *pspi_all=NULL, *pspi_cur=NULL;
-	DWORD ret_size=0, cur_len=0;
-	NTSTATUS st;
-	do {
-		delete[] (BYTE*)pspi_all;
-		pspi_all=(SYSTEM_PROCESS_INFORMATION*)new BYTE[(cur_len+=4096)];
-	} while ((st=fnNtQuerySystemInformation(SystemProcessInformation, pspi_all, cur_len, &ret_size))==STATUS_INFO_LENGTH_MISMATCH);
+	SYSTEM_PROCESS_INFORMATION *pspi_all;
 	
-	//First step is to find a process with Local System token
-	//We open it with TOKEN_QUERY (to get TokenUser information incl. SID) and READ_CONTROL|WRITE_DAC (to be able to tap into DACL) permissions
-	//We won't be able to get TOKEN_DUPLICATE rights with Local System token needed for ImpersonateLoggedOnUser right now
-	//Just to try our luck, at first we'll try to open token with TOKEN_QUERY|TOKEN_DUPLICATE anyway - maybe someone already tampered with it's DACL
-	if (NT_SUCCESS(st)&&ret_size) {
-#if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystemNT4:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
-#endif	
-		pspi_cur=pspi_all;
+	if (CachedNtQuerySystemProcessInformation(&pspi_all)) {
+		//First step is to find a process with Local System token
+		//We open it with TOKEN_QUERY (to get TokenUser information incl. SID) and READ_CONTROL|WRITE_DAC (to be able to tap into DACL) permissions
+		//We won't be able to get TOKEN_DUPLICATE rights with Local System token needed for ImpersonateLoggedOnUser right now
+		//Just to try our luck, at first we'll try to open token with TOKEN_QUERY|TOKEN_DUPLICATE anyway - maybe someone already tampered with it's DACL
+		SYSTEM_PROCESS_INFORMATION *pspi_cur=pspi_all;
 		while (pspi_cur&&!imp_successful) {
 			if (HANDLE hProcess=OpenProcessWrapper((ULONG_PTR)pspi_cur->UniqueProcessId, PROCESS_QUERY_INFORMATION)) {
 				HANDLE hToken=NULL;
@@ -422,8 +353,6 @@ bool AccessHacks::ImpersonateLocalSystemNT4(PSID ssid, PSID usid)
 		}
 	}
 	
-	delete[] (BYTE*)pspi_all;
-
 	//Set hSysToken to NULL on unsuccessfull impersonation because caching algorithm relies on it to be NULL if impersonation was not succesfull
 	if (!imp_successful) hSysToken=NULL;
 	return imp_successful;

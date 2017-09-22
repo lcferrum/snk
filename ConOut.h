@@ -30,7 +30,6 @@ private:
 	bool active;
 	bool enabled;
 	WCType wc_type;
-	int orig_mode;
 	std::wstreambuf *orig_buf;
 	OutType stdstream_type;
 	HANDLE hstdstream;
