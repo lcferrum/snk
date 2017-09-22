@@ -13,7 +13,7 @@ Win32WcostreamBuf::Win32WcostreamBuf(WCType wc_type):
 	obuf(), active(false), enabled(true), wc_type(wc_type), orig_mode(-1), orig_buf(NULL), stdstream_type(NONE), 
 	hstdstream(INVALID_HANDLE_VALUE), aout_buf(), aout_proc()
 {
-	setp(obuf, obuf+W32WBUF_OBUFLEN);
+	setp(obuf, obuf+W32WBUF_OBUFLEN-1);	//-1 is for quick version of LF->CRLF conversion where LF just terminates buffer
 }
 
 Win32WcostreamBuf::~Win32WcostreamBuf()
@@ -207,14 +207,40 @@ bool Win32WcostreamBuf::WriteBuffer()
 			
 			if (stdstream_type==GUICON||stdstream_type==CON) {
 				DWORD written;		
-				//If GUICON/CON - hstdstream is guaranteed to be valid
-				if (!WriteConsole(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
+				if (!WriteConsoleW(hstdstream, pbase(), datalen, &written, NULL)||written!=datalen)
 					return false;
-			} else if (stdstream_type==REDIR||stdstream_type==GEN) {
-				//Using fwrite(stdout) instead of wcout
-				if (fwrite(pbase(), sizeof(wchar_t), datalen, wc_type==WCOUT?stdout:stderr)!=datalen)
+			} else if (stdstream_type==REDIR||stdstream_type==GEN) {				
+				//Count number of LF appearances
+				DWORD lf_cnt=0;
+				wchar_t* obuf_iter=pbase();
+				while (obuf_iter!=pptr()) lf_cnt+=L'\n'==*obuf_iter++;	//true casted to int is always 1 by C++ standard
+				
+				DWORD cnv_size=(lf_cnt+datalen)*sizeof(wchar_t);
+				wchar_t* crlf_buf=NULL;
+				wchar_t* cnv_buf=pbase();
+				
+				//Fast version of LF->CRLF conversion - buffer is just terminated with LF
+				if (lf_cnt==1&&*(pptr()-1)==L'\n') {
+					*(pptr()-1)=L'\r';
+					*pptr()=L'\n';	//It is guaranteed that pptr() points to valid memory location because setp was called with pend=obuf+W32WBUF_OBUFLEN-1
+				//Standard version of LF->CRLF conversion
+				} else if (lf_cnt) {
+					wchar_t* crlf_iter=cnv_buf=crlf_buf=new wchar_t[cnv_size];
+					wchar_t crlf_char;
+					obuf_iter=pbase();
+					while (obuf_iter!=pptr()) {
+						crlf_char=*obuf_iter++;
+						if (crlf_char==L'\n') *crlf_iter++=L'\r';
+						*crlf_iter++=crlf_char;
+					}
+				}
+				//No LF->CRLF conversion is required
+				
+				DWORD written;
+				BOOL write_ok=WriteFile(hstdstream, cnv_buf, cnv_size, &written, NULL);
+				delete[] crlf_buf;
+				if (!write_ok||written!=cnv_size)
 					return false;
-				fflush(wc_type==WCOUT?stdout:stderr);
 			}
 			//If we have additional output active - write data to it's buffer
 			if (aout_proc)
