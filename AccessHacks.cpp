@@ -5,7 +5,6 @@
 #include <aclapi.h>		//GetSecurityInfo
 #include <accctrl.h>	//SE_KERNEL_OBJECT
 #include <winternl.h>	//NT_SUCCESS, SYSTEM_HANDLE_INFORMATION, SYSTEM_HANDLE_ENTRY
-#include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
 
 #ifdef DEBUG
 #include <iostream>
@@ -23,7 +22,6 @@
 
 extern pWow64DisableWow64FsRedirection fnWow64DisableWow64FsRedirection;
 extern pWow64RevertWow64FsRedirection fnWow64RevertWow64FsRedirection;
-extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 
 std::unique_ptr<AccessHacks> AccessHacks::instance;
 

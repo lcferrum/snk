@@ -262,7 +262,7 @@ bool CachedNtQuerySystemInformation::Wrapper(SYSTEM_INFORMATION_CLASS class_name
 	
 	if (NT_SUCCESS(st)&&ret_size) {
 		*class_buffer=class_cache;
-		class_size=ret_size+4096;
+		class_size=ret_size+4096;	//+4KB in case of data increase in next uncached call so not to multiply buffer size
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":CachedNtQuerySystemInformation::Wrapper:"<<__LINE__<<L": NtQuerySystemInformation("<<class_name<<L").ReturnLength="<<ret_size<<std::endl;
 #endif	

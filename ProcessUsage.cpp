@@ -5,12 +5,9 @@
 #include <iostream>
 #include <algorithm>
 #include <limits>		//numeric_limits
-#include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
 #include <psapi.h>
 
 #define USAGE_TIMEOUT 	1500 	//ms
-
-extern pNtQuerySystemInformation fnNtQuerySystemInformation;
 
 #ifdef USE_CYCLE_TIME
 #define USER_TIME(pspi) (ULONGLONG)pspi->Reserved[2].QuadPart	//SYSTEM_PROCESS_INFORMATION.CycleTime, available since Win 7
@@ -161,6 +158,8 @@ void Processes::RequestPopulatedCAN(bool full)
 		if (full) {
 			Sleep(USAGE_TIMEOUT);
 			
+			CachedNtQuerySystemProcessInformation(NULL, true);
+			CachedNtQuerySystemHandleInformation(NULL, true);
 			EnumProcessUsage(false, self_lsid, self_pid);
 			
 			if (ModeRecent())
@@ -226,31 +225,8 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	
 	tick_not_tock=!tick_not_tock;	//Flipping tick_not_tock
 	
-	if (!fnNtQuerySystemInformation) {
-#if DEBUG>=2
-		std::wcerr<<L"" __FILE__ ":EnumProcessUsage:"<<__LINE__<<L": NtQuerySystemInformation not found!"<<std::endl;
-#endif
+	if (!CachedNtQuerySystemProcessInformation(&pspi_all))
 		return 0;
-	}
-
-	//NtQuerySystemInformation before XP returns actual read size in ReturnLength rather than needed size
-	//NtQuerySystemInformation(SystemProcessInformation) retreives not only array  of SYSTEM_PROCESS_INFORMATION structures but also an array of SYSTEM_THREAD structures and UNICODE_STRING with name for each process
-	//So we can't tell for sure how many bytes will be needed to store information for each process because thread count and name length varies between processes
-	//Each iteration buffer size is increased by 4KB
-	//For SYSTEM_PROCESS_INFORMATION buffer can be really large - like several hundred kilobytes
-	do {
-		delete[] (BYTE*)pspi_all;
-		pspi_all=(SYSTEM_PROCESS_INFORMATION*)new BYTE[(cur_len+=4096)];
-	} while ((st=fnNtQuerySystemInformation(SystemProcessInformation, pspi_all, cur_len, &ret_size))==STATUS_INFO_LENGTH_MISMATCH);
-	
-	if (!NT_SUCCESS(st)||!ret_size) {
-		delete[] (BYTE*)pspi_all;
-		return 0;
-	}
-	
-#if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":EnumProcessUsage:"<<__LINE__<<L": NtQuerySystemInformation.ReturnLength="<<ret_size<<std::endl;
-#endif
 	
 	cur_len=0;
 	pspi_cur=pspi_all;
@@ -287,7 +263,6 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	if (!first_time)
 		CAN.erase(std::remove_if(CAN.begin(), CAN.end(), [this](const PData &data){ return data.GetTickNotTock()!=tick_not_tock; }), CAN.end());
 
-	delete[] (BYTE*)pspi_all;
 	return cur_len;
 }
 
