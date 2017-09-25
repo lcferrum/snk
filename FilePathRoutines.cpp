@@ -302,7 +302,7 @@ void FPRoutines::FillServiceMap()
 				//It won't work with paths that use slash instead of backslash as path separator
 				//Historically backslash IS the path separator used in Windows, and it was done so to distinguish path separator from DOS command line option specifier
 				//E.g. in CMD you can actually omit whitespase if option specifier is slash: "C:\dir\some_program /option" is the same as "C:\dir\some_program/option" (and it works only here)
-				//But some Win32 API calls and OS components actually work with both slash and backslash, though it's more like undocumented feature
+				//Some Win32 API calls and OS components actually work with both slash and backslash, though it's more like undocumented feature
 				//And CreateProcess and NtCreateProcess not among them
 				//But services are
 				int nArgs;
