@@ -152,6 +152,7 @@ namespace FPRoutines {
 	bool KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath);
 	bool GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wstring &fpath);
 	bool GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hMod, std::wstring &fpath);
+	bool CommandLineToApplicationName(wchar_t *cmdline, std::wstring &appname);
 	bool GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath);
 	bool GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath);
 	bool GetFP_PEB(HANDLE hProcess, std::wstring &fpath);
@@ -252,6 +253,57 @@ void FPRoutines::FillDriveList()
 	}
 }
 
+bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &appname)
+{
+	//Same algorithm as CreateProcess uses to get application name from command line
+	//This also searches in current directory, so it's better to set it to something relevant beforehand
+	//Do not use NULL cmdline with this function - check it elsewhere
+	
+	wchar_t* linescan=cmdline;
+	wchar_t* appnamestart;
+	wchar_t savedchar;
+	wchar_t retbuf[MAX_PATH];	//N.B. MAX_PATH is SearchPath limitation till Win 10 where you can optionally opt-in to increase the limit to some insane amounts
+	DWORD retlen;
+	
+	//First we check if we are lucky enough to have application name quoted
+	if (*linescan==L'\"') {
+		appnamestart=++linescan;
+		while (*linescan!=L'\0'&&*linescan!=L'\"') linescan++;
+	}
+	
+	//If it's the case we will go straight to checking validness of quoted path using Duff's Device ('cause gotos are evil, amirite?)
+	//Otherwise, just stop at each whitespace and check whether or not we have valid application name
+	//N.B. Using switch with bool generates warning (...oh wow) and casting it to int solves this (C++ guarantees that true is casted to 1 and false is casted to 0)
+	switch ((int)(linescan==cmdline)) {
+		case 1:
+			appnamestart=linescan;
+			for (;;) {
+				while (*linescan!=L'\0'&&*linescan!=L' '&&*linescan!=L'\t') linescan++;
+		case 0:
+				savedchar=*linescan;
+				*linescan=L'\0';
+				
+				//Search resulting path using SearchPath, appending exe extension if needed
+				//SearchPath will also do a nice thing and convert slashes to backslashes
+				retlen=SearchPath(NULL, appnamestart, L".exe", MAX_PATH, retbuf, NULL);
+				
+				*linescan=savedchar;
+				
+				//If path is found and it's not a directory (CheckIfFileExists will make sure it is) - application name is found
+				if (retlen&&retlen<MAX_PATH&&CheckIfFileExists(retbuf)) {
+					appname=retbuf;
+					return true;
+				//If we came here from quoted path processing or reached the end of command line - fail miserably
+				} else if (*linescan==L'\0'||*linescan==L'\"') {
+					return false;
+				//Otherwise - continue searching for whitespaces
+				} else {
+					linescan++;
+				}
+			}
+	}
+}
+
 void FPRoutines::FillServiceMap() 
 {
 	ServiceMap.clear();
@@ -262,6 +314,7 @@ void FPRoutines::FillServiceMap()
 	BOOL st;
 	QUERY_SERVICE_CONFIG *pqsc;
 	ENUM_SERVICE_STATUS_PROCESS *pessp=NULL;
+	std::wstring abs_path;
 	
 #if DEBUG>=2
 	if (!fnPathFindOnPathW)
@@ -291,58 +344,24 @@ void FPRoutines::FillServiceMap()
 				st=QueryServiceConfig(schSvc, pqsc, ret_len, &ret_len);
 			}
 			
+			//lpBinaryPathName is an expanded HKLM\SYSTEM\CurrentControlSet\services\*\ImagePath key passed as lpCommandLine to CreateProcess function (lpApplicationName is NULL)
+			//It means that it is a command line of some kind, with a first argument not necessary being fully qualified path, and we should parse it accordingly
+			//Below is an algorithm implementing set of parsing rules for CreateProcess' lpCommandLine as described in https://msdn.microsoft.com/library/windows/desktop/ms682425.aspx
+			//N.B.: 
+			//Historically backslash IS the path separator used in Windows, and it was done so to distinguish path separator from DOS command line option specifier
+			//E.g. in CMD you can actually omit whitespase if option specifier is slash: "C:\dir\some_program /option" is the same as "C:\dir\some_program/option" (and it works only here)
+			//Some Win32 API calls and OS components actually work with both slash and backslash, though it's more like undocumented feature
+			//And CreateProcess is among them
+			//So CommandLineToApplicationName is also made to work with slashes
 			if (st&&pqsc&&pqsc->lpBinaryPathName) {
 #if DEBUG>=3
 				std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Quering service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L") ImagePath=\""<<pqsc->lpBinaryPathName<<L"\""<<std::endl;
 #endif
-				//lpBinaryPathName is an expanded HKLM\SYSTEM\CurrentControlSet\services\*\ImagePath key passed as lpCommandLine to CreateProcess function (lpApplicationName is NULL)
-				//It means that it is a command line of some kind, with a first argument not necessary being fully qualified path, and we should parse it accordingly
-				//Below is an algorithm implementing set of parsing rules for CreateProcess' lpCommandLine as described in https://msdn.microsoft.com/library/windows/desktop/ms682425.aspx
-				//N.B.: 
-				//It won't work with paths that use slash instead of backslash as path separator
-				//Historically backslash IS the path separator used in Windows, and it was done so to distinguish path separator from DOS command line option specifier
-				//E.g. in CMD you can actually omit whitespase if option specifier is slash: "C:\dir\some_program /option" is the same as "C:\dir\some_program/option" (and it works only here)
-				//Some Win32 API calls and OS components actually work with both slash and backslash, though it's more like undocumented feature
-				//And CreateProcess and NtCreateProcess not among them
-				//But services are
-				int nArgs;
-				if (LPWSTR *szArglist=CommandLineToArgvW(pqsc->lpBinaryPathName, &nArgs)) {
-					std::wstring combined_path;
-					for (int i=0; i<nArgs; i++) {
-						//Sequentially combine command line arguments and try to interpret it as a module name
-						combined_path+=szArglist[i];
-						wchar_t abs_path[combined_path.length()+5];	//Intermidiate string for PathFindOnPath function (5 is ".exe" extension length in characters plus '\0')
-						wcscpy(abs_path, combined_path.c_str());
-						
-						//Exe extension may be omitted - check if it's the case
-						//Using this simple algorithm instead of calling _wsplitpath and checking returned extension length
-						std::wstring::size_type ext=combined_path.find_last_of(L"\\.");
-						if (ext==std::wstring::npos||combined_path[ext]==L'\\')
-							wcscat(abs_path, L".exe");
-		
-						//Check if resulting path is already fully qualified or try to make it such with PathFindOnPath
-						if (CheckIfFileExists(abs_path)||(fnPathFindOnPathW&&wcslen(abs_path)<MAX_PATH&&fnPathFindOnPathW(abs_path, NULL))) {	//PathFindOnPath requires MAX_PATH string buffer size
-							//PathFindOnPath requires shlwapi.dll version 4.71 or later
-							//Required shlwapi.dll version is included with IE 4.0 and higher
-							//Win 2000, Win 95 OSR 2.5 and higher includes needed shlwapi.dll out of the box
-							//Pre-OSR 2.5 versons of Win 95 and Win NT needs IE 4.0 (or higher) installed separately in order to get required shlwapi.dll version
-							
-							//CheckIfFileExists just checks if supplied path is an absolute path to existing file
-							//PathFindOnPath follows steps 3-6 from CreateProcess search algorithm to obtain absolute path from supplied path (checked with ReactOS sources)
-							//Supplied path for PathFindOnPath should be relative, function will fail if relative path doesn't exist or path is already absolute
-							//Hopefully we don't need steps 1-2 from CreateProcess (search in processes' CWDs) that PathFindOnPath doesn't implement
-							
-							//If path is relative but PathFindOnPathW not present on system - it's ok we have another methods to get process path that could work
+				if (CommandLineToApplicationName(pqsc->lpBinaryPathName, abs_path)) {
 #if DEBUG>=3
-							std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Found path for service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L"): \""<<abs_path<<L"\""<<std::endl;
+					std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Found path for service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L"): \""<<abs_path<<L"\""<<std::endl;
 #endif
-							ServiceMap[pessp[iSvc].ServiceStatusProcess.dwProcessId]=abs_path;
-							break;
-						}
-						
-						combined_path+=L" ";
-					}
-					LocalFree(szArglist);
+					ServiceMap[pessp[iSvc].ServiceStatusProcess.dwProcessId]=std::move(abs_path);
 				}
 				
 				//N.B.:
