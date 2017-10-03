@@ -255,7 +255,8 @@ void FPRoutines::FillDriveList()
 bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &appname)
 {
 	//Same algorithm as CreateProcess uses to get application name from command line
-	//This also searches in current directory, so it's better to set it to something relevant beforehand
+	//This also searches in current working directory, so it's better to set it to something relevant beforehand
+	//Though before everything else current image directory will be searched - and this is still a problem
 	//Do not use NULL cmdline with this function - check it elsewhere
 	
 	wchar_t* linescan=cmdline;
