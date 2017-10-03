@@ -341,6 +341,17 @@ void FPRoutines::FillServiceMap()
 			SetCurrentDirectory(win_dir);
 		}
 		
+		wchar_t exe_path[MAX_PATH];
+		wchar_t* lst_bslash;
+		buflen=GetModuleFileName(NULL, exe_path, MAX_PATH);
+		//GetModuleFileName always returns module's full path (not some relative-to-something-path even if it was passed to CreateProcess in first place)
+		//So instead of using _wsplitpath/_makepath or PathRemoveFileSpec, which have additional code to deal with relative paths, just use wcsrchr to find last backslash occurrence
+		//Also PathRemoveFileSpec doesn't strip trailing backslash if file is at drive's root which isn't the thing we want in comparing file paths
+		if (buflen&&buflen<MAX_PATH&&(lst_bslash=wcsrchr(exe_path, L'\\')))
+			*lst_bslash=L'\0';
+		else
+			*exe_path=L'\0';
+		
 		for (int iSvc=0; iSvc<svc_cnt; iSvc++) 
 		//Check if ServiceMap already contains needed record
 		//PID 0 is Task Scheduler and we are not interested in it
@@ -359,6 +370,9 @@ void FPRoutines::FillServiceMap()
 			//lpBinaryPathName is an expanded HKLM\SYSTEM\CurrentControlSet\services\*\ImagePath key passed as lpCommandLine to CreateProcess function (lpApplicationName is NULL)
 			//It means that it is a command line of some kind, with a first argument not necessary being fully qualified path, and we should parse it accordingly
 			//CommandLineToApplicationName implements set of parsing rules for CreateProcess' lpCommandLine as described in https://msdn.microsoft.com/library/windows/desktop/ms682425.aspx
+			//After calling CommandLineToApplicationName we use sanity check to find if found service path is somewhere within current image directory
+			//This is done because SearchPath, used in CommandLineToApplicationName, has a bad habit of searching in current image directory before everything else
+			//So service paths that reside in current image directory are treated as false positive
 			//N.B.: 
 			//Historically backslash IS the path separator used in Windows, and it was done so to distinguish path separator from DOS command line option specifier
 			//E.g. in CMD (and it works only here) you can actually omit whitespase if option specifier is slash: "C:\dir\some_program /option" is the same as "C:\dir\some_program/option"
@@ -369,7 +383,7 @@ void FPRoutines::FillServiceMap()
 #if DEBUG>=3
 				std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Quering service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L") ImagePath=\""<<pqsc->lpBinaryPathName<<L"\""<<std::endl;
 #endif
-				if (CommandLineToApplicationName(pqsc->lpBinaryPathName, abs_path)) {
+				if (CommandLineToApplicationName(pqsc->lpBinaryPathName, abs_path)&&wcsncmp(abs_path.c_str(), exe_path, wcslen(exe_path))) {
 #if DEBUG>=3
 					std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Found path for service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L"): \""<<abs_path<<L"\""<<std::endl;
 #endif
