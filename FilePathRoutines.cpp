@@ -142,7 +142,6 @@ extern pNtWow64QueryInformationProcess64 fnNtWow64QueryInformationProcess64;
 extern pNtWow64ReadVirtualMemory64 fnNtWow64ReadVirtualMemory64;
 extern pIsWow64Process fnIsWow64Process;
 extern pNtQuerySystemInformation fnNtQuerySystemInformation;
-extern pPathFindOnPathW fnPathFindOnPathW;
 extern pNtQueryVirtualMemory fnNtQueryVirtualMemory;
 extern pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64;
 
@@ -262,7 +261,7 @@ bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &ap
 	wchar_t* linescan=cmdline;
 	wchar_t* appnamestart;
 	wchar_t savedchar;
-	wchar_t retbuf[MAX_PATH];	//N.B. MAX_PATH is SearchPath limitation till Win 10 where you can optionally opt-in to increase the limit to some insane amounts
+	wchar_t retbuf[MAX_PATH];
 	DWORD retlen;
 	
 	//First we check if we are lucky enough to have application name quoted
@@ -278,6 +277,8 @@ bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &ap
 		case 1:
 			appnamestart=linescan;
 			for (;;) {
+				//This loop actually means that we will stop at every whitespace even if they are consecutive
+				//It's original CreateProcess behaviour
 				while (*linescan!=L'\0'&&*linescan!=L' '&&*linescan!=L'\t') linescan++;
 		case 0:
 				savedchar=*linescan;
@@ -285,6 +286,10 @@ bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &ap
 				
 				//Search resulting path using SearchPath, appending exe extension if needed
 				//SearchPath will also do a nice thing and convert slashes to backslashes
+				//N.B.:
+				//CreateProcess still (at least on Win 10) has limitation that if application name is not supplied, module name portion of command line is limited to MAX_PATH
+				//This limitation actually stems from the fact that CreateProcess calls SearchPath with MAX_PATH as buffer length when searching for module name within command line
+				//We are doing exactly the same because there is no point here to be better than CreateProcess
 				retlen=SearchPath(NULL, appnamestart, L".exe", MAX_PATH, retbuf, NULL);
 				
 				*linescan=savedchar;
@@ -316,11 +321,6 @@ void FPRoutines::FillServiceMap()
 	ENUM_SERVICE_STATUS_PROCESS *pessp=NULL;
 	std::wstring abs_path;
 	
-#if DEBUG>=2
-	if (!fnPathFindOnPathW)
-		std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": PathFindOnPathW not found!"<<std::endl;
-#endif
-		
 	if (!(schSCMgr=OpenSCManager(NULL, NULL, STANDARD_RIGHTS_READ|SC_MANAGER_ENUMERATE_SERVICE)))	 // Simple read and enumerate rights are enough
 		return;
 		
@@ -329,7 +329,18 @@ void FPRoutines::FillServiceMap()
 		st=EnumServicesStatusEx(schSCMgr, SC_ENUM_PROCESS_INFO, SERVICE_WIN32, SERVICE_STATE_ALL, (BYTE*)pessp, ret_len, &ret_len, &svc_cnt, NULL, NULL);
 	}
 	
-	if (st)	for (int iSvc=0; iSvc<svc_cnt; iSvc++)
+	if (st) {	
+		//We change CWD to Windows system directory like we are Service Control Manager so CommandLineToApplicationName will work properly
+		wchar_t* orig_cwd=NULL;
+		wchar_t win_dir[MAX_PATH];
+		DWORD buflen=GetSystemDirectory(win_dir, MAX_PATH);
+		if (buflen&&buflen<MAX_PATH&&(buflen=GetCurrentDirectory(0, NULL))) {
+			orig_cwd=new wchar_t[buflen];
+			GetCurrentDirectory(buflen, orig_cwd);
+			SetCurrentDirectory(win_dir);
+		}
+		
+		for (int iSvc=0; iSvc<svc_cnt; iSvc++) 
 		//Check if ServiceMap already contains needed record
 		//PID 0 is Task Scheduler and we are not interested in it
 		if (pessp[iSvc].ServiceStatusProcess.dwProcessId&&(ServiceMap.find(pessp[iSvc].ServiceStatusProcess.dwProcessId)==ServiceMap.end())) {
@@ -346,10 +357,10 @@ void FPRoutines::FillServiceMap()
 			
 			//lpBinaryPathName is an expanded HKLM\SYSTEM\CurrentControlSet\services\*\ImagePath key passed as lpCommandLine to CreateProcess function (lpApplicationName is NULL)
 			//It means that it is a command line of some kind, with a first argument not necessary being fully qualified path, and we should parse it accordingly
-			//Below is an algorithm implementing set of parsing rules for CreateProcess' lpCommandLine as described in https://msdn.microsoft.com/library/windows/desktop/ms682425.aspx
+			//CommandLineToApplicationName implements set of parsing rules for CreateProcess' lpCommandLine as described in https://msdn.microsoft.com/library/windows/desktop/ms682425.aspx
 			//N.B.: 
 			//Historically backslash IS the path separator used in Windows, and it was done so to distinguish path separator from DOS command line option specifier
-			//E.g. in CMD you can actually omit whitespase if option specifier is slash: "C:\dir\some_program /option" is the same as "C:\dir\some_program/option" (and it works only here)
+			//E.g. in CMD (and it works only here) you can actually omit whitespase if option specifier is slash: "C:\dir\some_program /option" is the same as "C:\dir\some_program/option"
 			//Some Win32 API calls and OS components actually work with both slash and backslash, though it's more like undocumented feature
 			//And CreateProcess is among them
 			//So CommandLineToApplicationName is also made to work with slashes
@@ -374,6 +385,12 @@ void FPRoutines::FillServiceMap()
 			delete[] (BYTE*)pqsc;
 			CloseServiceHandle(schSvc);
 		}
+		
+		if (orig_cwd) {
+			SetCurrentDirectory(orig_cwd);
+			delete[] orig_cwd;
+		}
+	}
 		
 	delete[] (BYTE*)pessp;
 	CloseServiceHandle(schSCMgr);
