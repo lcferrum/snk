@@ -50,7 +50,7 @@ behaviour with some settings).
 Windowless version prints output only in verbose mode via dialog. But you can
 always redirect standart output streams (which are still present) to see it 
 either way. The main advantage of windowless version is that it can be run in
-the background where it doesn't interfere with other programs, whereas standart
+the background where it doesn't interfere with other programs, whereas standard
 version will open console window (if not already run from console) which will
 get focus and become top-level window. E.g. using /fsc switch in non-windowless
 SnK could be unreliable because target process will likely lose it's fullscreen
@@ -65,7 +65,7 @@ Switches:
                               Print version information and exit. Can only be
                               used as first argument, ignored otherwise.
 /bpp
-                              Make standart Windows 'informational beep' and
+                              Make standard Windows 'informational beep' and
                               continue execution.
 /prn=TEXT
                               Echo-like switch - will print to stdout whatever
@@ -140,7 +140,7 @@ Switches:
                               highest cpu load. Matching is always 
                               case-insensitive. If 'full', will use full
                               process path instead of just name. Wildcards use
-                              standart wildcard characters '?' (exactly one
+                              standard wildcard characters '?' (exactly one
                               unknown character) and  '*' (zero or more unknown
                               characters). Will return positive result if
                               process was found.
@@ -150,7 +150,7 @@ Switches:
                               has highest cpu load. Matching is always 
                               case-insensitive. If 'full', will use full
                               module path instead of just name. Wildcards use
-                              standart wildcard characters '?' (exactly one
+                              standard wildcard characters '?' (exactly one
                               unknown character) and  '*' (zero or more unknown
                               characters). Will return positive result if
                               process was found.
