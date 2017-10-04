@@ -383,7 +383,7 @@ void FPRoutines::FillServiceMap()
 #if DEBUG>=3
 				std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Quering service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L") ImagePath=\""<<pqsc->lpBinaryPathName<<L"\""<<std::endl;
 #endif
-				if (CommandLineToApplicationName(pqsc->lpBinaryPathName, abs_path)&&wcsncmp(abs_path.c_str(), exe_path, wcslen(exe_path))) {
+				if (CommandLineToApplicationName(pqsc->lpBinaryPathName, abs_path)&&_wcsnicmp(abs_path.c_str(), exe_path, wcslen(exe_path))) {
 #if DEBUG>=3
 					std::wcerr<<L"" __FILE__ ":FillServiceMap:"<<__LINE__<<L": Found path for service \""<<pessp[iSvc].lpServiceName<<L"\" ("<<pessp[iSvc].ServiceStatusProcess.dwProcessId<<L"): \""<<abs_path<<L"\""<<std::endl;
 #endif
