@@ -210,7 +210,7 @@ bool Win32WcostreamBuf::WriteBuffer()
 				//Fast version of LF->CRLF conversion - buffer just terminated with LF
 				if (lf_cnt==1&&*(pptr()-1)==L'\n') {
 					//It is guaranteed that pptr() points to valid memory location because setp was called with pend=obuf+W32WBUF_OBUFLEN-1
-					//Hack below assumes that wchat_t is UTF16 LE
+					//Hack below assumes that wchar_t is UTF16 LE
 					//0x000A000D is represented in memory as L"\r\n" (CRLF) on LE platforms
 					//On Windows wchar_t is indeed UTF16 LE (even for versions of NT that run on bi-endian platforms)
 					//But by C++ standard wchar_t is implementation defined so, just in case, test that we really dealing with 2 byte wchar_t
