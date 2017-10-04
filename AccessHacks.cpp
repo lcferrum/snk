@@ -34,7 +34,7 @@ bool AccessHacks::MakeInstance()
 }
 
 AccessHacks::AccessHacks(): 
-	acc_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL)
+	acc_state(), err_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL)
 {}
 
 AccessHacks::~AccessHacks() 
@@ -46,6 +46,11 @@ AccessHacks::~AccessHacks()
 	if (pOrigSD) LocalFree(pOrigSD);
 }
 
+void AccessHacks::ResetErrors()
+{
+	if (instance) instance->err_state=0;
+}
+
 bool AccessHacks::EnableDebugPrivileges()
 {
 	if (!instance) return false;
@@ -54,10 +59,13 @@ bool AccessHacks::EnableDebugPrivileges()
 
 bool AccessHacks::PrivateEnableDebugPrivileges()
 {
+	//Do nothing if we already failed once
+	if (err_state&ACC_DEBUGENABLED) return false;
 	//Actually calling all the thing second time if it was already succesfully called won't do any harm - it will also succeed
 	if (acc_state&ACC_DEBUGENABLED) return true;
 
 	HANDLE tokenHandle;
+	bool success=true;
 	
 	//Privileges similar to Process Explorer
 	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE};
@@ -73,14 +81,15 @@ bool AccessHacks::PrivateEnableDebugPrivileges()
 			privileges->PrivilegeCount++;
 		}
 
-		if (AdjustTokenPrivileges(tokenHandle, FALSE, privileges, 0, NULL, NULL))
-			acc_state|=ACC_DEBUGENABLED;
+		if (!AdjustTokenPrivileges(tokenHandle, FALSE, privileges, 0, NULL, NULL))
+			success=false;
 		
 		delete[] (BYTE*)privileges;
 		CloseHandle(tokenHandle);
 	}
 	
-	return acc_state&ACC_DEBUGENABLED;
+	(success?acc_state:err_state)|=ACC_DEBUGENABLED;
+	return success;
 }
 
 bool AccessHacks::Wow64DisableWow64FsRedirection()
@@ -91,15 +100,19 @@ bool AccessHacks::Wow64DisableWow64FsRedirection()
 
 bool AccessHacks::PrivateWow64DisableWow64FsRedirection()
 {
-	//Actually calling Wow64DisableWow64FsRedirection second time (with saved OldValue or new one) if it was already succesfully called won't do any harm - it will also succeed
 	if (!fnWow64DisableWow64FsRedirection) return false;
+	//Do nothing if we already failed once
+	if (err_state&ACC_WOW64FSREDIRDISABLED) return false;
+	//Actually calling Wow64DisableWow64FsRedirection second time (with saved OldValue or new one) if it was already succesfully called won't do any harm - it will also succeed
 	if (acc_state&ACC_WOW64FSREDIRDISABLED) return true;
 	
 	if (fnWow64DisableWow64FsRedirection(&wow64_fs_redir)) {
 		acc_state|=ACC_WOW64FSREDIRDISABLED;
 		return true;
-	} else 
+	} else {
+		err_state|=ACC_WOW64FSREDIRDISABLED;
 		return false;
+	}
 }
 
 void AccessHacks::Wow64RevertWow64FsRedirection()
@@ -123,46 +136,50 @@ bool AccessHacks::ImpersonateLocalSystem()
 
 bool AccessHacks::PrivateImpersonateLocalSystem()
 {
+	//Do nothing if we already failed once
+	if (err_state&ACC_LOCALSYSTEMIMPERSONATED) return false;
 	if (acc_state&ACC_LOCALSYSTEMIMPERSONATED) return true;
 	
 	PSID ssid;
 	SID_IDENTIFIER_AUTHORITY sia_nt=SECURITY_NT_AUTHORITY;
-	if (!AllocateAndInitializeSid(&sia_nt, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &ssid))
-		return false;
-	
-	HANDLE hOwnToken;
-	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
-		if (PTOKEN_USER own_tu=GetTokenUserInformation(hOwnToken)) {
-			if (EqualSid(own_tu->User.Sid, ssid)) {
+	bool success=false;
+	if (AllocateAndInitializeSid(&sia_nt, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &ssid)) {
+		HANDLE hOwnToken;
+		if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
+			if (PTOKEN_USER own_tu=GetTokenUserInformation(hOwnToken)) {
+				if (EqualSid(own_tu->User.Sid, ssid)) {
 #if DEBUG>=3
-				std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": Already Local System"<<std::endl;
+					std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": Already Local System"<<std::endl;
 #endif
-				acc_state|=ACC_WOW64FSREDIRDISABLED;
-			} else {
-				if (hSysToken) {
-					if (ImpersonateLoggedOnUser(hSysToken)) {
+					success=true;
+				} else {
+					if (hSysToken) {
+						if (ImpersonateLoggedOnUser(hSysToken)) {
 #if DEBUG>=3
-						std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(CACHED TOKEN): TRUE"<<std::endl;
+							std::wcerr<<L"" __FILE__ ":PrivateImpersonateLocalSystem:"<<__LINE__<<L": ImpersonateLoggedOnUser(CACHED TOKEN): TRUE"<<std::endl;
 #endif
-						acc_state|=ACC_WOW64FSREDIRDISABLED;
-					} else {
-						CloseHandle(hSysToken);
-						hSysToken=NULL;
+							success=true;
+						} else {
+							CloseHandle(hSysToken);
+							hSysToken=NULL;
+						}
+					}
+
+					if (!hSysToken) if (ImpersonateLocalSystemVista(ssid)||ImpersonateLocalSystem2k(ssid, hOwnToken)||ImpersonateLocalSystemNT4(ssid, own_tu->User.Sid)) {
+						success=true;
 					}
 				}
 
-				if (!hSysToken) if (ImpersonateLocalSystemVista(ssid)||ImpersonateLocalSystem2k(ssid, hOwnToken)||ImpersonateLocalSystemNT4(ssid, own_tu->User.Sid)) {
-					acc_state|=ACC_LOCALSYSTEMIMPERSONATED;
-				}
+				FreeTokenUserInformation(own_tu);
 			}
-
-			FreeTokenUserInformation(own_tu);
+			CloseHandle(hOwnToken);
 		}
-		CloseHandle(hOwnToken);
+		
+		FreeSid(ssid);
 	}
-	
-	FreeSid(ssid);
-	return acc_state&ACC_WOW64FSREDIRDISABLED;
+
+	(success?acc_state:err_state)|=ACC_LOCALSYSTEMIMPERSONATED;
+	return success;
 }
 
 void AccessHacks::RevertToSelf()

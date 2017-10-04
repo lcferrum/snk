@@ -8,7 +8,8 @@ class AccessHacks {
 private:
 	static std::unique_ptr<AccessHacks> instance;
 	
-	DWORD acc_state;				//ACC_WOW64FSREDIRDISABLED, ACC_LOCALSYSTEMIMPPRI, ACC_LOCALSYSTEMIMPSEC, ACC_DEBUGENABLED
+	DWORD acc_state;				//ACC_WOW64FSREDIRDISABLED, ACC_LOCALSYSTEMIMPERSONATED, ACC_DEBUGENABLED
+	DWORD err_state;				//ACC_WOW64FSREDIRDISABLED, ACC_LOCALSYSTEMIMPERSONATED, ACC_DEBUGENABLED
 	PVOID wow64_fs_redir;			//OldValue for Wow64DisableWow64FsRedirection/Wow64RevertWow64FsRedirection
 	HANDLE hSysToken;				//Cached Local System token for ImpersonateLocalSystem
 	PSECURITY_DESCRIPTOR pOrigSD;	//Saved original token security descriptor used in RevertDaclPermissions
@@ -39,6 +40,8 @@ public:
 	static void Wow64RevertWow64FsRedirection();
 	static bool ImpersonateLocalSystem();
 	static void RevertToSelf();
+
+	static void ResetErrors();
 	
 	static bool MakeInstance();
 };
