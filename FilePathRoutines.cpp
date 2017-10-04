@@ -346,9 +346,8 @@ void FPRoutines::FillServiceMap()
 		buflen=GetModuleFileName(NULL, exe_path, MAX_PATH);
 		//GetModuleFileName always returns module's full path (not some relative-to-something-path even if it was passed to CreateProcess in first place)
 		//So instead of using _wsplitpath/_makepath or PathRemoveFileSpec, which have additional code to deal with relative paths, just use wcsrchr to find last backslash occurrence
-		//Also PathRemoveFileSpec doesn't strip trailing backslash if file is at drive's root which isn't the thing we want in comparing file paths
 		if (buflen&&buflen<MAX_PATH&&(lst_bslash=wcsrchr(exe_path, L'\\')))
-			*lst_bslash=L'\0';
+			*++lst_bslash=L'\0';
 		else
 			*exe_path=L'\0';
 		
