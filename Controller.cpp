@@ -12,9 +12,6 @@
 
 #define MUTEX_NAME		L"MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
 
-extern pWcoutMessageBox fnWcoutMessageBox;
-extern pEnableWcout fnEnableWcout;
-
 template <typename ProcessesPolicy, typename KillersPolicy>	
 Controller<ProcessesPolicy, KillersPolicy>::Controller():
 	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, args_stack(), sec_mutex(NULL)
@@ -43,10 +40,8 @@ template <typename ProcessesPolicy, typename KillersPolicy>
 void Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput()
 {
 #ifdef HIDDEN
-	if (fnWcoutMessageBox) {
-		std::wcout<<L"When finished, press OK..."<<std::endl;
-		fnWcoutMessageBox();
-	}
+	std::wcout<<L"When finished, press OK..."<<std::endl;
+	Win32WcostreamMessageBox();
 #else
 	std::wcout<<L"When finished, press ENTER..."<<std::flush;
 	std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
@@ -371,10 +366,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		}
 	} else if (!top_rule.compare(L"+m")) {
 		ctrl_vars.mode_mute=true;
-		if (fnEnableWcout) fnEnableWcout(false);
+		Win32WcostreamMute(false);
 	} else if (!top_rule.compare(L"-m")) {
 		ctrl_vars.mode_mute=false;
-		if (fnEnableWcout) fnEnableWcout(true);
+		Win32WcostreamMute(true);
 	} else if (!top_rule.compare(L"+l")) {
 		ctrl_vars.mode_loop=true;
 	} else if (!top_rule.compare(L"-l")) {
@@ -479,7 +474,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 				while ((sub_ret=sub_controller.MakeItDeadInternal(sub_rules))==MID_NONE);
 				args_stack=std::move(sub_controller.args_stack);
 				if (sub_controller.sec_mutex!=sec_mutex) CloseHandle(sub_controller.sec_mutex);
-				if (fnEnableWcout) fnEnableWcout(!ctrl_vars.mode_mute);
+				Win32WcostreamMute(!ctrl_vars.mode_mute);
 				done=IsDone(sub_ret==MID_EMPTY);
 				//*************** FREE TO MODIFY LOCAL CAN ******************
 			} else {
@@ -625,7 +620,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 		sec_mutex=NULL;
 	}
 	
-	if (fnEnableWcout) fnEnableWcout(true);
+	Win32WcostreamMute(true);
 	
 	ctrl_vars={true};
 	std::stack<std::wstring>().swap(args_stack);

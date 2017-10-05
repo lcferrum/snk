@@ -1,6 +1,7 @@
 #include "Hout.h"
 #include "Extras.h"
 #include "Common.h"
+#include "ConOut.h"
 #include "Version.h"
 #include <iostream>
 #include <ntstatus.h>	//STATUS_INFO_LENGTH_MISMATCH
@@ -217,6 +218,55 @@ LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS To
 	}
 	return pti;
 }
+
+namespace Win32Wcostream {
+	Win32WcostreamBuf wcout_win32(Win32WcostreamBuf::WCOUT);
+	Win32WcostreamBuf wcerr_win32(Win32WcostreamBuf::WCERR);
+#ifdef HIDDEN
+	std::wstring tee_buf;
+#endif
+}
+
+void Win32WcostreamActivate()
+{
+#ifdef HIDDEN
+	Win32Wcostream::wcout_win32.Activate(&Win32Wcostream::tee_buf);
+#else
+	Win32Wcostream::wcout_win32.Activate();
+	CONSOLE_SCREEN_BUFFER_INFO csbi; 
+	HANDLE hstdout;
+	if ((hstdout=GetStdHandle(STD_OUTPUT_HANDLE))!=INVALID_HANDLE_VALUE)	//STD_OUTPUT_HANDLE - because Hout will output to std::wcout
+		if (GetConsoleScreenBufferInfo(hstdout, &csbi))
+			Hout::SetTerminalSize(csbi.dwSize.X);
+#endif
+	Win32Wcostream::wcerr_win32.Activate();
+}
+
+void Win32WcostreamDeactivate()
+{
+	Win32Wcostream::wcout_win32.Deactivate();
+	Win32Wcostream::wcerr_win32.Deactivate();
+}
+
+void Win32WcostreamMute(bool state)
+{
+	Win32Wcostream::wcout_win32.OutputEnabled(state);
+	Win32Wcostream::wcerr_win32.OutputEnabled(state);
+}
+
+#ifdef HIDDEN
+void Win32WcostreamMessageBox()
+{
+	//MessageBox is not only made foregroung and topmost, but also steals focus through AttachThreadInput hack
+	std::wcout.flush();
+	DWORD fg_tid=GetWindowThreadProcessId(GetForegroundWindow(), NULL);
+	AttachThreadInput(fg_tid, GetCurrentThreadId(), TRUE);
+	MessageBox(NULL, Win32Wcostream::tee_buf.c_str(), L"Search and Kill", MB_OK|MB_ICONWARNING|MB_SETFOREGROUND|MB_TOPMOST|MB_SYSTEMMODAL);	//Actually MB_TOPMOST and MB_SETFOREGROUND are rudementary - it's MB_SYSTEMMODAL that sets window to foreground and makes it topmost
+	AttachThreadInput(fg_tid, GetCurrentThreadId(), FALSE);
+	Win32Wcostream::tee_buf.clear();
+}
+#endif
+
 
 namespace CachedNtQuerySystemInformation {
 	BYTE* spi_cache=NULL;

@@ -33,8 +33,7 @@ private:
 	std::wstreambuf *orig_buf;
 	OutType stdstream_type;
 	HANDLE hstdstream;
-	AoutCallbackType aout_proc;
-	std::wstring aout_buf;
+	std::wstring *tee_buf;
 	
 	bool WriteBuffer();
 	void ClearScreen();
@@ -46,9 +45,7 @@ public:
 	Win32WcostreamBuf(WCType wc_type);
 	~Win32WcostreamBuf();
 	
-	bool Activate();
-	bool AttachAdditionalOutput(AoutCallbackType aout);
-	bool DetachAdditionalOutput();
+	bool Activate(std::wstring *new_tee_buf=NULL); //It is recommended to call os.flush() before using tee_buf
 	void OutputEnabled(bool value);
 	bool CallAdditionalOutput();
 	bool Deactivate();

@@ -10,7 +10,6 @@
 #include "Common.h"
 #include "Hout.h"
 
-extern pWcoutMessageBox fnWcoutMessageBox;
 extern template class Controller<Processes, Killers>;
 
 #ifdef OBSOLETE_WMAIN
@@ -31,19 +30,14 @@ int main()
 extern "C" int wmain(int argc, wchar_t* argv[])
 {
 #endif
-#ifdef HIDDEN
-	Extras::MakeInstance(true, L"Search and Kill");
-#else
-	Extras::MakeInstance(false, NULL);
-#endif
+	Extras::MakeInstance();
+	
+	Win32WcostreamActivate();
 
 	if (argc<2) {
 		PrintVersion();
 #ifdef HIDDEN
-		if (fnWcoutMessageBox) {
-			std::wcout<<L"When finished, press OK..."<<std::endl;
-			fnWcoutMessageBox();
-		}
+		Win32WcostreamMessageBox();
 #endif
 		return 0;
 	}
@@ -74,6 +68,8 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	
 	CachedNtQuerySystemProcessInformation(NULL, true);
 	CachedNtQuerySystemHandleInformation(NULL, true);
+	
+	Win32WcostreamDeactivate();
 
 	return 0;
 }

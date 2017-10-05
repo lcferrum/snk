@@ -1,5 +1,4 @@
 #include "Extras.h"
-#include "Hout.h"
 
 pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow=NULL;
 pNtQuerySystemInformation fnNtQuerySystemInformation=NULL;
@@ -19,66 +18,27 @@ pNtQueryVirtualMemory fnNtQueryVirtualMemory=NULL;
 pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64=NULL;
 pAttachConsole fnAttachConsole=NULL;
 pGetConsoleWindow fnGetConsoleWindow=NULL;
-pWcoutMessageBox fnWcoutMessageBox;
-pEnableWcout fnEnableWcout;
 
 std::unique_ptr<Extras> Extras::instance;
 
-Extras::Extras(bool hidden, const wchar_t* caption): 
-	wcout_win32(Win32WcostreamBuf::WCOUT), wcerr_win32(Win32WcostreamBuf::WCERR), mb_caption(caption?caption:L""),
+Extras::Extras(): 
 	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL)
 {
 	LoadFunctions();
-	
-	wcout_win32.Activate();
-	wcerr_win32.Activate();
-	fnEnableWcout=std::bind(&Extras::EnableWcout, this, std::placeholders::_1);
-	if (hidden) {
-		wcout_win32.AttachAdditionalOutput(std::bind(&Extras::MessageBoxCallback, this, std::placeholders::_1));
-		fnWcoutMessageBox=std::bind(&Extras::WcoutMessageBox, this);
-	} else {
-		CONSOLE_SCREEN_BUFFER_INFO csbi; 
-		HANDLE hstdout;
-		if ((hstdout=GetStdHandle(STD_OUTPUT_HANDLE))!=INVALID_HANDLE_VALUE)	//STD_OUTPUT_HANDLE - because Hout will output to std::wcout
-			if (GetConsoleScreenBufferInfo(hstdout, &csbi))
-				Hout::SetTerminalSize(csbi.dwSize.X);
-	}
 }
 
 Extras::~Extras() 
 {
-	wcout_win32.Deactivate();	//Don't wait for destructor, deactivate Win32WcostreamBuf before unloading functions
-	wcerr_win32.Deactivate();
 	UnloadFunctions();
 }
 
-bool Extras::MakeInstance(bool hidden, const wchar_t* caption) 
+bool Extras::MakeInstance() 
 {
 	if (instance)
 		return false;
 	
-	instance.reset(new Extras(hidden, caption));
+	instance.reset(new Extras());
 	return true;
-}
-
-void Extras::WcoutMessageBox()
-{
-	wcout_win32.CallAdditionalOutput();
-}
-
-void Extras::EnableWcout(bool value)
-{
-	wcout_win32.OutputEnabled(value);
-	wcerr_win32.OutputEnabled(value);
-}
-
-void Extras::MessageBoxCallback(const std::wstring& mb_buffer)
-{
-	//MessageBox is not only made foregroung and topmost, but also steals focus through AttachThreadInput hack
-	DWORD fg_tid=GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-	AttachThreadInput(fg_tid, GetCurrentThreadId(), TRUE);
-	MessageBox(NULL, mb_buffer.c_str(), mb_caption.c_str(), MB_OK|MB_ICONWARNING|MB_SETFOREGROUND|MB_TOPMOST|MB_SYSTEMMODAL);	//Actually MB_TOPMOST and MB_SETFOREGROUND are rudementary - it's MB_SYSTEMMODAL that sets window to foreground and makes it topmost
-	AttachThreadInput(fg_tid, GetCurrentThreadId(), FALSE);
 }
 
 //Checking if DLLs are alredy loaded before LoadLibrary is cool but redundant

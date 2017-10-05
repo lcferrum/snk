@@ -11,7 +11,7 @@ int Win32WcostreamBuf::console_attached=0;
 
 Win32WcostreamBuf::Win32WcostreamBuf(WCType wc_type):
 	obuf(), active(false), enabled(true), wc_type(wc_type), orig_buf(NULL), stdstream_type(NONE), 
-	hstdstream(INVALID_HANDLE_VALUE), aout_buf(), aout_proc()
+	hstdstream(INVALID_HANDLE_VALUE), tee_buf(NULL)
 {
 	setp(obuf, obuf+W32WBUF_OBUFLEN-1);	//-1 is for quick version of LF->CRLF conversion where LF just terminates buffer
 }
@@ -41,9 +41,9 @@ void Win32WcostreamBuf::OutputEnabled(bool value)
 	enabled=value;
 }
 
-bool Win32WcostreamBuf::Activate()
+bool Win32WcostreamBuf::Activate(std::wstring *new_tee_buf)
 {
-	if (active) return false;	
+	if (active) return false;
 
 	if ((hstdstream=GetStdHandle(wc_type==WCOUT?STD_OUTPUT_HANDLE:STD_ERROR_HANDLE))!=INVALID_HANDLE_VALUE) {
 		DWORD conmode;
@@ -93,6 +93,8 @@ bool Win32WcostreamBuf::Activate()
 	
 	active=true;
 	
+	tee_buf=new_tee_buf;
+	
 	return true;
 }
 
@@ -100,7 +102,8 @@ bool Win32WcostreamBuf::Deactivate()
 {
 	if (!active) return false;
 	
-	sync();
+	sync();	
+	tee_buf=NULL;
 	
 	switch (wc_type) {
 		case WCOUT:
@@ -135,41 +138,6 @@ bool Win32WcostreamBuf::Deactivate()
 	stdstream_type=NONE;
 	
 	active=false;
-	
-	return true;
-}
-
-bool Win32WcostreamBuf::AttachAdditionalOutput(AoutCallbackType aout)
-{
-	if (!aout)
-		return false;
-	
-	sync();
-	aout_proc=aout;
-	
-	return true;
-}
-
-bool Win32WcostreamBuf::DetachAdditionalOutput()
-{
-	if (!aout_proc)
-		return false;
-	
-	sync();
-	aout_proc=nullptr;
-	aout_buf.clear();
-	
-	return true;
-}
-
-bool Win32WcostreamBuf::CallAdditionalOutput()
-{
-	if (!aout_proc)
-		return false;
-	
-	sync();
-	aout_proc(aout_buf);
-	aout_buf.clear();
 	
 	return true;
 }
@@ -236,9 +204,9 @@ bool Win32WcostreamBuf::WriteBuffer()
 					return false;
 			}
 			
-			//If we have additional output active - write data to it's buffer
-			if (aout_proc)
-				aout_buf.append(pbase(), datalen);
+			//If we have tee buffer enabled - write data to it
+			if (tee_buf)
+				tee_buf->append(pbase(), datalen);
 		}
 		pbump(-datalen);
 	}

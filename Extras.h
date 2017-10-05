@@ -1,7 +1,6 @@
 #ifndef EXTRA_H
 #define EXTRA_H
 
-#include "ConOut.h"
 #include <memory>
 #include <functional>
 #include <windows.h>
@@ -14,9 +13,6 @@ class Extras {
 private:
 	static std::unique_ptr<Extras> instance;
 	
-	Win32WcostreamBuf wcout_win32;
-	Win32WcostreamBuf wcerr_win32;
-	std::wstring mb_caption;
 	HMODULE hUser32;
 	HMODULE hNtDll;
 	HMODULE hKernel32;
@@ -24,19 +20,16 @@ private:
 	
 	void LoadFunctions();
 	void UnloadFunctions();
-	void MessageBoxCallback(const std::wstring& mb_buffer);
 	
-	Extras(bool hidden, const wchar_t* caption);
+	Extras();
 public:
 	~Extras();
 	Extras(const Extras&)=delete;				//Get rid of default copy constructor
 	Extras& operator=(const Extras&)=delete;	//Get rid of default copy assignment operator
 	Extras(const Extras&&)=delete;				//Get rid of default move constructor
 	Extras& operator=(const Extras&&)=delete;	//Get rid of default move assignment operator
-	void WcoutMessageBox();						//Not making this static for the uniformity of calling extra functions (through extern "fn" pointers)
-	void EnableWcout(bool value);				//Not making this static for the uniformity of calling extra functions (through extern "fn" pointers)
 	
-	static bool MakeInstance(bool hidden, const wchar_t* caption);	
+	static bool MakeInstance();	
 };
 
 typedef NTSTATUS (WINAPI *pNtQuerySystemInformation)(SYSTEM_INFORMATION_CLASS SystemInformationClass, PVOID SystemInformation, ULONG SystemInformationLength, PULONG ReturnLength);
@@ -58,7 +51,5 @@ typedef BOOL (WINAPI *pWow64DisableWow64FsRedirection)(PVOID *OldValue);
 typedef BOOL (WINAPI *pWow64RevertWow64FsRedirection)(PVOID OldValue);
 typedef HWND (WINAPI *pGetConsoleWindow)(void);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
-typedef std::function<void(void)> pWcoutMessageBox;
-typedef std::function<void(bool)> pEnableWcout;
 
 #endif //EXTRA_H
