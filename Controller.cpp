@@ -175,12 +175,10 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 						if (!(cmdfile_len%2)) {	//Make sure that cmdfile length is even, because otherwise it can't be UTF16
 							wcmdfile_len=cmdfile_len/2+2;	//+2 is for terminating NULL and leading '\n'
 							wcmdfile_buf=new wchar_t[wcmdfile_len];	
-							BYTE *le_buf=(BYTE*)(wcmdfile_buf+1);
-							BYTE *be_buf=(BYTE*)cmdfile_mem;
-							for (DWORD even_pos=0, odd_pos=1; even_pos<cmdfile_len; even_pos+=2, odd_pos+=2) {
-								le_buf[odd_pos]=be_buf[even_pos];
-								le_buf[even_pos]=be_buf[odd_pos];
-							}
+							WORD *dst_wbuf=(WORD*)(wcmdfile_buf+1);
+							WORD *src_wbuf=(WORD*)cmdfile_mem;
+							for (DWORD src_pos=0; src_pos<cmdfile_len/2; src_pos++)
+								dst_wbuf[src_pos]=(src_wbuf[src_pos]>>8)|((src_wbuf[src_pos]&0xFF)<<8);	//Unsigned right shift is logical one (padded with 0) by C++ standard
 							success=true;
 						} else
 							std::wcerr<<L"Warning: file \""<<arg_cmdpath<<L"\" doesn't appear to be UTF16 BE encoded!"<<std::endl;
