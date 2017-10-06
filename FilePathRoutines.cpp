@@ -308,6 +308,8 @@ bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &ap
 				}
 			}
 	}
+	
+	return false; //Control flow should never reach here so placing it just to make Clang happy
 }
 
 void FPRoutines::FillServiceMap() 
