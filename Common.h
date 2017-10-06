@@ -32,7 +32,7 @@ inline HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &&dwDesiredAccess, DWO
 
 void Win32WcostreamActivate();
 void Win32WcostreamDeactivate();
-void Win32WcostreamMute(bool state);
+void Win32WcostreamEnabled(bool state);
 #ifdef HIDDEN
 void Win32WcostreamMessageBox();
 #endif

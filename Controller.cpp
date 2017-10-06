@@ -364,10 +364,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		}
 	} else if (!top_rule.compare(L"+m")) {
 		ctrl_vars.mode_mute=true;
-		Win32WcostreamMute(false);
+		Win32WcostreamEnabled(false);
 	} else if (!top_rule.compare(L"-m")) {
 		ctrl_vars.mode_mute=false;
-		Win32WcostreamMute(true);
+		Win32WcostreamEnabled(true);
 	} else if (!top_rule.compare(L"+l")) {
 		ctrl_vars.mode_loop=true;
 	} else if (!top_rule.compare(L"-l")) {
@@ -472,7 +472,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 				while ((sub_ret=sub_controller.MakeItDeadInternal(sub_rules))==MID_NONE);
 				args_stack=std::move(sub_controller.args_stack);
 				if (sub_controller.sec_mutex!=sec_mutex) CloseHandle(sub_controller.sec_mutex);
-				Win32WcostreamMute(!ctrl_vars.mode_mute);
+				Win32WcostreamEnabled(!ctrl_vars.mode_mute);
 				done=IsDone(sub_ret==MID_EMPTY);
 				//*************** FREE TO MODIFY LOCAL CAN ******************
 			} else {
@@ -618,7 +618,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 		sec_mutex=NULL;
 	}
 	
-	Win32WcostreamMute(true);
+	Win32WcostreamEnabled(true);
 	
 	ctrl_vars={true};
 	std::stack<std::wstring>().swap(args_stack);

@@ -248,7 +248,7 @@ void Win32WcostreamDeactivate()
 	Win32Wcostream::wcerr_win32.Deactivate();
 }
 
-void Win32WcostreamMute(bool state)
+void Win32WcostreamEnabled(bool state)
 {
 	Win32Wcostream::wcout_win32.OutputEnabled(state);
 	Win32Wcostream::wcerr_win32.OutputEnabled(state);
