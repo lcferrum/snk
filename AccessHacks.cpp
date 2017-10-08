@@ -100,13 +100,12 @@ bool AccessHacks::Wow64DisableWow64FsRedirection()
 
 bool AccessHacks::PrivateWow64DisableWow64FsRedirection()
 {
-	if (!fnWow64DisableWow64FsRedirection) return false;
 	//Do nothing if we already failed once
 	if (err_state&ACC_WOW64FSREDIRDISABLED) return false;
 	//Actually calling Wow64DisableWow64FsRedirection second time (with saved OldValue or new one) if it was already succesfully called won't do any harm - it will also succeed
 	if (acc_state&ACC_WOW64FSREDIRDISABLED) return true;
 	
-	if (fnWow64DisableWow64FsRedirection(&wow64_fs_redir)) {
+	if (fnWow64DisableWow64FsRedirection&&fnWow64DisableWow64FsRedirection(&wow64_fs_redir)) {
 		acc_state|=ACC_WOW64FSREDIRDISABLED;
 		return true;
 	} else {
