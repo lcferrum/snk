@@ -44,7 +44,7 @@ public:
 	std::wstring GetPath() const { return path; }
 
 	bool ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur);
-	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool system);
+	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool appended, bool system);
 };
 
 //This is common parent for cross delegation of ApplyToProcesses function with Killers policy
@@ -73,7 +73,8 @@ private:
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 protected:
-	enum LstMode:char {LST_SHOW=0, LST_DEBUG, INV_MASK, CLR_MASK, RST_CAN};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
+	enum LstPriMode:char {SHOW_LIST=0, INV_MASK, CLR_MASK, RST_CAN, CAN_FFWD};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
+	enum LstSecMode:char {LST_DUNNO=0, LST_SHOW, LST_DEBUG};								//Default mode should be 0 so variable can be reset by assigning it 0 or false
 
 	//Applies function ("mutator") to processes from CAN according to currently active modes
 	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
@@ -84,12 +85,15 @@ protected:
 	void Synchronize(Processes &ref);
 
 	//Manage and show currently available (to ApplyToProcesses) process list
-	//LST_SHOW - just show list
+	//LST_DUNNO - nothing special to do
+	//SHOW_LIST - show list if LST_DUNNO
+	//LST_SHOW - show list
 	//LST_DEBUG - show debug list information (using DumpProcesses, only for DEBUG builds)
 	//INV_MASK - swap whitelist with blacklist (actually, just inverts "discarded" mask) and show list
 	//CLR_MASK - clear blacklist and reset whitelist (actually, just clears "discarded" mask) and show list
-	//RST_CAN - marks CAN is invalid and forces it to be repopulated on next RequestPopulatedCAN call (not handled here but in Controller - ManageProcessList will just print acknowledgement)
-	void ManageProcessList(LstMode param_lst_mode);	
+	//RST_CAN - marks CAN is invalid and forces it to be repopulated on next RequestPopulatedCAN call
+	//CAN_FFWD - calls RequestPopulatedCAN with "full" parameter disabled (deltas won't calculate)
+	void ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode param_lst_sec_mode);	
 	
 	//Sorts processes list by CPU usage
 	void SortByCpuUsage();
@@ -105,9 +109,6 @@ protected:
 	//If processes was already succesfully enumerated (CAN is not empty) - nothing will be done
 	//If "full" is not true - won't calculate deltas (all deltas will default to 0)
 	void RequestPopulatedCAN(bool full=true);
-	
-	//Invalidates current CAN and causes it to be recreated on next RequestPopulatedCAN call
-	void InvalidateCAN();
 public:	
 	Processes();
 };

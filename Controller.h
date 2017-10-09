@@ -8,13 +8,13 @@
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 class Controller: private ProcessesPolicy, private KillersPolicy {
-	typedef typename ProcessesPolicy::LstMode LstMode;
+	typedef typename ProcessesPolicy::LstPriMode LstPriMode;
+	typedef typename ProcessesPolicy::LstSecMode LstSecMode;
 	using ProcessesPolicy::ManageProcessList;
 	using ProcessesPolicy::SortByCpuUsage;
 	using ProcessesPolicy::SortByRecentlyCreated;
 	using ProcessesPolicy::Synchronize;
 	using ProcessesPolicy::RequestPopulatedCAN;
-	using ProcessesPolicy::InvalidateCAN;
 	using KillersPolicy::KillByCpu;
 	using KillersPolicy::KillByPth;
 	using KillersPolicy::KillByMod;
@@ -51,8 +51,8 @@ private:
 		union {						
 			bool param_first;
 			bool param_plus;
-			static_assert(sizeof(LstMode)<=sizeof(bool), L"sizeof(ProcessesPolicy::LstMode) should be less or equal sizeof(bool)");
-			LstMode param_lst_mode;
+			static_assert(sizeof(LstPriMode)<=sizeof(bool), L"sizeof(ProcessesPolicy::LstPriMode) should be less or equal sizeof(bool)");
+			LstPriMode param_lst_pri_mode;
 			static_assert(sizeof(CmdMode)<=sizeof(bool), L"sizeof(Controller::CmdMode) should be less or equal sizeof(bool)");
 			CmdMode param_cmd_mode;
 			bool param_full;
@@ -64,6 +64,8 @@ private:
 			bool param_second;
 			bool param_sub;
 			bool param_primary;
+			static_assert(sizeof(LstSecMode)<=sizeof(bool), L"sizeof(ProcessesPolicy::LstSecMode) should be less or equal sizeof(bool)");
+			LstSecMode param_lst_sec_mode;
 		};
 		union {
 			bool param_third;

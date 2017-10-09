@@ -1,3 +1,21 @@
+2017-XX-XX  Lcferrum <lcferrum@yandex.com>
+	
+	* Release 2.4
+	* Fixed:
+		- Fixed redirected output on older OSes mangling newline
+		- Fixed not having enough rights to query process token even with debug privileges
+	* Changed:
+		- Better wording in results output
+		- Improved performance - faster searches and kills
+	* Added:
+		- /usr switch (kill by user name)
+		- /wnd switch (kill by window title)
+		- 'strict' parameter for /fsc switch
+		- 'ffwd' parameter for /lst switch
+		- 'reset' parameter for /lst switch
+	* Removed:
+		- 'sub' parameter for /cmd switch (temporary - will be returned in future versions)
+
 2017-06-04  Lcferrum <lcferrum@yandex.com>
 	
 	* Release 2.3

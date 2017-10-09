@@ -35,7 +35,7 @@ private:
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 protected:	
-	//Kills process with highest cpu load
+	//Kills process with highest cpu load (or whatever actual sorting was)
 	bool KillByCpu();
 	
 	//Kills process with highest cpu load which path matches one of wildcars (case-insensitive, with globbing)
@@ -79,6 +79,7 @@ protected:
 	//By default only exclusive fullscreen and borderless windowed processes are checked
 	//If param_anywnd - checks processes with any window
 	//If param_primary - checks only windows that belong to primary display
+	//If param_strict - only fullscreen windows with largest are checked
 	bool KillByFsc(bool param_anywnd, bool param_primary, bool param_strict);
 	
 	//Kills process with highest cpu load which window is in foreground
@@ -88,7 +89,8 @@ protected:
 	
 	//Kills process with highest cpu load which window title matches wildcard (case-insensitive, with globbing)
 	//arg_wcard - wildcard to match
-	bool KillByWnd(const wchar_t* arg_wcard, bool param_anywnd);
+	//If param_anywnd - doesn't apply task bar filter, but window has to be visible
+	bool KillByWnd(bool param_anywnd, const wchar_t* arg_wcard);
 	
 	//Kills process with highest cpu load which user name matches one of wildcards (case-insensitive, with globbing)
 	//arg_wcard - wildcards to match (delimeted by comma or semicolon)

@@ -705,8 +705,9 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict
 			//Imagine that you have three monitors with two "fullscreen" apps running: one spans first two monitors and another spans only third monitor
 			//Ordinary search will add both windows' PIDs to PID array
 			//With strict only the app that spans two monitors will be added, that may be what user actually is looking for
-			std::sort(dw_array.begin(), dw_array.end(), [](const std::pair<DWORD, DWORD> &left, const std::pair<DWORD, DWORD> &right){ return left.second<right.second; });
-			dw_array.erase(dw_array.begin(), std::max_element(dw_array.begin(), dw_array.end(), [](const std::pair<DWORD, DWORD> &left, const std::pair<DWORD, DWORD> &right){ return left.second<right.second; }));
+			std::vector<std::pair<DWORD, DWORD>>::iterator max_pid_area=std::max_element(dw_array.begin(), dw_array.end(), [](const std::pair<DWORD, DWORD> &left, const std::pair<DWORD, DWORD> &right){ return left.second<right.second; });
+			if (max_pid_area!=dw_array.end())
+				dw_array.erase(std::remove_if(dw_array.begin(), dw_array.end(), [max_pid_area](const std::pair<DWORD, DWORD> &pid_area){ return pid_area.second<max_pid_area->second; }), dw_array.end());
 		}
 	}
 	
@@ -835,7 +836,7 @@ bool Killers::KillByFgd(bool param_anywnd)
 	}
 }
 
-bool Killers::KillByWnd(const wchar_t* arg_wcard, bool param_anywnd)
+bool Killers::KillByWnd(bool param_anywnd, const wchar_t* arg_wcard)
 {
 	if (!arg_wcard)
 		arg_wcard=L"";

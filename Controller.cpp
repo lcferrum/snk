@@ -383,35 +383,39 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_whitelist=false;
 #if DEBUG>=1
 	} else if (!top_rule.compare(L"/lst:debug")) {
-		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
-			ctrl_vars.param_lst_mode=LstMode::LST_DEBUG;
+		if (ctrl_vars.param_lst_sec_mode==LstSecMode::LST_DUNNO)
+			ctrl_vars.param_lst_sec_mode=LstSecMode::LST_DEBUG;
 		else
 			DiscardedParam(top_rule);
 #endif
+	} else if (!top_rule.compare(L"/lst:show")) {
+		if (ctrl_vars.param_lst_sec_mode==LstSecMode::LST_DUNNO)
+			ctrl_vars.param_lst_sec_mode=LstSecMode::LST_SHOW;
+		else
+			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst:clrmask")) {
-		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
-			ctrl_vars.param_lst_mode=LstMode::CLR_MASK;
+		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
+			ctrl_vars.param_lst_pri_mode=LstPriMode::CLR_MASK;
 		else
 			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst:invmask")) {
-		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
-			ctrl_vars.param_lst_mode=LstMode::INV_MASK;
+		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
+			ctrl_vars.param_lst_pri_mode=LstPriMode::INV_MASK;
 		else
 			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst:reset")) {
-		if (ctrl_vars.param_lst_mode==LstMode::LST_SHOW)
-			ctrl_vars.param_lst_mode=LstMode::RST_CAN;
+		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
+			ctrl_vars.param_lst_pri_mode=LstPriMode::RST_CAN;
+		else
+			DiscardedParam(top_rule);
+	} else if (!top_rule.compare(L"/lst:ffwd")) {
+		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
+			ctrl_vars.param_lst_pri_mode=LstPriMode::CAN_FFWD;
 		else
 			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst")) {
-		if (ctrl_vars.param_lst_mode==LstMode::RST_CAN)
-			InvalidateCAN();
-		else
-			RequestPopulatedCAN();
-		ManageProcessList(ctrl_vars.param_lst_mode);
-		ClearParamsAndArgs();
-	} else if (!top_rule.compare(L"/ffd")) {
-		RequestPopulatedCAN(false);
+		//ManageProcessList is special - RequestPopulatedCAN is called inside this method
+		ManageProcessList(ctrl_vars.param_lst_pri_mode, ctrl_vars.param_lst_sec_mode);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/end")) {
 		done=true;
@@ -455,8 +459,9 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 			ctrl_vars.param_cmd_mode=CMDCP_UTF16;
 		else
 			DiscardedParam(top_rule);
-	} else if (!top_rule.compare(L"/cmd:sub")) {
-		ctrl_vars.param_sub=true;
+//cmd:sub is disabled till further versions
+//	} else if (!top_rule.compare(L"/cmd:sub")) {
+//		ctrl_vars.param_sub=true;
 	} else if (!top_rule.compare(L"/cmd")) {
 		if (ctrl_vars.param_sub) {
 			std::stack<std::wstring> sub_rules;
@@ -525,7 +530,7 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/wnd")) {
 		RequestPopulatedCAN();
-		done=IsDone(KillByWnd(ctrl_vars.args.c_str(), ctrl_vars.param_anywnd));
+		done=IsDone(KillByWnd(ctrl_vars.param_anywnd, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/pid:parent")) {
 		ctrl_vars.param_parent=true;

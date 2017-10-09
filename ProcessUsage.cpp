@@ -30,9 +30,8 @@ bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONG
 }
 
 //Assuming that UNICODE_STRING not necessary terminated
-//Complex expression in prc_time_dlt initialization is (paranoid) overflow check
-PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool system):
-	prc_time_dlt((prck_time_cur>std::numeric_limits<ULONGLONG>::max()-prcu_time_cur)?std::numeric_limits<ULONGLONG>::max():prck_time_cur+prcu_time_cur), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), tick_not_tock(tick_not_tock), ref(NULL)
+PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool appended, bool system):
+	prc_time_dlt(appended?prck_time_cur+prcu_time_cur:0), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), tick_not_tock(tick_not_tock), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
 	if (!this->path.empty())
@@ -87,58 +86,60 @@ void Processes::Synchronize(Processes &ref)
 		loc_it->SetReference(&(*ref_it));
 }
 
-void Processes::ManageProcessList(LstMode param_lst_mode)
+void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode param_lst_sec_mode)
 {
-#if DEBUG>=1
-	if (param_lst_mode==LST_DEBUG) {
-		std::wcerr<<L"" __FILE__ ":ManageProcessList:"<<__LINE__<<L": Dumping processes for LST_DEBUG..."<<std::endl;
-		DumpProcesses();
-		return;
-	}
-#endif
-
-	if (param_lst_mode==RST_CAN) {
-		//Actual RST_CAN handling occurs in Controller
-		std::wcout<<L"Process information was reset"<<std::endl;
-		return;
-	}
-
-	bool avail_found=false;
-
-	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
-	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); ++rit) {
-		switch (param_lst_mode) {
-			case LST_SHOW:
-				break;
-			case INV_MASK:
-				if (rit->GetDiscarded())
-					rit->SetDiscarded(false);
+	switch (param_lst_pri_mode) {
+		case RST_CAN:
+			invalid=true;
+			break;
+		case INV_MASK:
+		case CLR_MASK:
+			RequestPopulatedCAN();
+			for (PData &data: CAN)
+				if (param_lst_pri_mode==INV_MASK)
+					data.SetDiscarded(!data.GetDiscarded());
 				else
-					rit->SetDiscarded(true);
-				break;
-			case CLR_MASK:
-				rit->SetDiscarded(false);
-				break;
-			default:
-				continue;
-		}
-		if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())) {
-			if (!avail_found) {
-				if (ModeAll())
-					std::wcout<<L"Available processes:"<<std::endl;
-				else
-					std::wcout<<L"Available user processes:"<<std::endl;	
-				avail_found=true;
-			}
-			std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
-		}
+					data.SetDiscarded(false);
+			break;
+		case SHOW_LIST:
+			if (param_lst_sec_mode==LST_DUNNO) param_lst_sec_mode=LST_SHOW;
+			break;
+		case CAN_FFWD:
+			RequestPopulatedCAN(false);
+			break;
 	}
 	
-	if (param_lst_mode==LST_SHOW&&!avail_found) {
-		if (ModeAll())
-			std::wcout<<L"No processes available"<<std::endl;
-		else
-			std::wcout<<L"No user processes available"<<std::endl;	
+	switch (param_lst_sec_mode) {
+#if DEBUG>=1
+		case LST_DEBUG:
+			RequestPopulatedCAN();
+			std::wcerr<<L"" __FILE__ ":ManageProcessList:"<<__LINE__<<L": Dumping processes for LST_DEBUG..."<<std::endl;
+			DumpProcesses();
+			break;
+#endif
+		case LST_SHOW:
+			RequestPopulatedCAN();
+			bool avail_found=false;
+			//Old fashioned "for" because C++11 ranged-based version can't go in reverse
+			for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); ++rit) {
+				if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())) {
+					if (!avail_found) {
+						if (ModeAll())
+							std::wcout<<L"Available processes:"<<std::endl;
+						else
+							std::wcout<<L"Available user processes:"<<std::endl;	
+						avail_found=true;
+					}
+					std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
+				}
+			}
+			if (!avail_found) {
+				if (ModeAll())
+					std::wcout<<L"No processes available"<<std::endl;
+				else
+					std::wcout<<L"No user processes available"<<std::endl;	
+			}
+			break;
 	}
 }
 
@@ -173,11 +174,6 @@ void Processes::RequestPopulatedCAN(bool full)
 		FreeLogonSID(self_lsid);
 		invalid=false;
 	}
-}
-
-void Processes::InvalidateCAN()
-{
-	invalid=true;
 }
 
 void Processes::SortByCpuUsage()
@@ -228,7 +224,6 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	if (!CachedNtQuerySystemProcessInformation(&pspi_all))
 		return 0;
 	
-	cur_len=0;
 	pspi_cur=pspi_all;
 	while (pspi_cur) {
 		if (pspi_cur->UniqueProcessId&&self_pid!=(ULONG_PTR)pspi_cur->UniqueProcessId&&(ULONG_PTR)pspi_cur->UniqueProcessId!=4&&(ULONG_PTR)pspi_cur->UniqueProcessId!=2&&(ULONG_PTR)pspi_cur->UniqueProcessId!=8) {	//If it's not current process' PID or idle (PID 0) or system process (PID 2 on NT4, PID 8 on 2000, PID 4 on everything else)
@@ -250,7 +245,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 				//It was observed that SYSTEM_PROCESS_INFORMATION.ImageName sometimes has mangled name - with partial or completely omitted extension
 				//Process Explorer shows the same thing, so it has something to do with particular processes
 				//So it's better to use wildcard in place of extension when killing process using it's name (and not full file path) to circumvent such situation
-				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !user));
+				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !first_time, !user));
 				
 				if (hProcess) CloseHandle(hProcess);
 			}
