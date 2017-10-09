@@ -647,9 +647,9 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 	return true;
 }
 
-bool Killers::KillByFsc(bool param_anywnd, bool param_primary) 
+bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict) 
 {
-	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
+	std::vector<std::pair<DWORD, DWORD>> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
 	std::vector<RECT> disp_array;
 	
 	//So what's the deal with EnumDisplayDevicesWrapper and intersecting switch/while?
@@ -698,15 +698,23 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary)
 		//Test if disp_array is empty before passing it to EnumWndFsc or some udefined behavior might happen!
 		//Same thing with "Ghost" class ATOM as in KillByInr
 		WNDCLASS dummy_wnd;
-		std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM> enum_wnd_tuple(param_anywnd, param_primary, dw_array, disp_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
+		std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM> enum_wnd_tuple(param_anywnd, param_primary, dw_array, disp_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
 		EnumWindows(EnumWndFsc, (LPARAM)&enum_wnd_tuple);
+		if (param_strict) {
+			//Leaving out only windows with biggest area may help with multi monitor setup
+			//Imagine that you have three monitors with two "fullscreen" apps running: one spans first two monitors and another spans only third monitor
+			//Ordinary search will add both windows' PIDs to PID array
+			//With strict only the app that spans two monitors will be added, that may be what user actually is looking for
+			std::sort(dw_array.begin(), dw_array.end(), [](const std::pair<DWORD, DWORD> &left, const std::pair<DWORD, DWORD> &right){ return left.second<right.second; });
+			dw_array.erase(dw_array.begin(), std::max_element(dw_array.begin(), dw_array.end(), [](const std::pair<DWORD, DWORD> &left, const std::pair<DWORD, DWORD> &right){ return left.second<right.second; }));
+		}
 	}
 	
 	PrintCommonKillPrefix();
 	std::wcout<<L"running in fullscreen ";
 	
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
+		if (std::find_if(dw_array.begin(), dw_array.end(), [PID](const std::pair<DWORD, DWORD> &pid_area){ return pid_area.first==PID; })!=dw_array.end()) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -727,13 +735,14 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary)
 //This will also guarantee that display vector is non-empty in this callback
 BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam) 
 {
-	ATOM ghost_atom=std::get<4>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
+	ATOM ghost_atom=std::get<4>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
 	
+	//IsTaskWindow is a must here because even with less strict IsWindowVisible (or no filtering at all) we will count as "fullscreen" some technical windows like explorer's one
 	if (IsTaskWindow(hwnd)&&GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom) {	//Filtering out non-task windows and "ghost" windows to speed up the search and not kill dwm/explorer accidentally
-		bool any_wnd=std::get<0>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
-		bool pri_disp=std::get<1>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
-		std::vector<DWORD> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
-		std::vector<RECT> &disp_array=std::get<3>(*(std::tuple<bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM>*)lParam);
+		bool any_wnd=std::get<0>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
+		bool pri_disp=std::get<1>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
+		std::vector<std::pair<DWORD, DWORD>> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
+		std::vector<RECT> &disp_array=std::get<3>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
 
 		RECT client_rect;
 		RECT window_rect;
@@ -745,12 +754,13 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 			//	Check if client area dimension equals window dimension - should be true for both exclusive fullscreen and borderless window
 			//	Client RECT's top left corner is always at (0,0) so bottom right corner represents width/height of client area
 			if (any_wnd||(client_rect.right==window_rect.right-window_rect.left&&client_rect.bottom==window_rect.bottom-window_rect.top)) {
+				DWORD pid;
 #if DEBUG>=3
-				std::wcerr<<L"" __FILE__ ":EnumWndFsc:"<<__LINE__<<L": HWND ("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L") - CRECT=("
+				GetWindowThreadProcessId(hwnd, &pid);
+				std::wcerr<<L"" __FILE__ ":EnumWndFsc:"<<__LINE__<<L": PID("<<pid<<L") HWND("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L") - CRECT=("
 					<<client_rect.left<<L","<<client_rect.top<<L")("<<client_rect.right<<L","<<client_rect.bottom<<L") - WRECT=("
 					<<window_rect.left<<L","<<window_rect.top<<L")("<<window_rect.right<<L","<<window_rect.bottom<<L")"<<std::endl;
 #endif
-				DWORD pid;
 				if (disp_array.size()==1) {
 					//If we have only one display - use more relaxed algorithm
 					//Some fullscreen game windows have their coordinates unaligned with display (e.g. Valkyria Chronicles)
@@ -758,7 +768,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 					//So just check that app's window size is greater or equal to display size
 					if (window_rect.right-window_rect.left>=disp_array[0].right-disp_array[0].left&&window_rect.bottom-window_rect.top>=disp_array[0].bottom-disp_array[0].top)
 						if (GetWindowThreadProcessId(hwnd, &pid))
-							dw_array.push_back(pid);
+							dw_array.push_back({pid, abs((window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top))});
 				} else {
 					//Relaxed algorithm that is suitable for single display can cause false positive on multiple displays
 					//For multiple displays test if app's RECT contains at least one of the displays' RECT to consider it fullscreen app
@@ -768,7 +778,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 						?WithinRect(window_rect, disp_array[0])
 						:std::any_of(disp_array.begin(), disp_array.end(), std::bind(WithinRect, window_rect, std::placeholders::_1)))
 						if (GetWindowThreadProcessId(hwnd, &pid))
-							dw_array.push_back(pid);
+							dw_array.push_back({pid, abs((window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top))});
 				}
 			}
 		}
@@ -825,21 +835,21 @@ bool Killers::KillByFgd(bool param_anywnd)
 	}
 }
 
-bool Killers::KillByWnd(const wchar_t* arg_wcard)
+bool Killers::KillByWnd(const wchar_t* arg_wcard, bool param_anywnd)
 {
 	if (!arg_wcard)
 		arg_wcard=L"";
 
 	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId returns PID as DWORD
-
+	
 	//Unfortunately, can't use those pretty capture-less lambdas here because of calling conventions
 	//By default lambda calling conventions is __cdecl, which is OK on x86-64 because CALLBACK is also __cdecl here
 	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
 	//At least we can use tuples so not to litter class definition with structs
 	//Same thing with "Ghost" class ATOM as in KillByInr
 	WNDCLASS dummy_wnd;
-	std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM> enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
-	if (wcslen(arg_wcard)) EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
+	std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool> enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), param_anywnd);
+	EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
 	
 	PrintCommonKillPrefix();
 	std::wcout<<L"which window title matches wildcard \""<<arg_wcard;
@@ -863,13 +873,20 @@ bool Killers::KillByWnd(const wchar_t* arg_wcard)
 
 BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam) 
 {
-	if (IsTaskWindow(hwnd)) {	//Filtering out non-task windows to speed up the search
-		const wchar_t* wcard=std::get<0>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
-		std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
-		ATOM ghost_atom=std::get<2>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
-		
+	bool any_wnd=std::get<3>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
+	
+	if (any_wnd?IsWindowVisible(hwnd):IsTaskWindow(hwnd)) {	//Filtering out non-task (or non-visible) windows to speed up the search
+		const wchar_t* wcard=std::get<0>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
+		std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
+		ATOM ghost_atom=std::get<2>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
+				
 		HWND real_hwnd=hwnd;
 		
+		//Why not filtering out ghost windows completely?
+		//If not filtering it out, assuming that NtUserHungWindowFromGhostWindow is available, we will add two identical PIDs (for ghost window and original one)
+		//This may look that something that we don't want
+		//But user may supply something like "*(Not Responding)" for wcard in hope for killing hung application
+		//That's why we are also querying ghost windows
 		if (GetClassLongPtr(hwnd, GCW_ATOM)==ghost_atom) {
 			if (fnNtUserHungWindowFromGhostWindow)
 				real_hwnd=fnNtUserHungWindowFromGhostWindow(hwnd);
@@ -877,13 +894,22 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 				return true;
 		}
 		
+		bool wcard_matched=false;
 		if (int title_len=GetWindowTextLength(hwnd)) {
 			wchar_t title_buf[title_len+1];
-			DWORD pid;
-			if (GetWindowText(hwnd, title_buf, title_len+1)&&
-				MultiWildcardCmp(wcard, title_buf, false, NULL)&&
-				GetWindowThreadProcessId(real_hwnd, &pid))
-				dw_array.push_back(pid);
+			if (GetWindowText(hwnd, title_buf, title_len+1)&&MultiWildcardCmp(wcard, title_buf, false, NULL))
+				wcard_matched=true;
+		} else if (GetLastError()==ERROR_SUCCESS) {	//Empty window title is also title
+			if (MultiWildcardCmp(wcard, L"", false, NULL))
+				wcard_matched=true;
+		}
+		
+		DWORD pid;
+		if (wcard_matched&&GetWindowThreadProcessId(real_hwnd, &pid)) {
+#if DEBUG>=3
+			std::wcerr<<L"" __FILE__ ":EnumWndWnd:"<<__LINE__<<L": PID("<<pid<<L") HWND("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L")"<<std::endl;
+#endif
+			dw_array.push_back(pid);
 		}
 	}
 

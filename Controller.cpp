@@ -283,6 +283,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::ClearParamsAndArgs()
 	//By design none of these union variables are greater in size than param_first/param_second so assignment won't leave any bytes unaffected
 	ctrl_vars.param_first=false;
 	ctrl_vars.param_second=false;
+	ctrl_vars.param_third=false;
 	ctrl_vars.args.clear();
 }
 
@@ -520,9 +521,11 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		RequestPopulatedCAN();
 		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/wnd:anywnd")) {
+		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/wnd")) {
 		RequestPopulatedCAN();
-		done=IsDone(KillByWnd(ctrl_vars.args.c_str()));
+		done=IsDone(KillByWnd(ctrl_vars.args.c_str(), ctrl_vars.param_anywnd));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/pid:parent")) {
 		ctrl_vars.param_parent=true;
@@ -563,10 +566,12 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/fsc:primary")) {
 		ctrl_vars.param_primary=true;
+	} else if (!top_rule.compare(L"/fsc:strict")) {
+		ctrl_vars.param_strict=true;
 	} else if (!top_rule.compare(L"/fsc")) {
 		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
-		done=IsDone(KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary));
+		done=IsDone(KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary, ctrl_vars.param_strict));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/fgd:anywnd")) {
 		ctrl_vars.param_anywnd=true;

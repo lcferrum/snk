@@ -79,7 +79,7 @@ protected:
 	//By default only exclusive fullscreen and borderless windowed processes are checked
 	//If param_anywnd - checks processes with any window
 	//If param_primary - checks only windows that belong to primary display
-	bool KillByFsc(bool param_anywnd, bool param_primary);
+	bool KillByFsc(bool param_anywnd, bool param_primary, bool param_strict);
 	
 	//Kills process with highest cpu load which window is in foreground
 	//By default filters out windows that doesn't show in task bar
@@ -88,7 +88,7 @@ protected:
 	
 	//Kills process with highest cpu load which window title matches wildcard (case-insensitive, with globbing)
 	//arg_wcard - wildcard to match
-	bool KillByWnd(const wchar_t* arg_wcard);
+	bool KillByWnd(const wchar_t* arg_wcard, bool param_anywnd);
 	
 	//Kills process with highest cpu load which user name matches one of wildcards (case-insensitive, with globbing)
 	//arg_wcard - wildcards to match (delimeted by comma or semicolon)

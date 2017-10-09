@@ -45,8 +45,8 @@ private:
 		bool mode_mute;
 		bool mode_close;
 		bool mode_env;
-		//We should be able to change values of all variables in union by assigning something to it's largest member (should be param_first/param_second)
-		//Don't expect bool (param_first/param_second type) to be the largest because size of bool is implementation defined 
+		//We should be able to change values of all variables in union by assigning something to it's largest member (should be param_first/param_second/param_third)
+		//Don't expect bool (param_first/param_second/param_third type) to be the largest because size of bool is implementation defined 
 		//Test with static_assert for other types to be smaller or equal in size
 		union {						
 			bool param_first;
@@ -64,6 +64,10 @@ private:
 			bool param_second;
 			bool param_sub;
 			bool param_primary;
+		};
+		union {
+			bool param_third;
+			bool param_strict;
 		}; 
 		std::wstring args;
 	} ctrl_vars;
