@@ -987,3 +987,19 @@ bool Killers::KillByUsr(bool param_full, const wchar_t* arg_wcard)
 		return false;
 	}
 }
+
+bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
+{
+	if (!arg_maxmem)
+		arg_maxmem=L"";
+	
+	wchar_t* arg_err;
+	DWORD maxmem=wcstoul(arg_maxmem, &arg_err, 10);
+	if (*arg_maxmem==L'-'||*arg_maxmem==L'\0'||*arg_err!=L'\0'||(maxmem==ULONG_MAX&&errno==ERANGE)) {
+		std::wcout<<L"ARG_MAXMEM=\""<<arg_maxmem<<"\" MEMORY CONVERT ERROR"<<std::endl;
+	} else {
+		std::wcout<<L"ARG_MAXMEM=\""<<arg_maxmem<<"\" MEMORY="<<maxmem<<std::endl;
+	}
+	
+	return false;
+}

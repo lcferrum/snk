@@ -96,6 +96,11 @@ protected:
 	//arg_wcard - wildcards to match (delimeted by comma or semicolon)
 	//If param_full - uses full user name (DOMAIN\NAME), otherwise uses just name (NAME)
 	bool KillByUsr(bool param_full, const wchar_t* arg_wcard);
+	
+	//Kills process with highest cpu and highest memory usage
+	//arg_maxmem - if supplied, kills processes that have memory usage strictly greater than arg_maxmem (decimal unsigned integer, in KB)
+	//If param_vm - uses virtual memory private bytes metric, otherwise uses physical memory working set metric
+	bool KillByMem(bool param_vm, const wchar_t* arg_maxmem);
 public:
 	Killers();
 };

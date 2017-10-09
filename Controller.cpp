@@ -591,6 +591,12 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		RequestPopulatedCAN();
 		done=IsDone(KillByUsr(ctrl_vars.param_full, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/mem:vm")) {
+		ctrl_vars.param_vm=true;
+	} else if (!top_rule.compare(L"/mem")) {
+		RequestPopulatedCAN();
+		done=IsDone(KillByMem(ctrl_vars.param_vm, ctrl_vars.args.c_str()));
+		ClearParamsAndArgs();
 	} else if (top_rule.front()==L'=') {
 		if (ctrl_vars.mode_env)
 			ctrl_vars.args=ExpandEnvironmentStringsWrapper(top_rule.substr(1));

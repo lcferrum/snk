@@ -261,9 +261,10 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	return cur_len;
 }
 
-//User SID identifies user that launched process. But if process was launched with RunAs - it will have SID of the RunAs user.
-//Only Logon SID will stay the same in this case.
-//Assuming that SnK is run with admin rights, it's better to use Logon SID to distinguish system processes from user processes.
+//User SID identifies user that launched process
+//But if process was launched with RunAs - it will have SID of the RunAs user
+//Only Logon SID will stay the same in this case
+//Assuming that SnK is run with admin rights, it's better to use Logon SID to distinguish system processes from user processes
 PSID Processes::GetLogonSID(HANDLE hProcess)
 {
 	HANDLE hToken;
