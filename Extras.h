@@ -5,6 +5,7 @@
 #include <functional>
 #include <windows.h>
 #include <winternl.h>
+#include <psapi.h>
 
 #define PTR_32(Type) ULONG
 #define PTR_64(Type) ULONGLONG
@@ -17,6 +18,7 @@ private:
 	HMODULE hNtDll;
 	HMODULE hKernel32;
 	HMODULE hShlwapi;
+	HMODULE hPsapi;
 	
 	void LoadFunctions();
 	void UnloadFunctions();
@@ -51,5 +53,6 @@ typedef BOOL (WINAPI *pWow64DisableWow64FsRedirection)(PVOID *OldValue);
 typedef BOOL (WINAPI *pWow64RevertWow64FsRedirection)(PVOID OldValue);
 typedef HWND (WINAPI *pGetConsoleWindow)(void);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
+typedef BOOL (WINAPI *pGetProcessMemoryInfo)(HANDLE Process, PPROCESS_MEMORY_COUNTERS ppsmemCounters, DWORD cb);
 
 #endif //EXTRA_H

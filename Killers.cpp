@@ -18,6 +18,7 @@ typedef struct _LANGANDCODEPAGE {
 
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 extern pNtQueryInformationProcess fnNtQueryInformationProcess;
+extern pGetProcessMemoryInfo fnGetProcessMemoryInfo;
 
 #ifdef _WIN64
 #define EnumDisplayDevicesWrapper EnumDisplayDevices
@@ -649,7 +650,8 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 
 bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict) 
 {
-	std::vector<std::pair<DWORD, DWORD>> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
+	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
+	DWORD cur_max_area=0;
 	std::vector<RECT> disp_array;
 	
 	//So what's the deal with EnumDisplayDevicesWrapper and intersecting switch/while?
@@ -698,24 +700,15 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict
 		//Test if disp_array is empty before passing it to EnumWndFsc or some udefined behavior might happen!
 		//Same thing with "Ghost" class ATOM as in KillByInr
 		WNDCLASS dummy_wnd;
-		std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM> enum_wnd_tuple(param_anywnd, param_primary, dw_array, disp_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
+		std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&> enum_wnd_tuple(param_anywnd, param_primary, param_strict, dw_array, disp_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), cur_max_area);
 		EnumWindows(EnumWndFsc, (LPARAM)&enum_wnd_tuple);
-		if (param_strict) {
-			//Leaving out only windows with biggest area may help with multi monitor setup
-			//Imagine that you have three monitors with two "fullscreen" apps running: one spans first two monitors and another spans only third monitor
-			//Ordinary search will add both windows' PIDs to PID array
-			//With strict only the app that spans two monitors will be added, that may be what user actually is looking for
-			std::vector<std::pair<DWORD, DWORD>>::iterator max_pid_area=std::max_element(dw_array.begin(), dw_array.end(), [](const std::pair<DWORD, DWORD> &left, const std::pair<DWORD, DWORD> &right){ return left.second<right.second; });
-			if (max_pid_area!=dw_array.end())
-				dw_array.erase(std::remove_if(dw_array.begin(), dw_array.end(), [max_pid_area](const std::pair<DWORD, DWORD> &pid_area){ return pid_area.second<max_pid_area->second; }), dw_array.end());
-		}
 	}
 	
 	PrintCommonKillPrefix();
 	std::wcout<<L"running in fullscreen ";
 	
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (std::find_if(dw_array.begin(), dw_array.end(), [PID](const std::pair<DWORD, DWORD> &pid_area){ return pid_area.first==PID; })!=dw_array.end()) {
+		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -736,14 +729,16 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict
 //This will also guarantee that display vector is non-empty in this callback
 BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam) 
 {
-	ATOM ghost_atom=std::get<4>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
+	ATOM ghost_atom=std::get<5>(*(std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>*)lParam);
 	
 	//IsTaskWindow is a must here because even with less strict IsWindowVisible (or no filtering at all) we will count as "fullscreen" some technical windows like explorer's one
 	if (IsTaskWindow(hwnd)&&GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom) {	//Filtering out non-task windows and "ghost" windows to speed up the search and not kill dwm/explorer accidentally
-		bool any_wnd=std::get<0>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
-		bool pri_disp=std::get<1>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
-		std::vector<std::pair<DWORD, DWORD>> &dw_array=std::get<2>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
-		std::vector<RECT> &disp_array=std::get<3>(*(std::tuple<bool, bool, std::vector<std::pair<DWORD, DWORD>>&, std::vector<RECT>&, ATOM>*)lParam);
+		bool any_wnd=std::get<0>(*(std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>*)lParam);
+		bool pri_disp=std::get<1>(*(std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>*)lParam);
+		bool strict=std::get<2>(*(std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>*)lParam);
+		std::vector<DWORD> &dw_array=std::get<3>(*(std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>*)lParam);
+		std::vector<RECT> &disp_array=std::get<4>(*(std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>*)lParam);
+		DWORD &cur_max_area=std::get<6>(*(std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>*)lParam);
 
 		RECT client_rect;
 		RECT window_rect;
@@ -756,6 +751,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 			//	Client RECT's top left corner is always at (0,0) so bottom right corner represents width/height of client area
 			if (any_wnd||(client_rect.right==window_rect.right-window_rect.left&&client_rect.bottom==window_rect.bottom-window_rect.top)) {
 				DWORD pid;
+				bool add=false;
 #if DEBUG>=3
 				GetWindowThreadProcessId(hwnd, &pid);
 				std::wcerr<<L"" __FILE__ ":EnumWndFsc:"<<__LINE__<<L": PID("<<pid<<L") HWND("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L") - CRECT=("
@@ -768,8 +764,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 					//Some fullscreen game windows have size greater than display size
 					//So just check that app's window size is greater or equal to display size
 					if (window_rect.right-window_rect.left>=disp_array[0].right-disp_array[0].left&&window_rect.bottom-window_rect.top>=disp_array[0].bottom-disp_array[0].top)
-						if (GetWindowThreadProcessId(hwnd, &pid))
-							dw_array.push_back({pid, abs((window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top))});
+						if (GetWindowThreadProcessId(hwnd, &pid)) add=true;
 				} else {
 					//Relaxed algorithm that is suitable for single display can cause false positive on multiple displays
 					//For multiple displays test if app's RECT contains at least one of the displays' RECT to consider it fullscreen app
@@ -778,8 +773,22 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 					if (pri_disp
 						?WithinRect(window_rect, disp_array[0])
 						:std::any_of(disp_array.begin(), disp_array.end(), std::bind(WithinRect, window_rect, std::placeholders::_1)))
-						if (GetWindowThreadProcessId(hwnd, &pid))
-							dw_array.push_back({pid, abs((window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top))});
+						if (GetWindowThreadProcessId(hwnd, &pid)) add=true;
+				}
+				
+				if (add) {
+					if (strict) {
+						DWORD area=abs((window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top));
+						if (area==cur_max_area) {
+							dw_array.push_back(pid);
+						} else if (area>cur_max_area) {
+							cur_max_area=area;
+							dw_array.clear();
+							dw_array.push_back(pid);
+						}
+					} else {
+						dw_array.push_back(pid);
+					}
 				}
 			}
 		}
@@ -992,14 +1001,94 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 {
 	if (!arg_maxmem)
 		arg_maxmem=L"";
+
+	bool found=true;
+	bool top_mem=false;
+	SIZE_T st_maxmem;
 	
-	wchar_t* arg_err;
-	DWORD maxmem=wcstoul(arg_maxmem, &arg_err, 10);
-	if (*arg_maxmem==L'-'||*arg_maxmem==L'\0'||*arg_err!=L'\0'||(maxmem==ULONG_MAX&&errno==ERANGE)) {
-		std::wcout<<L"ARG_MAXMEM=\""<<arg_maxmem<<"\" MEMORY CONVERT ERROR"<<std::endl;
+	if (*arg_maxmem==L'\0') {
+		top_mem=true;
 	} else {
-		std::wcout<<L"ARG_MAXMEM=\""<<arg_maxmem<<"\" MEMORY="<<maxmem<<std::endl;
+		wchar_t* endptr;
+#ifdef _WIN64
+		st_maxmem=wcstoull(arg_maxmem, &endptr, 10);
+		if (*arg_maxmem==L'-'||*endptr!=L'\0'||(st_maxmem==ULLONG_MAX&&errno==ERANGE)) {
+#else
+		st_maxmem=wcstoul(arg_maxmem, &endptr, 10);
+		if (*arg_maxmem==L'-'||*endptr!=L'\0'||(st_maxmem==ULONG_MAX&&errno==ERANGE)) {
+#endif
+			found=false;
+			std::wcerr<<L"Warning: target memory usage \""<<arg_maxmem<<L"\" is malformed!"<<std::endl;
+			arg_maxmem=L"\"\"";
+		}
 	}
 	
-	return false;
+	PrintCommonKillPrefix();
+	if (ModeLoop()) {
+		if (top_mem)
+			std::wcout<<L"with highest memory usage ";
+		else
+			std::wcout<<L"with memory usage higher than "<<arg_maxmem<<L" KB ";
+	} else {
+		if (top_mem)
+			std::wcout<<L"and highest memory usage ";
+		else
+			std::wcout<<L"and memory usage higher than "<<arg_maxmem<<L" KB ";
+	}
+	
+	if (found) {
+#if DEBUG>=2
+		if (!fnGetProcessMemoryInfo)
+			std::wcerr<<L"" __FILE__ ":KillByMem:"<<__LINE__<<L": GetProcessMemoryInfo not found!"<<std::endl;
+#endif
+
+		std::vector<std::pair<ULONG_PTR, std::wstring>> pid_array;
+		SIZE_T cur_highest_mem=0;
+		
+		found=fnGetProcessMemoryInfo&&ApplyToProcesses([this, top_mem, param_vm, st_maxmem, &cur_highest_mem, &pid_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+			bool checked=false;
+
+			if (HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
+				PROCESS_MEMORY_COUNTERS pmc={sizeof(PROCESS_MEMORY_COUNTERS)};
+				if (fnGetProcessMemoryInfo(hProcess, &pmc, sizeof(PROCESS_MEMORY_COUNTERS))) {
+#if DEBUG>=3
+					std::wcerr<<L"" __FILE__ ":KillByMem:"<<__LINE__<<L": Mem usage for "<<PID<<L" ("<<name<<L"): WorkingSetSize="<<pmc.WorkingSetSize<<L" PagefileUsage="<<pmc.PagefileUsage<<std::endl;
+#endif
+					SIZE_T cur_mem=param_vm?pmc.PagefileUsage:pmc.WorkingSetSize;
+					if (top_mem) {
+						if (cur_mem==cur_highest_mem) {
+							pid_array.push_back({PID, name});
+						} else if (cur_mem>cur_highest_mem) {
+							cur_highest_mem=cur_mem;
+							pid_array.clear();
+							pid_array.push_back({PID, name});
+						}							
+					} else if (cur_mem>st_maxmem*1024) {
+						if (!applied) std::wcout<<L"FOUND:"<<std::endl;
+						KillProcess(PID, name);
+						checked=true;
+					}
+				}
+				CloseHandle(hProcess);
+			}
+
+			return checked;
+		});
+		
+		if (top_mem) {
+			for (const std::pair<ULONG_PTR, std::wstring> &pid_data: pid_array) {
+				if (!found) std::wcout<<L"FOUND:"<<std::endl;
+				KillProcess(pid_data.first, pid_data.second);
+				found=true;
+				if (!ModeLoop()) break;
+			}
+		}
+	}
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"NOT found"<<std::endl;
+		return false;
+	}
 }

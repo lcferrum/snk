@@ -18,11 +18,12 @@ pNtQueryVirtualMemory fnNtQueryVirtualMemory=NULL;
 pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64=NULL;
 pAttachConsole fnAttachConsole=NULL;
 pGetConsoleWindow fnGetConsoleWindow=NULL;
+pGetProcessMemoryInfo fnGetProcessMemoryInfo=NULL;
 
 std::unique_ptr<Extras> Extras::instance;
 
 Extras::Extras(): 
-	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL)
+	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL), hPsapi(NULL)
 {
 	LoadFunctions();
 }
@@ -49,6 +50,7 @@ void Extras::LoadFunctions()
 	hNtDll=LoadLibrary(L"ntdll.dll");
 	hKernel32=LoadLibrary(L"kernel32.dll");
 	hShlwapi=LoadLibrary(L"shlwapi.dll");
+	hPsapi=LoadLibrary(L"psapi.dll");
 
 	if (hUser32) {
 		fnNtUserHungWindowFromGhostWindow=(pNtUserHungWindowFromGhostWindow)GetProcAddress(hUser32, "HungWindowFromGhostWindow");
@@ -79,6 +81,10 @@ void Extras::LoadFunctions()
 	if (hShlwapi) {
 		fnPathFindOnPathW=(pPathFindOnPathW)GetProcAddress(hShlwapi, "PathFindOnPathW");
 	}
+	
+	if (hPsapi) {
+		fnGetProcessMemoryInfo=(pGetProcessMemoryInfo)GetProcAddress(hPsapi, "GetProcessMemoryInfo");
+	}
 }
 
 //And here we are testing for NULLs because LoadLibrary can fail in method above
@@ -88,4 +94,5 @@ void Extras::UnloadFunctions()
 	if (hNtDll) FreeLibrary(hNtDll);
 	if (hKernel32) FreeLibrary(hKernel32);
 	if (hShlwapi) FreeLibrary(hShlwapi);
+	if (hPsapi) FreeLibrary(hPsapi);
 }
