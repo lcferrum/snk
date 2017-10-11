@@ -752,12 +752,6 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 			if (any_wnd||(client_rect.right==window_rect.right-window_rect.left&&client_rect.bottom==window_rect.bottom-window_rect.top)) {
 				DWORD pid;
 				bool add=false;
-#if DEBUG>=3
-				GetWindowThreadProcessId(hwnd, &pid);
-				std::wcerr<<L"" __FILE__ ":EnumWndFsc:"<<__LINE__<<L": PID("<<pid<<L") HWND("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L") - CRECT=("
-					<<client_rect.left<<L","<<client_rect.top<<L")("<<client_rect.right<<L","<<client_rect.bottom<<L") - WRECT=("
-					<<window_rect.left<<L","<<window_rect.top<<L")("<<window_rect.right<<L","<<window_rect.bottom<<L")"<<std::endl;
-#endif
 				if (disp_array.size()==1) {
 					//If we have only one display - use more relaxed algorithm
 					//Some fullscreen game windows have their coordinates unaligned with display (e.g. Valkyria Chronicles)
@@ -777,8 +771,15 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 				}
 				
 				if (add) {
+#if DEBUG>=3
+					std::wcerr<<L"" __FILE__ ":EnumWndFsc:"<<__LINE__<<L": ADDED PID("<<pid<<L") HWND("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L") - CRECT=("
+						<<client_rect.left<<L","<<client_rect.top<<L")("<<client_rect.right<<L","<<client_rect.bottom<<L") - WRECT=("
+						<<window_rect.left<<L","<<window_rect.top<<L")("<<window_rect.right<<L","<<window_rect.bottom<<L")"<<std::endl;
+#endif
 					if (strict) {
-						DWORD area=abs((window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top));
+						//By convention, the right and bottom edges of the rectangle are normally considered exclusive
+						//So the pixel with [right, bottom] coordinates lies immediately outside of the rectangle
+						DWORD area=(window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top);
 						if (area==cur_max_area) {
 							dw_array.push_back(pid);
 						} else if (area>cur_max_area) {
