@@ -10,6 +10,7 @@
 	* Added:
 		- /usr switch (kill by user name)
 		- /wnd switch (kill by window title)
+		- /mem switch (kill by memory usage)
 		- 'strict' parameter for /fsc switch
 		- 'ffwd' parameter for /lst switch
 		- 'reset' parameter for /lst switch

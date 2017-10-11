@@ -210,7 +210,7 @@ bool AccessHacks::ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken)
 	bool imp_successful=false;
 	SYSTEM_HANDLE_INFORMATION *pshi;
 	
-	if (CachedNtQuerySystemHandleInformation(&pshi)&&pshi->Count) {
+	if (CachedNtQuerySystemHandleInformation(&pshi, true)&&pshi->Count) {
 		//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
 		//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
 		DWORD pid=GetCurrentProcessId();
