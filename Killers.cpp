@@ -1003,7 +1003,7 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 	if (!arg_maxmem)
 		arg_maxmem=L"";
 
-	bool found=true;
+	bool found_noerr=true;
 	bool top_mem=false;
 	SIZE_T st_maxmem;
 	
@@ -1018,7 +1018,7 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 		st_maxmem=wcstoul(arg_maxmem, &endptr, 10);
 		if (*arg_maxmem==L'-'||*endptr!=L'\0'||(st_maxmem==ULONG_MAX&&errno==ERANGE)) {
 #endif
-			found=false;
+			found_noerr=false;
 			std::wcerr<<L"Warning: target memory usage \""<<arg_maxmem<<L"\" is malformed!"<<std::endl;
 			arg_maxmem=L"\"\"";
 		}
@@ -1037,7 +1037,7 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 			std::wcout<<L"and memory usage higher than "<<arg_maxmem<<L" KB ";
 	}
 	
-	if (found) {
+	if (found_noerr) {
 #if DEBUG>=2
 		if (!fnGetProcessMemoryInfo)
 			std::wcerr<<L"" __FILE__ ":KillByMem:"<<__LINE__<<L": GetProcessMemoryInfo not found!"<<std::endl;
@@ -1046,8 +1046,8 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 		std::vector<std::pair<ULONG_PTR, std::wstring>> pid_array;
 		SIZE_T cur_highest_mem=0;
 		
-		found=fnGetProcessMemoryInfo&&ApplyToProcesses([this, top_mem, param_vm, st_maxmem, &cur_highest_mem, &pid_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-			bool checked=false;
+		found_noerr=fnGetProcessMemoryInfo&&ApplyToProcesses([this, top_mem, param_vm, st_maxmem, &cur_highest_mem, &pid_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+			bool triggered=false;
 
 			if (HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
 				PROCESS_MEMORY_COUNTERS pmc={sizeof(PROCESS_MEMORY_COUNTERS)};
@@ -1067,26 +1067,26 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 					} else if (cur_mem>st_maxmem*1024) {
 						if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 						KillProcess(PID, name);
-						checked=true;
+						triggered=true;
 					}
 				}
 				CloseHandle(hProcess);
 			}
 
-			return checked;
+			return triggered;
 		});
 		
 		if (top_mem) {
 			for (const std::pair<ULONG_PTR, std::wstring> &pid_data: pid_array) {
-				if (!found) std::wcout<<L"FOUND:"<<std::endl;
+				if (!found_noerr) std::wcout<<L"FOUND:"<<std::endl;
 				KillProcess(pid_data.first, pid_data.second);
-				found=true;
+				found_noerr=true;
 				if (!ModeLoop()) break;
 			}
 		}
 	}
 
-	if (found)
+	if (found_noerr)
 		return true;
 	else {
 		std::wcout<<L"NOT found"<<std::endl;
