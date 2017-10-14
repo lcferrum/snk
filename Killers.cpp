@@ -119,7 +119,7 @@ void Killers::PrintCommonWildcardInfix(const wchar_t* arg_wcard, const wchar_t* 
 	std::wcout<<arg_wcard;
 }
 
-bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard) 
+bool Killers::KillByPth(bool param_full, bool param_strict, const wchar_t* arg_wcard) 
 {
 	if (!arg_wcard)
 		arg_wcard=L"";
@@ -131,8 +131,8 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 		std::wcout<<L"that matches ";
 	PrintCommonWildcardInfix(arg_wcard);
 	
-	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str(), param_full)) {
+	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, param_strict, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str(), param_strict?MWC_PTH:MWC_STR)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -148,7 +148,7 @@ bool Killers::KillByPth(bool param_full, const wchar_t* arg_wcard)
 	}
 }
 
-bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard) 
+bool Killers::KillByMod(bool param_full, bool param_strict, const wchar_t* arg_wcard) 
 {
 	if (!arg_wcard)
 		arg_wcard=L"";
@@ -157,7 +157,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 	std::wcout<<L"having modules that match ";
 	PrintCommonWildcardInfix(arg_wcard);
 	
-	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, param_strict, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ);
 		if (!hProcess) return false;
 #if DEBUG>=3
@@ -171,7 +171,7 @@ bool Killers::KillByMod(bool param_full, const wchar_t* arg_wcard)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 
-		if (CheckModListNames(mlist, param_full, arg_wcard)) {
+		if (CheckModListNames(mlist, param_full, param_strict, arg_wcard)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -296,10 +296,10 @@ bool Killers::KillPidsInArray(const wchar_t* arg_parray)
 	std::vector<ULONG_PTR> uptr_array;
 	
 	if (!arg_parray||!PidListPrepare(arg_parray, uptr_array))
-		arg_parray=L"";
+		arg_parray=L"?";
 
 #if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":KillPidsInArray:"<<__LINE__<<L": Dumping generated PID list for \""<<arg_parray<<L"\"..."<<std::endl;
+	std::wcerr<<L"" __FILE__ ":KillPidsInArray:"<<__LINE__<<L": Dumping generated PID list for "<<arg_parray<<L"..."<<std::endl;
 	for (ULONG_PTR &uptr_i: uptr_array)
 		std::wcerr<<L"\t\t"<<uptr_i<<std::endl;
 #endif
@@ -307,20 +307,20 @@ bool Killers::KillPidsInArray(const wchar_t* arg_parray)
 	if (uptr_array.size()>1) {
 		PrintCommonKillPrefix();
 		if (ModeLoop())
-			std::wcout<<L"that match PIDs \"";
+			std::wcout<<L"that match PIDs ";
 		else
-			std::wcout<<L"that matches PIDs \"";
+			std::wcout<<L"that matches PIDs ";
 	} else {
 		if (ModeAll())
-			std::wcout<<L"Process that matches PID \"";
+			std::wcout<<L"Process that matches PID ";
 		else
-			std::wcout<<L"User process that matches PID \"";	
+			std::wcout<<L"User process that matches PID ";	
 	}
 	std::wcout<<arg_parray;
 	
-	bool found=!uptr_array.empty()&&ApplyToProcesses([this, arg_parray, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+	bool found=!uptr_array.empty()&&ApplyToProcesses([this, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (PidListCompare(uptr_array, PID)) {
-			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
+			if (!applied) std::wcout<<L" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
 		} else
@@ -330,7 +330,7 @@ bool Killers::KillPidsInArray(const wchar_t* arg_parray)
 	if (found)
 		return true;
 	else {
-		std::wcout<<L"\" NOT found"<<std::endl;
+		std::wcout<<L" NOT found"<<std::endl;
 		return false;
 	}
 }
@@ -404,10 +404,10 @@ bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str
 	return item_matched==ARRAY_MATCHED;
 }
 
-bool Killers::CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard) 
+bool Killers::CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, bool strict, const wchar_t* wcard) 
 {
 	for (const std::pair<std::wstring, std::wstring> &module: mlist)
-		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str(), full)) return true;
+		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str(), strict?MWC_PTH:MWC_STR)) return true;
 	
 	return false;
 }
@@ -449,7 +449,7 @@ bool Killers::KillByD3d(bool param_simple)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -492,7 +492,7 @@ bool Killers::KillByOgl(bool param_simple)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -535,7 +535,7 @@ bool Killers::KillByGld(bool param_simple)
 			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -908,10 +908,10 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 		bool wcard_matched=false;
 		if (int title_len=GetWindowTextLength(hwnd)) {
 			wchar_t title_buf[title_len+1];
-			if (GetWindowText(hwnd, title_buf, title_len+1)&&MultiWildcardCmp(wcard, title_buf, false, NULL))
+			if (GetWindowText(hwnd, title_buf, title_len+1)&&MultiWildcardCmp(wcard, title_buf, MWC_STR, NULL))
 				wcard_matched=true;
 		} else if (GetLastError()==ERROR_SUCCESS) {	//Empty window title is also title
-			if (MultiWildcardCmp(wcard, L"", false, NULL))
+			if (MultiWildcardCmp(wcard, L"", MWC_STR, NULL))
 				wcard_matched=true;
 		}
 		
@@ -950,9 +950,9 @@ bool Killers::CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool inc
 							std::wstring fname(domain);
 							fname.push_back(L'\\');
 							fname.append(account);
-							res=MultiWildcardCmp(wcard, fname.c_str(), true, L";,");
+							res=MultiWildcardCmp(wcard, fname.c_str(), MWC_PTH, L";,");
 						} else {
-							res=MultiWildcardCmp(wcard, account, false, L";,");
+							res=MultiWildcardCmp(wcard, account, MWC_STR, L";,");
 						}
 					}
 				}
@@ -1020,7 +1020,7 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 #endif
 			found_noerr=false;
 			std::wcerr<<L"Warning: target memory usage \""<<arg_maxmem<<L"\" is malformed!"<<std::endl;
-			arg_maxmem=L"\"\"";
+			arg_maxmem=L"?";
 		}
 	}
 	

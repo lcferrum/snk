@@ -79,15 +79,50 @@ bool PathWildcardCmp(const wchar_t* wild, const wchar_t* string)
 	return !*wild;
 }
 
-bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, bool is_path, const wchar_t* delim) 
+bool SubstringCmp(const wchar_t* sub, const wchar_t* string) 
+{
+	const wchar_t* cur_sub;
+	const wchar_t* cur_string;
+	
+	do {
+		cur_sub=sub;
+		cur_string=string;
+		while (towlower(*cur_string)==towlower(*cur_sub)&&*cur_string!=L'\0') { cur_string++; cur_sub++; }
+		if (*cur_sub==L'\0') return true;
+	} while (*string++!=L'\0');
+
+	return false;
+}
+
+bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, MWCMode mode, const wchar_t* delim) 
 {
 	if (delim) {
 		wchar_t buffer[wcslen(wild)+1];
 		wcscpy(buffer, wild);
 		for (wchar_t* token=wcstok(buffer, delim); token; token=wcstok(NULL, delim))
-			if (is_path?PathWildcardCmp(token, string):WildcardCmp(token, string)) return true;
+			switch (mode) {
+				case MWC_PTH:
+					if (PathWildcardCmp(token, string)) return true;
+					break;
+				case MWC_STR:
+					if (WildcardCmp(token, string)) return true;
+					break;
+				case MWC_SUB:
+					if (SubstringCmp(token, string)) return true;
+					break;
+			}
 	} else {
-		if (is_path?PathWildcardCmp(wild, string):WildcardCmp(wild, string)) return true;
+		switch (mode) {
+			case MWC_PTH:
+				if (PathWildcardCmp(wild, string)) return true;
+				break;
+			case MWC_STR:
+				if (WildcardCmp(wild, string)) return true;
+				break;
+			case MWC_SUB:
+				if (SubstringCmp(wild, string)) return true;
+				break;
+		}
 	}
 	
 	return false;

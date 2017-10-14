@@ -514,17 +514,21 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByCpu());
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/pth:strict")) {
+		ctrl_vars.param_strict=true;
 	} else if (!top_rule.compare(L"/pth:full")) {
 		ctrl_vars.param_full=true;
 	} else if (!top_rule.compare(L"/pth")) {
 		RequestPopulatedCAN();
-		done=IsDone(KillByPth(ctrl_vars.param_full, ctrl_vars.args.c_str()));
+		done=IsDone(KillByPth(ctrl_vars.param_full, ctrl_vars.param_strict, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/mod:strict")) {
+		ctrl_vars.param_strict=true;
 	} else if (!top_rule.compare(L"/mod:full")) {
 		ctrl_vars.param_full=true;
 	} else if (!top_rule.compare(L"/mod")) {
 		RequestPopulatedCAN();
-		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.args.c_str()));
+		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.param_strict, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/wnd:anywnd")) {
 		ctrl_vars.param_anywnd=true;

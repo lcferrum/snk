@@ -7,6 +7,7 @@
 	* Changed:
 		- Better wording in results output
 		- Improved performance - faster searches and kills
+		- Now globbing is not path-aware by default for /pth and /mod
 	* Added:
 		- /usr switch (kill by user name)
 		- /wnd switch (kill by window title)
@@ -14,6 +15,7 @@
 		- 'strict' parameter for /fsc switch
 		- 'ffwd' parameter for /lst switch
 		- 'reset' parameter for /lst switch
+		- 'strict' parameter for /pth and /mod switches
 	* Removed:
 		- 'sub' parameter for /cmd switch (temporary - will be returned in future versions)
 

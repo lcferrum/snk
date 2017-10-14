@@ -12,7 +12,7 @@ private:
 	void PrintCommonKillPrefix();
 	void PrintCommonWildcardInfix(const wchar_t* arg_wcard, const wchar_t* delim=L";");
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
-	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, const wchar_t* wcard);
+	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, bool strict, const wchar_t* wcard);
 	bool CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool incl_domain);
 	bool PidListPrepare(const wchar_t* pid_list, std::vector<ULONG_PTR> &uptr_array);
@@ -41,12 +41,14 @@ protected:
 	//Kills process with highest cpu load which path matches one of wildcars (case-insensitive, with globbing)
 	//arg_wcard - wildcards to match (delimeted by semicolon)
 	//If param_full - uses full path, otherwise uses just name
-	bool KillByPth(bool param_full, const wchar_t* arg_wcard);
+	//If param_strict - turns on path-aware globbing
+	bool KillByPth(bool param_full, bool param_strict, const wchar_t* arg_wcard);
 	
 	//Kills process with highest cpu load that has module which path matches one of wildcars (case-insensitive, with globbing)
 	//arg_wcard - wildcards to match (delimeted by semicolon)
 	//If param_full - uses full path, otherwise uses just name
-	bool KillByMod(bool param_full, const wchar_t* arg_wcard);
+	//If param_strict - turns on path-aware globbing
+	bool KillByMod(bool param_full, bool param_strict, const wchar_t* arg_wcard);
 	
 	//Kills process with highest cpu load which PID belongs to PID array
 	//PIDs are decimal (no prefix), hexadecimal ("0x"/"0X" prefix) or octal ("0" prefix) unsigned integers

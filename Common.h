@@ -9,7 +9,8 @@
 void PrintUsage();
 void PrintVersion();
 
-bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, bool is_path=true, const wchar_t* delim=L";");
+enum MWCMode:char {MWC_PTH, MWC_STR, MWC_SUB};
+bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, MWCMode mode=MWC_STR, const wchar_t* delim=L";");
 
 //Warning: will corrupt ARGV beyond repair
 //skip_argc - how many ARGVs will be skipped (first ARGV is typically program path)
