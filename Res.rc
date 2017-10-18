@@ -1,6 +1,7 @@
 #include <winver.h>
 #include <winuser.h>
 #include "Version.h"
+#include "Res.h"
 
 //Note on VERSIONINFO
 //According to MSDN https://msdn.microsoft.com/en-us/library/windows/desktop/aa381058.aspx required StringFileInfo fields are:
@@ -52,4 +53,5 @@ BEGIN
 	END
 END
 
-CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "SnK.manifest" 
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "SnK.manifest"
+IDI_CROSSHAIR CURSOR "crosshair.cur"

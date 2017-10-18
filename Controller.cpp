@@ -3,12 +3,31 @@
 #include "Killers.h"
 #include "ProcessUsage.h"
 #include "Controller.h"
+#include "Res.h"
 #include <stdio.h>
 #include <iostream>
 #include <algorithm> 
 #include <functional>
 #include <memory>
 #include <limits>	//numeric_limits
+
+#define OCR_NORMAL 32512
+#define OCR_IBEAM 32513
+#define OCR_WAIT 32514
+#define OCR_CROSS 32515
+#define OCR_UP 32516
+#define OCR_SIZE 32640
+#define OCR_ICON 32641
+#define OCR_SIZENWSE 32642
+#define OCR_SIZENESW 32643
+#define OCR_SIZEWE 32644
+#define OCR_SIZENS 32645
+#define OCR_SIZEALL 32646
+#define OCR_ICOCUR 32647
+#define OCR_NO 32648
+#define OCR_HAND 32649
+#define OCR_APPSTARTING 32650
+#define OCR_HELP 32651
 
 #define MUTEX_NAME		L"MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
 
@@ -414,12 +433,39 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		else
 			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst")) {
+		NoArgsAllowed(top_rule);
 		//ManageProcessList is special - RequestPopulatedCAN is called inside this method
 		ManageProcessList(ctrl_vars.param_lst_pri_mode, ctrl_vars.param_lst_sec_mode);
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/end")) {
+		NoArgsAllowed(top_rule);
 		done=true;
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/tst1")) {
+		std::wcout<<L"CHANGECURSOR"<<std::endl;
+		ClearParamsAndArgs();
+		//All the system cursor types (Win 10)
+		DWORD sys_cursors[]={OCR_APPSTARTING, OCR_NORMAL, OCR_CROSS, OCR_HAND, OCR_HELP, OCR_IBEAM, OCR_NO, OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, OCR_WAIT};
+		if (HCURSOR hLocalCursor=LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_CROSSHAIR)))
+			for (DWORD sys_cur: sys_cursors)
+				if (HCURSOR hCursorCopy=CopyCursor(hLocalCursor))
+					SetSystemCursor(hCursorCopy, sys_cur);
+		/*if (HCURSOR hLocalCursor=LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_CROSSHAIR))) {
+			std::wcout<<L"hLocalCursor"<<std::endl;
+			//if (HCURSOR hCursorCopy=CopyCursor(hLocalCursor)) {
+			if (HCURSOR hCursorCopy=(HCURSOR)CopyImage((HANDLE)hLocalCursor, IMAGE_CURSOR, 0, 0, 0)) {
+				std::wcout<<L"hCursorCopy"<<std::endl;
+				for (DWORD sys_cur: sys_cursors) {
+					SetSystemCursor(hCursorCopy, sys_cur);
+					DWORD err=GetLastError();
+					std::wcout<<std::hex<<err<<std::dec<<std::endl;
+				}
+			}
+		}*/
+	} else if (!top_rule.compare(L"/tst2")) {
+		std::wcout<<L"RESTORECURSOR"<<std::endl;
+		ClearParamsAndArgs();
+		SystemParametersInfo(SPI_SETCURSORS, 0, NULL, 0);
 	} else if (!top_rule.compare(L"/bpp")) {
 		NoArgsAllowed(top_rule);
 		MessageBeep(MB_ICONINFORMATION);
