@@ -2,6 +2,7 @@
 #include "FilePathRoutines.h"
 #include "Extras.h"
 #include "Common.h"
+#include "Res.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -15,6 +16,25 @@ typedef struct _LANGANDCODEPAGE {
 	WORD wLanguage;
 	WORD wCodePage;
 } LANGANDCODEPAGE;
+
+//These are also defined in windows.h in ifdef OEMRESOURCE clause
+//#define SNK_OCR_SIZE 32640	//OBSOLETE: use OCR_SIZEALL
+//#define SNK_OCR_ICON 32641	//OBSOLETE: use OCR_NORMAL
+//#define SNK_OCR_ICOCUR 32647	//OBSOLETE: use OIC_WINLOGO
+#define SNK_OCR_NORMAL 32512
+#define SNK_OCR_IBEAM 32513
+#define SNK_OCR_WAIT 32514
+#define SNK_OCR_CROSS 32515
+#define SNK_OCR_UP 32516
+#define SNK_OCR_SIZENWSE 32642
+#define SNK_OCR_SIZENESW 32643
+#define SNK_OCR_SIZEWE 32644
+#define SNK_OCR_SIZENS 32645
+#define SNK_OCR_SIZEALL 32646
+#define SNK_OCR_NO 32648
+#define SNK_OCR_HAND 32649
+#define SNK_OCR_APPSTARTING 32650
+#define SNK_OCR_HELP 32651
 
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 extern pNtQueryInformationProcess fnNtQueryInformationProcess;
@@ -32,6 +52,8 @@ extern "C" BOOL __stdcall EnumDisplayDevicesWrapper(LPCTSTR lpDevice, DWORD iDev
 //This is a fix for the bug
 extern template std::_Setfill<wchar_t> std::setfill(wchar_t);	//caused by use of std::setfill(wchar_t)
 #endif
+
+DWORD Killers::AimPid;
 
 Killers::Killers()
 {}
@@ -1013,10 +1035,10 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 		wchar_t* endptr;
 #ifdef _WIN64
 		st_maxmem=wcstoull(arg_maxmem, &endptr, 10);
-		if (*arg_maxmem==L'-'||*endptr!=L'\0'||(st_maxmem==ULLONG_MAX&&errno==ERANGE)) {
+		if (*arg_maxmem==L'-'||*endptr!=L'\0'||(st_maxmem==ULLONG_MAX&&errno==ERANGE)||st_maxmem>ULLONG_MAX/1024) {
 #else
 		st_maxmem=wcstoul(arg_maxmem, &endptr, 10);
-		if (*arg_maxmem==L'-'||*endptr!=L'\0'||(st_maxmem==ULONG_MAX&&errno==ERANGE)) {
+		if (*arg_maxmem==L'-'||*endptr!=L'\0'||(st_maxmem==ULONG_MAX&&errno==ERANGE)||st_maxmem>ULONG_MAX/1024) {
 #endif
 			found_noerr=false;
 			std::wcerr<<L"Warning: target memory usage \""<<arg_maxmem<<L"\" is malformed!"<<std::endl;
@@ -1092,4 +1114,74 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 		std::wcout<<L"NOT found"<<std::endl;
 		return false;
 	}
+}
+
+bool Killers::KillByAim()
+{
+	//Set all the system cursors to crosshair
+	DWORD sys_cursors[]={SNK_OCR_APPSTARTING, SNK_OCR_NORMAL, SNK_OCR_CROSS, SNK_OCR_HAND, SNK_OCR_HELP, SNK_OCR_IBEAM, SNK_OCR_NO, SNK_OCR_SIZEALL, SNK_OCR_SIZENESW, SNK_OCR_SIZENS, SNK_OCR_SIZENWSE, SNK_OCR_SIZEWE, SNK_OCR_UP, SNK_OCR_WAIT};
+	if (HCURSOR hLocalCursor=LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_CROSSHAIR)))
+		for (DWORD sys_cur: sys_cursors)
+			if (HCURSOR hCursorCopy=CopyCursor(hLocalCursor))
+				SetSystemCursor(hCursorCopy, sys_cur);
+	
+	AimPid=0;
+	if (HHOOK ms_hook=SetWindowsHookEx(WH_MOUSE_LL, MouseHookAim, GetModuleHandle(NULL), 0)) {		
+		//For hook to work thread should have message loop, though it can be pretty castrated
+		//Only GetMessage is needed because hook callback is actually called inside this one function
+		MSG msg;
+		while (GetMessage(&msg, NULL, 0, 0)>0); //GetMessage returns 0 if WM_QUIT and -1 on error
+		
+		UnhookWindowsHookEx(ms_hook);
+	}
+#if DEBUG>=3
+	std::wcerr<<L"" __FILE__ ":KillByAim:"<<__LINE__<<L": AIM_PID="<<AimPid<<std::endl;
+#endif
+	
+	//Restore system cursors
+	SystemParametersInfo(SPI_SETCURSORS, 0, NULL, 0);
+	
+	if (ModeAll())
+		std::wcout<<L"Targeted process ";
+	else
+		std::wcout<<L"Targeted user process ";
+	
+	bool found=AimPid&&ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+			if (AimPid==PID) {
+				if (!applied) std::wcout<<L"FOUND:"<<std::endl;
+				KillProcess(PID, name);
+				return true;
+			} else
+				return false;
+		});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"NOT found"<<std::endl;
+		return false;
+	}
+}
+
+LRESULT CALLBACK Killers::MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam)
+{
+	//HOOKPROC requires that on less-than-zero nCode CallNextHookEx should be returned immediately
+	//We should return non-zero value if event shouldn't be passed further down the mouse handlers chain
+	if (nCode>=0) switch (wParam) {
+		case WM_LBUTTONUP:
+		case WM_RBUTTONUP:
+			if (wParam==WM_LBUTTONUP) {
+				HWND aim_wnd;
+				if (!(aim_wnd=WindowFromPoint(((MSLLHOOKSTRUCT*)lParam)->pt))||!GetWindowThreadProcessId(aim_wnd, &AimPid))
+					AimPid=0;
+			}
+			PostThreadMessage(GetCurrentThreadId(), WM_QUIT, 0, 0);
+		default:
+			return 1;
+		case WM_MOUSEMOVE:
+			break;
+	}
+	
+	//Let CallNextHookEx handle everything else
+	return CallNextHookEx(NULL, nCode, wParam, lParam);
 }

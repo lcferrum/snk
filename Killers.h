@@ -26,6 +26,8 @@ private:
 	static BOOL CALLBACK EnumWndWnd(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndFsc(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndClose(HWND hwnd, LPARAM lParam);
+	static DWORD AimPid;
+	static LRESULT CALLBACK MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam);
 	
 	virtual bool ModeBlank()=0;
 	virtual bool ModeRecent()=0;
@@ -103,6 +105,9 @@ protected:
 	//arg_maxmem - if supplied, kills processes that have memory usage strictly greater than arg_maxmem (decimal unsigned integer, in KB)
 	//If param_vm - uses virtual memory private bytes metric, otherwise uses physical memory working set metric
 	bool KillByMem(bool param_vm, const wchar_t* arg_maxmem);
+	
+	//Kills process by selected window
+	bool KillByAim();
 public:
 	Killers();
 };
