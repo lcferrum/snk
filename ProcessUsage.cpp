@@ -17,6 +17,8 @@
 #define KERNEL_TIME(pspi) pspi->KernelTime.QuadPart
 #endif
 
+extern pNtQueryInformationProcess fnNtQueryInformationProcess;
+
 bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur)
 {
 	if (crt_time!=crt_time_cur) return false;
@@ -39,7 +41,7 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 }
 
 Processes::Processes():
-	CAN(), invalid(true), tick_not_tock(false)
+	CAN(), invalid(true), tick_not_tock(false), parent_pid(0)
 {}
 
 void Processes::DumpProcesses()
@@ -91,6 +93,7 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 	switch (param_lst_pri_mode) {
 		case RST_CAN:
 			invalid=true;
+			parent_pid=0;
 			break;
 		case INV_MASK:
 		case CLR_MASK:
@@ -106,6 +109,28 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 			break;
 		case CAN_FFWD:
 			RequestPopulatedCAN(false);
+			break;
+		case EX_PARENT:
+			if (!parent_pid) {
+				if (fnNtQueryInformationProcess) {
+					PROCESS_BASIC_INFORMATION proc_info;
+					if (NT_SUCCESS(fnNtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), NULL))) {
+						parent_pid=proc_info.InheritedFromUniqueProcessId;
+						if (!invalid) {
+							std::vector<PData>::iterator pd=std::find(CAN.begin(), CAN.end(), parent_pid);
+							if (pd!=CAN.end()) pd->SetDisabled(true);
+						}
+					} else {
+#if DEBUG>=2
+						std::wcerr<<L"" __FILE__ ":ManageProcessList:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed!"<<std::endl;
+#endif
+					}
+				} else {
+#if DEBUG>=2
+					std::wcerr<<L"" __FILE__ ":ManageProcessList:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
+#endif
+				}
+			}
 			break;
 	}
 	
@@ -226,7 +251,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	
 	pspi_cur=pspi_all;
 	while (pspi_cur) {
-		if (pspi_cur->UniqueProcessId&&self_pid!=(ULONG_PTR)pspi_cur->UniqueProcessId&&(ULONG_PTR)pspi_cur->UniqueProcessId!=4&&(ULONG_PTR)pspi_cur->UniqueProcessId!=2&&(ULONG_PTR)pspi_cur->UniqueProcessId!=8) {	//If it's not current process' PID or idle (PID 0) or system process (PID 2 on NT4, PID 8 on 2000, PID 4 on everything else)
+		if (pspi_cur->UniqueProcessId&&self_pid!=(ULONG_PTR)pspi_cur->UniqueProcessId&&(ULONG_PTR)pspi_cur->UniqueProcessId!=parent_pid&&(ULONG_PTR)pspi_cur->UniqueProcessId!=4&&(ULONG_PTR)pspi_cur->UniqueProcessId!=2&&(ULONG_PTR)pspi_cur->UniqueProcessId!=8) {	//If it's not current process' PID or idle (PID 0), or parent PID (0 by default), or system process (PID 2 on NT4, PID 8 on 2000, PID 4 on everything else)
 			if (first_time||	//If it's the first time pass - don't bother checking PIDs, just add everything
 				(pd=std::find(CAN.begin(), CAN.end(), (ULONG_PTR)pspi_cur->UniqueProcessId))==CAN.end()||	//If PID not found - add it
 				!pd->ComputeDelta(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart)) {	//If PID is found - calculate delta or, in case it's a wrong PID, add it

@@ -413,6 +413,11 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 			ctrl_vars.param_lst_pri_mode=LstPriMode::CAN_FFWD;
 		else
 			DiscardedParam(top_rule);
+	} else if (!top_rule.compare(L"/lst:exparent")) {
+		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
+			ctrl_vars.param_lst_pri_mode=LstPriMode::EX_PARENT;
+		else
+			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst")) {
 		NoArgsAllowed(top_rule);
 		//ManageProcessList is special - RequestPopulatedCAN is called inside this method
@@ -532,18 +537,13 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		RequestPopulatedCAN();
 		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.param_strict, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
-	} else if (!top_rule.compare(L"/wnd:anywnd")) {
-		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/wnd")) {
 		RequestPopulatedCAN();
-		done=IsDone(KillByWnd(ctrl_vars.param_anywnd, ctrl_vars.args.c_str()));
+		done=IsDone(KillByWnd(ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
-	} else if (!top_rule.compare(L"/pid:parent")) {
-		ctrl_vars.param_parent=true;
 	} else if (!top_rule.compare(L"/pid")) {
 		RequestPopulatedCAN();
-		if (ctrl_vars.param_parent) NoArgsAllowed(top_rule);
-		done=IsDone(KillByPid(ctrl_vars.param_parent, ctrl_vars.args.c_str()));
+		done=IsDone(KillByPid(ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/d3d:simple")) {
 		ctrl_vars.param_simple=true;
@@ -584,12 +584,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		NoArgsAllowed(top_rule);
 		done=IsDone(KillByFsc(ctrl_vars.param_anywnd, ctrl_vars.param_primary, ctrl_vars.param_strict));
 		ClearParamsAndArgs();
-	} else if (!top_rule.compare(L"/fgd:anywnd")) {
-		ctrl_vars.param_anywnd=true;
 	} else if (!top_rule.compare(L"/fgd")) {
 		RequestPopulatedCAN();
 		NoArgsAllowed(top_rule);
-		done=IsDone(KillByFgd(ctrl_vars.param_anywnd));
+		done=IsDone(KillByFgd());
 		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/usr:full")) {
 		ctrl_vars.param_full=true;

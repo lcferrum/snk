@@ -61,6 +61,7 @@ private:
 							//In Van Buren "dataCAN" represents a high-capacity storage medium for mainframes
 	bool invalid;			//CAN is invalid and needs to be repopulated
 	bool tick_not_tock;		//Current enum period (TICK or TOCK)
+	ULONG_PTR parent_pid;	//Parent pid, that's excluded from enumeration (default is 0 - idle process PID and which can't be parent of any process)
 
 	DWORD EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid);
 	PSID GetLogonSID(HANDLE hProcess);	//Always free resulting PSID with FreeLogonSID
@@ -73,7 +74,7 @@ private:
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 protected:
-	enum LstPriMode:char {SHOW_LIST=0, INV_MASK, CLR_MASK, RST_CAN, CAN_FFWD};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
+	enum LstPriMode:char {SHOW_LIST=0, INV_MASK, CLR_MASK, RST_CAN, CAN_FFWD, EX_PARENT};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
 	enum LstSecMode:char {LST_DUNNO=0, LST_SHOW, LST_DEBUG};								//Default mode should be 0 so variable can be reset by assigning it 0 or false
 
 	//Applies function ("mutator") to processes from CAN according to currently active modes
@@ -93,6 +94,7 @@ protected:
 	//CLR_MASK - clear blacklist and reset whitelist (actually, just clears "discarded" mask) and show list
 	//RST_CAN - marks CAN is invalid and forces it to be repopulated on next RequestPopulatedCAN call
 	//CAN_FFWD - calls RequestPopulatedCAN with "full" parameter disabled (deltas won't calculate)
+	//EX_PARENT - excludes parent pid from future and current enumeration (till reset)
 	void ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode param_lst_sec_mode);	
 	
 	//Sorts processes list by CPU usage

@@ -7,17 +7,21 @@
 	* Changed:
 		- Better wording in results output
 		- Improved performance - faster searches and kills
-		- Now globbing is not path-aware by default for /pth and /mod
+		- Now globbing is not path-aware by default for /pth and /mod (use 'strict' parameter for path-aware globbing)
 	* Added:
 		- /usr switch (kill by user name)
 		- /wnd switch (kill by window title)
 		- /mem switch (kill by memory usage)
+		- /aim switch (kill targeted process)
 		- 'strict' parameter for /fsc switch
 		- 'ffwd' parameter for /lst switch
+		- 'exparent' parameter for /lst switch
 		- 'reset' parameter for /lst switch
 		- 'strict' parameter for /pth and /mod switches
 	* Removed:
 		- 'sub' parameter for /cmd switch (temporary - will be returned in future versions)
+		- 'parent' parameter for /pid switch (use /lst:exparent instead)
+		- 'anywnd' parameter for /fgd switch (use blacklist/whitelist instead)
 
 2017-06-04  Lcferrum <lcferrum@yandex.com>
 	

@@ -60,7 +60,6 @@ private:
 			bool param_full;
 			bool param_simple;
 			bool param_anywnd;
-			bool param_parent;
 			bool param_vm;
 		};
 		union {

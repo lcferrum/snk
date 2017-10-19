@@ -37,7 +37,6 @@ typedef struct _LANGANDCODEPAGE {
 #define SNK_OCR_HELP 32651
 
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
-extern pNtQueryInformationProcess fnNtQueryInformationProcess;
 extern pGetProcessMemoryInfo fnGetProcessMemoryInfo;
 
 #ifdef _WIN64
@@ -209,55 +208,6 @@ bool Killers::KillByMod(bool param_full, bool param_strict, const wchar_t* arg_w
 	}
 }
 
-bool Killers::KillByPid(bool param_parent, const wchar_t* arg_parray) 
-{
-	if (param_parent)
-		return KillParentPid();
-	else
-		return KillPidsInArray(arg_parray);
-}
-
-bool Killers::KillParentPid() 
-{
-	ULONG_PTR parent_pid=0;	//0 is idle process PID and which can't be parent of any process
-
-	if (fnNtQueryInformationProcess) {
-		PROCESS_BASIC_INFORMATION proc_info;
-		if (NT_SUCCESS(fnNtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), NULL))) {
-			parent_pid=proc_info.InheritedFromUniqueProcessId;
-		} else {
-#if DEBUG>=2
-			std::wcerr<<L"" __FILE__ ":KillParentPid:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed!"<<std::endl;
-#endif
-		}
-	} else {
-#if DEBUG>=2
-		std::wcerr<<L"" __FILE__ ":KillParentPid:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
-#endif
-	}
-
-	if (ModeAll())
-		std::wcout<<L"Process that matches parent PID ";
-	else
-		std::wcout<<L"User process that matches parent PID ";
-	
-	bool found=parent_pid&&ApplyToProcesses([this, parent_pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (PID==parent_pid) {
-			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-			KillProcess(PID, name);
-			return true;
-		} else
-			return false;
-	});
-
-	if (found)
-		return true;
-	else {
-		std::wcout<<L"NOT found"<<std::endl;
-		return false;
-	}
-}
-
 bool Killers::PidListPrepare(const wchar_t* pid_list, std::vector<ULONG_PTR> &uptr_array) 
 {
 	if (!pid_list)
@@ -313,7 +263,7 @@ inline bool Killers::PidListCompare(std::vector<ULONG_PTR> &uptr_array, ULONG_PT
 	return std::binary_search(uptr_array.begin(), uptr_array.end(), pid);
 }
 
-bool Killers::KillPidsInArray(const wchar_t* arg_parray) 
+bool Killers::KillByPid(const wchar_t* arg_parray) 
 {
 	std::vector<ULONG_PTR> uptr_array;
 	
@@ -820,7 +770,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 	return true;
 }
 
-bool Killers::KillByFgd(bool param_anywnd)
+bool Killers::KillByFgd()
 {
 	DWORD pid;
 	WNDCLASS dummy_wnd;
@@ -848,9 +798,7 @@ bool Killers::KillByFgd(bool param_anywnd)
 	else
 		std::wcout<<L"User process which window is in foreground ";
 	
-	//IsTaskWindow() limits the scope and prevents from triggering on dialogs belonging to task-windows
-	//But it also protects from accidentially killing explorer or other unrelated background app
-	bool found=hwnd&&(param_anywnd||IsTaskWindow(hwnd))&&GetWindowThreadProcessId(hwnd, &pid)&&
+	bool found=hwnd&&GetWindowThreadProcessId(hwnd, &pid)&&
 		ApplyToProcesses([this, pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 			if (pid==PID) {
 				if (!applied) std::wcout<<L"FOUND:"<<std::endl;
@@ -868,7 +816,7 @@ bool Killers::KillByFgd(bool param_anywnd)
 	}
 }
 
-bool Killers::KillByWnd(bool param_anywnd, const wchar_t* arg_wcard)
+bool Killers::KillByWnd(const wchar_t* arg_wcard)
 {
 	if (!arg_wcard)
 		arg_wcard=L"";
@@ -881,7 +829,7 @@ bool Killers::KillByWnd(bool param_anywnd, const wchar_t* arg_wcard)
 	//At least we can use tuples so not to litter class definition with structs
 	//Same thing with "Ghost" class ATOM as in KillByInr
 	WNDCLASS dummy_wnd;
-	std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool> enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), param_anywnd);
+	std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM> enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
 	EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
 	
 	PrintCommonKillPrefix();
@@ -906,12 +854,10 @@ bool Killers::KillByWnd(bool param_anywnd, const wchar_t* arg_wcard)
 
 BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam) 
 {
-	bool any_wnd=std::get<3>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
-	
-	if (any_wnd?IsWindowVisible(hwnd):IsTaskWindow(hwnd)) {	//Filtering out non-task (or non-visible) windows to speed up the search
-		const wchar_t* wcard=std::get<0>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
-		std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
-		ATOM ghost_atom=std::get<2>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>*)lParam);
+	if (IsWindowVisible(hwnd)) {	//Filtering out non-visible windows to speed up the search
+		const wchar_t* wcard=std::get<0>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
+		std::vector<DWORD> &dw_array=std::get<1>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
+		ATOM ghost_atom=std::get<2>(*(std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>*)lParam);
 				
 		HWND real_hwnd=hwnd;
 		

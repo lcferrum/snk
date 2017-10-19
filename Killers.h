@@ -17,8 +17,6 @@ private:
 	bool CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool incl_domain);
 	bool PidListPrepare(const wchar_t* pid_list, std::vector<ULONG_PTR> &uptr_array);
 	bool PidListCompare(std::vector<ULONG_PTR> &uptr_array, ULONG_PTR pid);
-	bool KillParentPid();
-	bool KillPidsInArray(const wchar_t* arg_parray);
 	
 	static bool IsTaskWindow(HWND hwnd);
 	static bool WithinRect(const RECT &outer, const RECT &inner);
@@ -55,8 +53,7 @@ protected:
 	//Kills process with highest cpu load which PID belongs to PID array
 	//PIDs are decimal (no prefix), hexadecimal ("0x"/"0X" prefix) or octal ("0" prefix) unsigned integers
 	//arg_parray - array of PIDs to match (delimeted by comma or semicolon, can include descending or ascending ranges)
-	//If param_parent - ignores arg_parray and uses parent process PID instead
-	bool KillByPid(bool param_parent, const wchar_t* arg_parray);
+	bool KillByPid(const wchar_t* arg_parray);
 	
 	//Kills process with highest cpu load that uses DirectX (Direct3D)
 	//If param_simple - uses process modules names to find DirectX process
@@ -87,14 +84,12 @@ protected:
 	bool KillByFsc(bool param_anywnd, bool param_primary, bool param_strict);
 	
 	//Kills process with highest cpu load which window is in foreground
-	//By default filters out windows that doesn't show in task bar
-	//If param_anywnd - doesn't apply task bar filter
-	bool KillByFgd(bool param_anywnd);
+	bool KillByFgd();
 	
 	//Kills process with highest cpu load which window title matches wildcard (case-insensitive, with globbing)
+	//Checks only visible windows
 	//arg_wcard - wildcard to match
-	//If param_anywnd - doesn't apply task bar filter, but window has to be visible
-	bool KillByWnd(bool param_anywnd, const wchar_t* arg_wcard);
+	bool KillByWnd(const wchar_t* arg_wcard);
 	
 	//Kills process with highest cpu load which user name matches one of wildcards (case-insensitive, with globbing)
 	//arg_wcard - wildcards to match (delimeted by comma or semicolon)
