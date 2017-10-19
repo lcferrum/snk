@@ -41,7 +41,7 @@ PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_tim
 }
 
 Processes::Processes():
-	CAN(), invalid(true), tick_not_tock(false), parent_pid(0)
+	CAN(), invalid(true), tick_not_tock(false), parent_pid(0), fast_mode(false)
 {}
 
 void Processes::DumpProcesses()
@@ -94,6 +94,7 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 		case RST_CAN:
 			invalid=true;
 			parent_pid=0;
+			fast_mode=false;
 			break;
 		case INV_MASK:
 		case CLR_MASK:
@@ -108,7 +109,7 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 			if (param_lst_sec_mode==LST_DUNNO) param_lst_sec_mode=LST_SHOW;
 			break;
 		case CAN_FFWD:
-			RequestPopulatedCAN(false);
+			fast_mode=true;
 			break;
 		case EX_PARENT:
 			if (!parent_pid) {
@@ -168,7 +169,7 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 	}
 }
 
-void Processes::RequestPopulatedCAN(bool full)
+void Processes::RequestPopulatedCAN()
 {
 	//Previous version of Processes class kept self_lsid as class member so it had to be freed on destroy
 	//This results in non-default copy-constructor which should duplicate self_lsid with GetLengthSid/CopySid
@@ -181,7 +182,7 @@ void Processes::RequestPopulatedCAN(bool full)
 		
 		EnumProcessUsage(true, self_lsid, self_pid);
 		
-		if (full) {
+		if (!fast_mode) {
 			Sleep(USAGE_TIMEOUT);
 			
 			CachedNtQuerySystemProcessInformation(NULL, true);

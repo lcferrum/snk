@@ -13,14 +13,14 @@
 		- /wnd switch (kill by window title)
 		- /mem switch (kill by memory usage)
 		- /aim switch (kill targeted process)
+		- +p setting (exclude parent process)
+		- +f setting (fast mode)
 		- 'strict' parameter for /fsc switch
-		- 'ffwd' parameter for /lst switch
-		- 'exparent' parameter for /lst switch
 		- 'reset' parameter for /lst switch
 		- 'strict' parameter for /pth and /mod switches
 	* Removed:
 		- 'sub' parameter for /cmd switch (temporary - will be returned in future versions)
-		- 'parent' parameter for /pid switch (use /lst:exparent instead)
+		- 'parent' parameter for /pid switch (use +p setting instead)
 		- 'anywnd' parameter for /fgd switch (use blacklist/whitelist instead)
 
 2017-06-04  Lcferrum <lcferrum@yandex.com>

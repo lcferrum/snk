@@ -381,6 +381,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_whitelist=true;
 	} else if (!top_rule.compare(L"-w")) {
 		ctrl_vars.mode_whitelist=false;
+	} else if (!top_rule.compare(L"+f")) {
+		ManageProcessList(LstPriMode::CAN_FFWD, LstSecMode::LST_DUNNO);
+	} else if (!top_rule.compare(L"+p")) {
+		ManageProcessList(LstPriMode::EX_PARENT, LstSecMode::LST_DUNNO);
 #if DEBUG>=1
 	} else if (!top_rule.compare(L"/lst:debug")) {
 		if (ctrl_vars.param_lst_sec_mode==LstSecMode::LST_DUNNO)
@@ -406,16 +410,6 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 	} else if (!top_rule.compare(L"/lst:reset")) {
 		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
 			ctrl_vars.param_lst_pri_mode=LstPriMode::RST_CAN;
-		else
-			DiscardedParam(top_rule);
-	} else if (!top_rule.compare(L"/lst:ffwd")) {
-		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
-			ctrl_vars.param_lst_pri_mode=LstPriMode::CAN_FFWD;
-		else
-			DiscardedParam(top_rule);
-	} else if (!top_rule.compare(L"/lst:exparent")) {
-		if (ctrl_vars.param_lst_pri_mode==LstPriMode::SHOW_LIST)
-			ctrl_vars.param_lst_pri_mode=LstPriMode::EX_PARENT;
 		else
 			DiscardedParam(top_rule);
 	} else if (!top_rule.compare(L"/lst")) {
@@ -647,6 +641,8 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 	
 	ctrl_vars={true};
 	std::stack<std::wstring>().swap(args_stack);
+	
+	ManageProcessList(LstPriMode::RST_CAN, LstSecMode::LST_DUNNO);
 }
 
 template class Controller<Processes, Killers>;

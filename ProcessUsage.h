@@ -62,6 +62,7 @@ private:
 	bool invalid;			//CAN is invalid and needs to be repopulated
 	bool tick_not_tock;		//Current enum period (TICK or TOCK)
 	ULONG_PTR parent_pid;	//Parent pid, that's excluded from enumeration (default is 0 - idle process PID and which can't be parent of any process)
+	bool fast_mode;			//Causes RequestPopulatedCAN to not calculate deltas (all deltas will default to 0)
 
 	DWORD EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid);
 	PSID GetLogonSID(HANDLE hProcess);	//Always free resulting PSID with FreeLogonSID
@@ -109,8 +110,7 @@ protected:
 	
 	//Alerts ProcessUsage that processes should be enumerated because someone needs CAN
 	//If processes was already succesfully enumerated (CAN is not empty) - nothing will be done
-	//If "full" is not true - won't calculate deltas (all deltas will default to 0)
-	void RequestPopulatedCAN(bool full=true);
+	void RequestPopulatedCAN();
 public:	
 	Processes();
 };
