@@ -24,7 +24,6 @@ private:
 	static BOOL CALLBACK EnumWndWnd(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndFsc(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndClose(HWND hwnd, LPARAM lParam);
-	static DWORD AimPid;
 	static LRESULT CALLBACK MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam);
 	
 	virtual bool ModeBlank()=0;

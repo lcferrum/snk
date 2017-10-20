@@ -328,7 +328,6 @@ bool AccessHacks::ImpersonateLocalSystemNT4(PSID ssid, PSID usid)
 		//First step is to find a process with Local System token
 		//We open it with TOKEN_QUERY (to get TokenUser information incl. SID) and READ_CONTROL|WRITE_DAC (to be able to tap into DACL) permissions
 		//We won't be able to get TOKEN_DUPLICATE rights with Local System token needed for ImpersonateLoggedOnUser right now
-		//Just to try our luck, at first we'll try to open token with TOKEN_QUERY|TOKEN_DUPLICATE anyway - maybe someone already tampered with it's DACL
 		SYSTEM_PROCESS_INFORMATION *pspi_cur=pspi_all;
 		while (pspi_cur&&!imp_successful) {
 			if (HANDLE hProcess=OpenProcessWrapper((ULONG_PTR)pspi_cur->UniqueProcessId, PROCESS_QUERY_INFORMATION)) {

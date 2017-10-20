@@ -52,8 +52,6 @@ extern "C" BOOL __stdcall EnumDisplayDevicesWrapper(LPCTSTR lpDevice, DWORD iDev
 extern template std::_Setfill<wchar_t> std::setfill(wchar_t);	//caused by use of std::setfill(wchar_t)
 #endif
 
-DWORD Killers::AimPid;
-
 Killers::Killers()
 {}
 
@@ -102,7 +100,7 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name)
 BOOL CALLBACK Killers::EnumWndClose(HWND hwnd, LPARAM lParam) 
 {
 	DWORD pid;
-	if (GetWindowThreadProcessId(hwnd, &pid)&&pid==(DWORD)lParam) {
+	if ((GetWindowThreadProcessId(hwnd, &pid), pid)==(DWORD)lParam) {	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 		//Returning FALSE not only causes EnumWindows to stop enumeration, but also causes it to return FALSE (i.e. error value)
 		//To distinguish between real error and succesfull premature end of enumeration, it's better set some last-error code with SetLastError
 		//SendMessageTimeout not necessary sets non-zero last-error code if fails, so we forcing it here
@@ -524,7 +522,7 @@ bool Killers::KillByGld(bool param_simple)
 }
 
 //Checks if window is task-window - window that is eligible to be shown in Task Bar and Task Switcher (Alt+Tab)
-//N.B.: Ghost windows are also task windows
+//N.B. Ghost windows are also task windows
 bool Killers::IsTaskWindow(HWND hwnd)
 {
 	LONG_PTR lpStyleEx=GetWindowLongPtr(hwnd, GWL_EXSTYLE);
@@ -600,7 +598,7 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 			//But outside of enum function we already got ATOM of the actual system "Ghost" class
 			//So all we have to do is just compare window class ATOM with "Ghost" class ATOM
 			if (GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom)
-				if (GetWindowThreadProcessId(hwnd, &pid))
+				if ((GetWindowThreadProcessId(hwnd, &pid), pid))	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 					dw_array.push_back(pid);
 		} else if (plus_version) {
 			//Pretty straightforward method that is suggested by MS https://support.microsoft.com/kb/231844
@@ -612,7 +610,7 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 			//While IsHungAppWindow checks if PeekMessage() hasn't been called within 5 sec interval, for SMTO_ABORTIFHUNG this interval is 20 sec
 			//So this method is used here as optional supplement for IsHungAppWindow
 			if (!SendMessageTimeout(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG|SMTO_BLOCK, INR_TIMEOUT, NULL))
-				if (GetWindowThreadProcessId(hwnd, &pid))
+				if ((GetWindowThreadProcessId(hwnd, &pid), pid))	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 					dw_array.push_back(pid);
 		}
 	}
@@ -730,7 +728,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 					//Some fullscreen game windows have size greater than display size
 					//So just check that app's window size is greater or equal to display size
 					if (window_rect.right-window_rect.left>=disp_array[0].right-disp_array[0].left&&window_rect.bottom-window_rect.top>=disp_array[0].bottom-disp_array[0].top)
-						if (GetWindowThreadProcessId(hwnd, &pid)) add=true;
+						if ((GetWindowThreadProcessId(hwnd, &pid), pid)) add=true;	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 				} else {
 					//Relaxed algorithm that is suitable for single display can cause false positive on multiple displays
 					//For multiple displays test if app's RECT contains at least one of the displays' RECT to consider it fullscreen app
@@ -739,7 +737,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 					if (pri_disp
 						?WithinRect(window_rect, disp_array[0])
 						:std::any_of(disp_array.begin(), disp_array.end(), std::bind(WithinRect, window_rect, std::placeholders::_1)))
-						if (GetWindowThreadProcessId(hwnd, &pid)) add=true;
+						if ((GetWindowThreadProcessId(hwnd, &pid), pid)) add=true;	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 				}
 				
 				if (add) {
@@ -798,7 +796,7 @@ bool Killers::KillByFgd()
 	else
 		std::wcout<<L"User process which window is in foreground ";
 	
-	bool found=hwnd&&GetWindowThreadProcessId(hwnd, &pid)&&
+	bool found=hwnd&&(GetWindowThreadProcessId(hwnd, &pid), pid)&&	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 		ApplyToProcesses([this, pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 			if (pid==PID) {
 				if (!applied) std::wcout<<L"FOUND:"<<std::endl;
@@ -884,7 +882,7 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 		}
 		
 		DWORD pid;
-		if (wcard_matched&&GetWindowThreadProcessId(real_hwnd, &pid)) {
+		if (wcard_matched&&(GetWindowThreadProcessId(real_hwnd, &pid), pid)) {	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 #if DEBUG>=3
 			std::wcerr<<L"" __FILE__ ":EnumWndWnd:"<<__LINE__<<L": PID("<<pid<<L") HWND("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L")"<<std::endl;
 #endif
@@ -1071,17 +1069,19 @@ bool Killers::KillByAim()
 			if (HCURSOR hCursorCopy=CopyCursor(hLocalCursor))
 				SetSystemCursor(hCursorCopy, sys_cur);
 	
-	AimPid=0;
+	DWORD aim_pid=0;
 	if (HHOOK ms_hook=SetWindowsHookEx(WH_MOUSE_LL, MouseHookAim, GetModuleHandle(NULL), 0)) {		
 		//For hook to work thread should have message loop, though it can be pretty castrated
 		//Only GetMessage is needed because hook callback is actually called inside this one function
 		MSG msg;
-		while (GetMessage(&msg, NULL, 0, 0)>0); //GetMessage returns 0 if WM_QUIT and -1 on error
+		BOOL ret;
+		while ((ret=GetMessage(&msg, NULL, 0, 0))>0); //GetMessage returns 0 if WM_QUIT and -1 on error
+		if (!ret) aim_pid=msg.wParam;
 		
 		UnhookWindowsHookEx(ms_hook);
 	}
 #if DEBUG>=3
-	std::wcerr<<L"" __FILE__ ":KillByAim:"<<__LINE__<<L": AIM_PID="<<AimPid<<std::endl;
+	std::wcerr<<L"" __FILE__ ":KillByAim:"<<__LINE__<<L": AIM_PID="<<aim_pid<<std::endl;
 #endif
 	
 	//Restore system cursors
@@ -1092,8 +1092,8 @@ bool Killers::KillByAim()
 	else
 		std::wcout<<L"Targeted user process ";
 	
-	bool found=AimPid&&ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-			if (AimPid==PID) {
+	bool found=aim_pid&&ApplyToProcesses([this, aim_pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+			if (aim_pid==PID) {
 				if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 				KillProcess(PID, name);
 				return true;
@@ -1116,12 +1116,21 @@ LRESULT CALLBACK Killers::MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam)
 	if (nCode>=0) switch (wParam) {
 		case WM_LBUTTONUP:
 		case WM_RBUTTONUP:
-			if (wParam==WM_LBUTTONUP) {
-				HWND aim_wnd;
-				if (!(aim_wnd=WindowFromPoint(((MSLLHOOKSTRUCT*)lParam)->pt))||!GetWindowThreadProcessId(aim_wnd, &AimPid))
-					AimPid=0;
+			{
+				DWORD aim_pid=0;
+				if (wParam==WM_LBUTTONUP) {
+					//Note on GetWindowThreadProcessId
+					//Inside it PID and TID values are acquired by separate but similar means
+					//If GetWindowThreadProcessId failed to acquired TID it will still try to acquire PID (assuming lpdwProcessId is not NULL) and vice versa
+					//So, theoretically, if TID is 0 it doesn't mean that PID is also 0
+					//But the odds are so low as to be negligible, though if what you need is really PID - it's logically to check if PID is 0 and not returned TID
+					//And what definetley is not negligible is that supplied PID variable will be overwritten in any case - with true PID or with 0 in case of error
+					//N.B. MSDN does a nice thing and doesn't state that if GetWindowThreadProcessId returned 0 it means error
+					if (HWND aim_wnd=WindowFromPoint(((MSLLHOOKSTRUCT*)lParam)->pt))
+						GetWindowThreadProcessId(aim_wnd, &aim_pid);
+				}
+				PostThreadMessage(GetCurrentThreadId(), WM_QUIT, aim_pid, 0);
 			}
-			PostThreadMessage(GetCurrentThreadId(), WM_QUIT, 0, 0);
 		default:
 			return 1;
 		case WM_MOUSEMOVE:
