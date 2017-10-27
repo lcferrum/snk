@@ -14,6 +14,7 @@ private:
 	HANDLE hSysToken;				//Cached Local System token for ImpersonateLocalSystem
 	PSECURITY_DESCRIPTOR pOrigSD;	//Saved original token security descriptor used in RevertDaclPermissions
 	PACL pOrigDACL;					//Saved original token DACL (actually points to someplace in pOrigSD) used in RevertDaclPermissions
+	DWORD token_type;				//Object type for token - it's BYTE in size actually, so only low byte of low word has any meaning 
 	
 	bool ImpersonateLocalSystemVista(PSID ssid);
 	bool ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken);

@@ -34,7 +34,7 @@ bool AccessHacks::MakeInstance()
 }
 
 AccessHacks::AccessHacks(): 
-	acc_state(), err_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL)
+	acc_state(), err_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL), token_type(0xFFFFFFFF)
 {}
 
 AccessHacks::~AccessHacks() 
@@ -210,43 +210,47 @@ bool AccessHacks::ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken)
 	bool imp_successful=false;
 	SYSTEM_HANDLE_INFORMATION *pshi;
 	
-	if (CachedNtQuerySystemHandleInformation(&pshi, true)&&pshi->Count) {
-		//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
-		//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
-		DWORD pid=GetCurrentProcessId();
-		ULONG entry_idx=pshi->Count;
-		BYTE token_type;
-		do {
-			entry_idx--;
-			if ((HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue==hOwnToken&&pshi->Handle[entry_idx].OwnerPid==pid) {
-				token_type=pshi->Handle[entry_idx].ObjectType;
-				//Search SYSTEM_HANDLE_INFORMATION for Local System token
-				//Search is carried out from the beginning - processes launched by Local System are happen to be at start of the list
-				for (entry_idx=0; entry_idx<pshi->Count&&!imp_successful; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==token_type) {
-					if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_DUP_HANDLE)) {
-						//ImpersonateLoggedOnUser requires hToken to have TOKEN_QUERY|TOKEN_DUPLICATE rights if it's primary token and TOKEN_QUERY|TOKEN_IMPERSONATE if it's impersonation token
-						//Under NT4 impersonating logged on user with impersonation token duplicated from another process actualy have deteriorating effects on OpenProcessToken
-						//So we are excluding TOKEN_IMPERSONATE from DuplicateHandle's dwDesiredAccess so ImpersonateLoggedOnUser would fail on impersonation tokens
-						if (DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, GetCurrentProcess(), &hSysToken, TOKEN_QUERY|TOKEN_DUPLICATE, FALSE, 0)) {
-							if (PTOKEN_USER ptu=GetTokenUserInformation(hSysToken)) {
-								if (EqualSid(ptu->User.Sid, ssid)) {
-#if DEBUG>=3
-									std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem2k:"<<__LINE__<<L": ImpersonateLoggedOnUser(PID="<<pshi->Handle[entry_idx].OwnerPid<<L"): "<<((imp_successful=ImpersonateLoggedOnUser(hSysToken))?L"TRUE":L"FALSE")<<std::endl;
-#else
-									imp_successful=ImpersonateLoggedOnUser(hSysToken);
-#endif
-								}
-								FreeTokenUserInformation(ptu);
-							}
-							//If impersonation was succesful - cache hSysToken, it will be closed on AccessHacks destruction
-							if (!imp_successful) CloseHandle(hSysToken);
-						}
-						CloseHandle(hProcess);
-					}
+	//If token object type is not known yet - clean cache so own token will be included in system handle enumeration
+	if (CachedNtQuerySystemHandleInformation(&pshi, token_type==0xFFFFFFFF)&&pshi->Count) {
+		ULONG entry_idx;
+		//If token object type is not known yet - search for it
+		if (token_type==0xFFFFFFFF) {
+			//Search SYSTEM_HANDLE_INFORMATION for current process token to get right SYSTEM_HANDLE_ENTRY.ObjectType for token
+			//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
+			DWORD pid=GetCurrentProcessId();
+			entry_idx=pshi->Count;
+			do {
+				entry_idx--;
+				if ((HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue==hOwnToken&&pshi->Handle[entry_idx].OwnerPid==pid) {
+					token_type=pshi->Handle[entry_idx].ObjectType;
+					break;
 				}
-				break;
+			} while (entry_idx);
+		}
+		//Search SYSTEM_HANDLE_INFORMATION for Local System token
+		//Search is carried out from the beginning - processes launched by Local System are happen to be at start of the list
+		for (entry_idx=0; entry_idx<pshi->Count&&!imp_successful; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==token_type) {
+			if (HANDLE hProcess=OpenProcessWrapper(pshi->Handle[entry_idx].OwnerPid, PROCESS_DUP_HANDLE)) {
+				//ImpersonateLoggedOnUser requires hToken to have TOKEN_QUERY|TOKEN_DUPLICATE rights if it's primary token and TOKEN_QUERY|TOKEN_IMPERSONATE if it's impersonation token
+				//Under NT4 impersonating logged on user with impersonation token duplicated from another process actualy have deteriorating effects on OpenProcessToken
+				//So we are excluding TOKEN_IMPERSONATE from DuplicateHandle's dwDesiredAccess so ImpersonateLoggedOnUser would fail on impersonation tokens
+				if (DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, GetCurrentProcess(), &hSysToken, TOKEN_QUERY|TOKEN_DUPLICATE, FALSE, 0)) {
+					if (PTOKEN_USER ptu=GetTokenUserInformation(hSysToken)) {
+						if (EqualSid(ptu->User.Sid, ssid)) {
+#if DEBUG>=3
+							std::wcerr<<L"" __FILE__ ":ImpersonateLocalSystem2k:"<<__LINE__<<L": ImpersonateLoggedOnUser(PID="<<pshi->Handle[entry_idx].OwnerPid<<L"): "<<((imp_successful=ImpersonateLoggedOnUser(hSysToken))?L"TRUE":L"FALSE")<<std::endl;
+#else
+							imp_successful=ImpersonateLoggedOnUser(hSysToken);
+#endif
+						}
+						FreeTokenUserInformation(ptu);
+					}
+					//If impersonation was succesful - cache hSysToken, it will be closed on AccessHacks destruction
+					if (!imp_successful) CloseHandle(hSysToken);
+				}
+				CloseHandle(hProcess);
 			}
-		} while (entry_idx);
+		}
 	}
 	
 	//Set hSysToken to NULL on unsuccessfull impersonation because caching algorithm relies on it to be NULL if impersonation was not succesfull
