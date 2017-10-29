@@ -531,6 +531,14 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		RequestPopulatedCAN();
 		done=IsDone(KillByMod(ctrl_vars.param_full, ctrl_vars.param_strict, ctrl_vars.args.c_str()));
 		ClearParamsAndArgs();
+	} else if (!top_rule.compare(L"/ofl:strict")) {
+		ctrl_vars.param_strict=true;
+	} else if (!top_rule.compare(L"/ofl:full")) {
+		ctrl_vars.param_full=true;
+	} else if (!top_rule.compare(L"/ofl")) {
+		RequestPopulatedCAN();
+		done=IsDone(KillByOfl(ctrl_vars.param_full, ctrl_vars.param_strict, ctrl_vars.args.c_str()));
+		ClearParamsAndArgs();
 	} else if (!top_rule.compare(L"/wnd")) {
 		RequestPopulatedCAN();
 		done=IsDone(KillByWnd(ctrl_vars.args.c_str()));

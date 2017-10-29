@@ -17,6 +17,7 @@ private:
 	bool CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool incl_domain);
 	bool PidListPrepare(const wchar_t* pid_list, std::vector<ULONG_PTR> &uptr_array);
 	bool PidListCompare(std::vector<ULONG_PTR> &uptr_array, ULONG_PTR pid);
+	DWORD file_type;	//Object type for file - it's BYTE in size actually, so only low byte of low word has any meaning 
 	
 	static bool IsTaskWindow(HWND hwnd);
 	static bool WithinRect(const RECT &outer, const RECT &inner);
@@ -102,6 +103,12 @@ protected:
 	
 	//Kills process by selected window
 	bool KillByAim();
+	
+	//Kills process with highest cpu load that has opened file which path matches one of wildcars (case-insensitive, with globbing)
+	//arg_wcard - wildcards to match (delimeted by semicolon)
+	//If param_full - uses full path, otherwise uses just name
+	//If param_strict - turns on path-aware globbing
+	bool KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_wcard);
 public:
 	Killers();
 };

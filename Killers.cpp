@@ -52,7 +52,8 @@ extern "C" BOOL __stdcall EnumDisplayDevicesWrapper(LPCTSTR lpDevice, DWORD iDev
 extern template std::_Setfill<wchar_t> std::setfill(wchar_t);	//caused by use of std::setfill(wchar_t)
 #endif
 
-Killers::Killers()
+Killers::Killers():
+	file_type(0xFFFFFFFF)
 {}
 
 void Killers::PrintCommonKillPrefix()
@@ -1142,4 +1143,75 @@ LRESULT CALLBACK Killers::MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam)
 	
 	//Let CallNextHookEx handle everything else
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
+}
+
+bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_wcard) 
+{
+	if (!arg_wcard)
+		arg_wcard=L"";
+	
+	std::vector<ULONG> ul_array;	//ULONG PID because SYSTEM_HANDLE_ENTRY.OwnerPid is ULONG
+	
+	if (wcslen(arg_wcard)) {
+		SYSTEM_HANDLE_INFORMATION *pshi;
+		HANDLE h_ownexe=INVALID_HANDLE_VALUE;
+		
+		//If file object type is not known yet - open own executable
+		if (file_type==0xFFFFFFFF) {
+			wchar_t exe_path[MAX_PATH];	//Actually own executable path can be longer than MAX_PATH
+			DWORD retlen=GetModuleFileName(NULL, exe_path, MAX_PATH);
+			//GetModuleFileName returns 0 if everything is bad and nSize (which is MAX_PATH) if buffer size is insufficient and returned path truncated
+			if (retlen&&retlen<MAX_PATH)
+				h_ownexe=CreateFile(exe_path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		}
+		
+		//If file object type is not known yet - clean cache so exe handle will be included in system handle enumeration
+		if (CachedNtQuerySystemHandleInformation(&pshi, file_type==0xFFFFFFFF)&&pshi->Count) {
+			ULONG entry_idx;
+			//If file object type is not known yet - search for it
+			if (file_type==0xFFFFFFFF) {
+				//Search SYSTEM_HANDLE_INFORMATION for exe handle to get right SYSTEM_HANDLE_ENTRY.ObjectType for file
+				//Search is carried out from the end because new handles are appended to the end of the list and so are the handles for just launched current process
+				DWORD pid=GetCurrentProcessId();
+				entry_idx=pshi->Count;
+				do {
+					entry_idx--;
+					if ((HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue==h_ownexe&&pshi->Handle[entry_idx].OwnerPid==pid) {
+						file_type=pshi->Handle[entry_idx].ObjectType;
+						break;
+					}
+				} while (entry_idx);
+			}
+			//Search SYSTEM_HANDLE_INFORMATION for file that match arg_wcard
+			int fcnt=0;
+			for (entry_idx=0; entry_idx<pshi->Count; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==file_type) {
+				fcnt++;	//TODO: query file name by handle and match it to wcard
+			}
+#if DEBUG>=3
+			std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": FILE_COUNT="<<fcnt<<std::endl;
+#endif			
+		}
+		
+		if (h_ownexe!=INVALID_HANDLE_VALUE) CloseHandle(h_ownexe);
+	}
+	
+	PrintCommonKillPrefix();
+	std::wcout<<L"having opened files that match ";
+	PrintCommonWildcardInfix(arg_wcard);
+	
+	bool found=!ul_array.empty()&&ApplyToProcesses([this, &ul_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
+		if (std::find(ul_array.begin(), ul_array.end(), PID)!=ul_array.end()) {
+			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
+			KillProcess(PID, name);
+			return true;
+		} else
+			return false;
+	});
+
+	if (found)
+		return true;
+	else {
+		std::wcout<<L"\" NOT found"<<std::endl;
+		return false;
+	}
 }

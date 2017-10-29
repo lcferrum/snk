@@ -261,7 +261,7 @@ bool AccessHacks::ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken)
 bool AccessHacks::ImpersonateLocalSystemVista(PSID ssid)
 {
 	//This function caches succesfully impersonated token so it can used later directly (PrivateImpersonateLocalSystem)
-	//Caching prolog (cheking if there is already cached token) is in calling function - ImpersonateLocalSystem
+	//Caching prolog (checking if there is already cached token) is in calling function - ImpersonateLocalSystem
 
 	//Non-intrusive method of impersonating Local System that works on Vista+
 	//We are enumerating all the processes in search of Local System one
@@ -340,7 +340,7 @@ bool AccessHacks::ImpersonateLocalSystemNT4(PSID ssid, PSID usid)
 					if (PTOKEN_USER sys_tu=GetTokenUserInformation(hToken)) {
 						if (EqualSid(sys_tu->User.Sid, ssid)) {
 							//Local System token found now it's time to tap into it's DACL
-							//After it we will reopen token with added TOKEN_DUPLICATE permission and cache it for further use (also it will allow ImpersonateLocalSystemPrimary to work for SnK instance launched in parallel)
+							//After it we will reopen token with added TOKEN_DUPLICATE permission and cache it for further use (also it will allow ImpersonateLocalSystem2k to work for SnK instance launched in parallel)
 							//All what is left is calling ImpersonateLoggedOnUser and reverting token DACL to it's former state
 							if (GrantDaclPermissions(hToken, usid, TOKEN_DUPLICATE)) {
 								CloseHandle(hToken);
