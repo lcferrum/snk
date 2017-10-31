@@ -853,18 +853,37 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 		(hProcess&&GetFP_ProcessImageFileName(hProcess, fpath))			//It's a last chance: maybe we have a not-completely-obsolete OS (like XP) and security limitations prevent us from accessing PEB but permit something less complex - NtQueryInformationProcess(ProcessImageFileName) works starting from XP, requires same amount of rights as the very first method but kernel to Win32 path conversion is mandatory
 		) {
 #if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Found path for PID "<<(ULONG_PTR)PID<<L": \""<<fpath<<L"\""<<std::endl;
+		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Got path for PID "<<(ULONG_PTR)PID<<L": \""<<fpath<<L"\"..."<<std::endl;
 #endif
 		//There is a possibilty that returned path will include 8.3 portions (and be all-lowercase)
 		//So it's better convert it to LFN (this also restores character case)
 		//GetLongPathName is UNC aware, affected by Wow64FsRedirection, may fail because of security restrictions
+		//Prepend returned path with "\\?\" so GetLongPathName won't fail if path length is more than MAX_PATH
+		//N.B.:
+		//GetLongPathName accepts slash as path deparator but not with "\\?\"
+		//Also GetLongPathName doesn't convert slashes to backslashes in returned path
+		//But it's not of concern here because none of GetFP functions is able to return path with slashes as path separator
+		bool unc_path;
+		if ((unc_path=fpath.front()==L'\\'))
+			fpath.insert(1, L"\\?\\UNC");
+		else
+			fpath.insert(0, L"\\\\?\\");
 		if (DWORD buf_len=Probe_GetLongPathName(fpath.c_str(), NULL, 0)) {
 			wchar_t buffer[buf_len];
 			if (Probe_GetLongPathName(fpath.c_str(), buffer, buf_len)) {
 				//We now have valid (GetLongPathName fails if path doesn't exist - relative check) Win32 LFN file path
-				return buffer;
+				//Removing "\\?\" prefix
+				wchar_t* clean_buf=buffer+4;
+				if (unc_path) *(clean_buf+=2)=L'\\';
+#if DEBUG>=3
+				std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Found path for PID "<<(ULONG_PTR)PID<<L": \""<<clean_buf<<L"\""<<std::endl;
+#endif
+				return clean_buf;
 			}
 		}
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": GetLongPathName failed for PID "<<(ULONG_PTR)PID<<std::endl;
+#endif
 	}
 	
 	return L"";

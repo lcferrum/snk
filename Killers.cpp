@@ -751,7 +751,7 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 #endif
 					if (strict) {
 						//By convention, the right and bottom edges of the rectangle are normally considered exclusive
-						//So the pixel with [right, bottom] coordinates lies immediately outside of the rectangle
+						//So the pixel with (right, bottom) coordinates lies immediately outside of the rectangle
 						DWORD area=(window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top);
 						if (area==cur_max_area) {
 							dw_array.push_back(pid);
