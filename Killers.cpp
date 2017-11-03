@@ -1198,13 +1198,14 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 				//To speed up enumeration - cache opened process handle
 				if (prc_pid!=pshi->Handle[entry_idx].OwnerPid) {
 					prc_pid=pshi->Handle[entry_idx].OwnerPid;
-					CloseHandle(hProcess);
+					if (hProcess) CloseHandle(hProcess);
 					hProcess=OpenProcessWrapper(prc_pid, PROCESS_DUP_HANDLE);
 				}
 				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, FILE_READ_ATTRIBUTES, FALSE, 0)) {
 					if (GetFileType(hDupFile)!=FILE_TYPE_DISK) {
 						//NtQueryObject and NtQueryInformationFile hangs on pipe handles
-						//And we dont't need pipes and other non-real-file types actually
+						//NtQueryInformationFile fails on most non-FILE_TYPE_DISK handles
+						//And we dont't need pipes and other non-FILE_TYPE_DISK handles actually
 						std::wcerr<<L"HANDLE PID="<<prc_pid<<L" NOT A FILE"<<std::endl;
 					} else {
 						DWORD buf_len=1024;
@@ -1224,7 +1225,7 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					CloseHandle(hDupFile);
 				}
 			}
-			CloseHandle(hProcess);	
+			if (hProcess) CloseHandle(hProcess);	
 		}
 		
 		if (h_ownexe!=INVALID_HANDLE_VALUE) CloseHandle(h_ownexe);
