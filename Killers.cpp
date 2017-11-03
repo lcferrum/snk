@@ -1190,36 +1190,36 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 				} while (entry_idx);
 			}
 			//Search SYSTEM_HANDLE_INFORMATION for file that match arg_wcard
-			ULONG cur_pid=0;
+			ULONG prc_pid=0;
 			HANDLE hProcess=NULL;
-			HANDLE hCurProcess=GetCurrentProcess();
+			HANDLE cur_prc=GetCurrentProcess();
 			HANDLE hDupFile;
 			for (entry_idx=0; entry_idx<pshi->Count; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==file_type) {
 				//To speed up enumeration - cache opened process handle
-				if (cur_pid!=pshi->Handle[entry_idx].OwnerPid) {
-					cur_pid=pshi->Handle[entry_idx].OwnerPid;
+				if (prc_pid!=pshi->Handle[entry_idx].OwnerPid) {
+					prc_pid=pshi->Handle[entry_idx].OwnerPid;
 					CloseHandle(hProcess);
-					hProcess=OpenProcessWrapper(cur_pid, PROCESS_DUP_HANDLE);
+					hProcess=OpenProcessWrapper(prc_pid, PROCESS_DUP_HANDLE);
 				}
-				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, hCurProcess, &hDupFile, FILE_READ_ATTRIBUTES, FALSE, 0)) {
+				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, FILE_READ_ATTRIBUTES, FALSE, 0)) {
 					if (GetFileType(hDupFile)!=FILE_TYPE_DISK) {
 						//NtQueryObject and NtQueryInformationFile hangs on pipe handles
 						//And we dont't need pipes and other non-real-file types actually
-						std::wcerr<<L"HANDLE PID="<<cur_pid<<L" NOT A FILE"<<std::endl;
+						std::wcerr<<L"HANDLE PID="<<prc_pid<<L" NOT A FILE"<<std::endl;
 					} else {
 						DWORD buf_len=1024;
 						BYTE oni_buf[buf_len];
 						if (NT_SUCCESS(fnNtQueryObject(hDupFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
-							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" ONI PATH: "<<((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer<<std::endl;
+							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI PATH: "<<((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer<<std::endl;
 						} else
-							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" ONI ERROR"<<std::endl;
+							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI ERROR"<<std::endl;
 						IO_STATUS_BLOCK ioStatusBlock;
 						BYTE fni_buf[buf_len];
 						if (NT_SUCCESS(fnNtQueryInformationFile(hDupFile, &ioStatusBlock, (FILE_NAME_INFORMATION*)fni_buf, buf_len, FileNameInformation))) {
 							std::wstring fpath(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
-							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" FNI PATH: "<<fpath<<std::endl;
+							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI PATH: "<<fpath<<std::endl;
 						} else
-							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" FNI ERROR"<<std::endl;
+							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI ERROR"<<std::endl;
 					}
 					CloseHandle(hDupFile);
 				}
