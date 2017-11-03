@@ -1158,7 +1158,12 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 		
 		//If file object type is not known yet - open own executable
 		if (file_type==0xFFFFFFFF) {
-			wchar_t exe_path[MAX_PATH];	//Actually own executable path can be longer than MAX_PATH
+			//MAX_PATH related issues is a tough question regarding loading modules
+			//At present (Win 10) it seems that LoadLibrary and CreateProcess really doesn't handle path lengths more than MAX_PATH
+			//Current workaround is converting such paths to short "8.3" format and using it with aforementioned functions
+			//In this case paths returned by GetModuleFileName won't exceed MAX_PATH because they will be in 8.3 format
+			//(for executable, modules loaded from executable directory and modules loaded with 8.3 paths)
+			wchar_t exe_path[MAX_PATH];
 			DWORD retlen=GetModuleFileName(NULL, exe_path, MAX_PATH);
 			//GetModuleFileName returns 0 if everything is bad and nSize (which is MAX_PATH) if buffer size is insufficient and returned path truncated
 			if (retlen&&retlen<MAX_PATH)
