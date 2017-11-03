@@ -1,4 +1,4 @@
-#include "Extras.h"
+#include "Externs.h"
 
 pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow=NULL;
 pNtQuerySystemInformation fnNtQuerySystemInformation=NULL;
@@ -20,31 +20,31 @@ pAttachConsole fnAttachConsole=NULL;
 pGetConsoleWindow fnGetConsoleWindow=NULL;
 pGetProcessMemoryInfo fnGetProcessMemoryInfo=NULL;
 
-std::unique_ptr<Extras> Extras::instance;
+std::unique_ptr<Externs> Externs::instance;
 
-Extras::Extras(): 
+Externs::Externs(): 
 	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL), hPsapi(NULL)
 {
 	LoadFunctions();
 }
 
-Extras::~Extras() 
+Externs::~Externs() 
 {
 	UnloadFunctions();
 }
 
-bool Extras::MakeInstance() 
+bool Externs::MakeInstance() 
 {
 	if (instance)
 		return false;
 	
-	instance.reset(new Extras());
+	instance.reset(new Externs());
 	return true;
 }
 
 //Checking if DLLs are alredy loaded before LoadLibrary is cool but redundant
 //This method is private and called (and designed to be called) only once - in constructor before everything else
-void Extras::LoadFunctions() 
+void Externs::LoadFunctions() 
 {
 	hUser32=LoadLibrary(L"user32.dll");
 	hNtDll=LoadLibrary(L"ntdll.dll");
@@ -88,7 +88,7 @@ void Extras::LoadFunctions()
 }
 
 //And here we are testing for NULLs because LoadLibrary can fail in method above
-void Extras::UnloadFunctions() 
+void Externs::UnloadFunctions() 
 {
 	if (hUser32) FreeLibrary(hUser32);
 	if (hNtDll) FreeLibrary(hNtDll);

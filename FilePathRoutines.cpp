@@ -1,6 +1,6 @@
 #include "FilePathRoutines.h"
 #include "Common.h"
-#include "Extras.h"
+#include "Externs.h"
 #include <map>
 #include <cstddef>		//offsetof
 #include <stdexcept>	//out_of_range

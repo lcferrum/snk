@@ -1,6 +1,6 @@
 #include "Killers.h"
 #include "FilePathRoutines.h"
-#include "Extras.h"
+#include "Externs.h"
 #include "Common.h"
 #include "Res.h"
 #include <iostream>

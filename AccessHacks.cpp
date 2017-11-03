@@ -1,6 +1,6 @@
 #include "AccessHacks.h"
 #include "Common.h"
-#include "Extras.h"
+#include "Externs.h"
 #include <cstddef>		//offsetof
 #include <aclapi.h>		//GetSecurityInfo
 #include <accctrl.h>	//SE_KERNEL_OBJECT

@@ -6,7 +6,7 @@
 #include "AccessHacks.h"
 #include "Controller.h"
 #include "Killers.h"
-#include "Extras.h"
+#include "Externs.h"
 #include "Common.h"
 #include "Hout.h"
 
@@ -30,7 +30,7 @@ int main()
 extern "C" int wmain(int argc, wchar_t* argv[])
 {
 #endif
-	Extras::MakeInstance();
+	Externs::MakeInstance();
 	
 	Win32WcostreamActivate();
 

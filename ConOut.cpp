@@ -1,5 +1,5 @@
 #include "ConOut.h"
-#include "Extras.h"
+#include "Externs.h"
 #include <fcntl.h>	//_setmode
 #include <io.h>		//_setmode
 #include <iostream>

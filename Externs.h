@@ -1,5 +1,5 @@
-#ifndef EXTRA_H
-#define EXTRA_H
+#ifndef EXTERNS_H
+#define EXTERNS_H
 
 #include <memory>
 #include <functional>
@@ -10,9 +10,9 @@
 #define PTR_32(Type) ULONG
 #define PTR_64(Type) ULONGLONG
 
-class Extras {
+class Externs {
 private:
-	static std::unique_ptr<Extras> instance;
+	static std::unique_ptr<Externs> instance;
 	
 	HMODULE hUser32;
 	HMODULE hNtDll;
@@ -23,13 +23,13 @@ private:
 	void LoadFunctions();
 	void UnloadFunctions();
 	
-	Extras();
+	Externs();
 public:
-	~Extras();
-	Extras(const Extras&)=delete;				//Get rid of default copy constructor
-	Extras& operator=(const Extras&)=delete;	//Get rid of default copy assignment operator
-	Extras(const Extras&&)=delete;				//Get rid of default move constructor
-	Extras& operator=(const Extras&&)=delete;	//Get rid of default move assignment operator
+	~Externs();
+	Externs(const Externs&)=delete;				//Get rid of default copy constructor
+	Externs& operator=(const Externs&)=delete;	//Get rid of default copy assignment operator
+	Externs(const Externs&&)=delete;				//Get rid of default move constructor
+	Externs& operator=(const Externs&&)=delete;	//Get rid of default move assignment operator
 	
 	static bool MakeInstance();	
 };
@@ -55,4 +55,4 @@ typedef HWND (WINAPI *pGetConsoleWindow)(void);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
 typedef BOOL (WINAPI *pGetProcessMemoryInfo)(HANDLE Process, PPROCESS_MEMORY_COUNTERS ppsmemCounters, DWORD cb);
 
-#endif //EXTRA_H
+#endif //EXTERNS_H
