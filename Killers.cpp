@@ -38,6 +38,8 @@ typedef struct _LANGANDCODEPAGE {
 
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 extern pGetProcessMemoryInfo fnGetProcessMemoryInfo;
+extern pNtQueryObject fnNtQueryObject;
+extern pNtQueryInformationFile fnNtQueryInformationFile;
 
 #ifdef _WIN64
 #define EnumDisplayDevicesWrapper EnumDisplayDevices
@@ -1188,13 +1190,41 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 				} while (entry_idx);
 			}
 			//Search SYSTEM_HANDLE_INFORMATION for file that match arg_wcard
-			int fcnt=0;
+			ULONG cur_pid=0;
+			HANDLE hProcess=NULL;
+			HANDLE hCurProcess=GetCurrentProcess();
+			HANDLE hDupFile;
 			for (entry_idx=0; entry_idx<pshi->Count; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==file_type) {
-				fcnt++;	//TODO: query file name by handle and match it to wcard
+				//To speed up enumeration - cache opened process handle
+				if (cur_pid!=pshi->Handle[entry_idx].OwnerPid) {
+					cur_pid=pshi->Handle[entry_idx].OwnerPid;
+					CloseHandle(hProcess);
+					hProcess=OpenProcessWrapper(cur_pid, PROCESS_DUP_HANDLE);
+				}
+				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, hCurProcess, &hDupFile, FILE_READ_ATTRIBUTES, FALSE, 0)) {
+					if (GetFileType(hDupFile)!=FILE_TYPE_DISK) {
+						//NtQueryObject and NtQueryInformationFile hangs on pipe handles
+						//And we dont't need pipes and other non-real-file types actually
+						std::wcerr<<L"HANDLE PID="<<cur_pid<<L" NOT A FILE"<<std::endl;
+					} else {
+						DWORD buf_len=1024;
+						BYTE oni_buf[buf_len];
+						if (NT_SUCCESS(fnNtQueryObject(hDupFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
+							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" ONI PATH: "<<((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer<<std::endl;
+						} else
+							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" ONI ERROR"<<std::endl;
+						IO_STATUS_BLOCK ioStatusBlock;
+						BYTE fni_buf[buf_len];
+						if (NT_SUCCESS(fnNtQueryInformationFile(hDupFile, &ioStatusBlock, (FILE_NAME_INFORMATION*)fni_buf, buf_len, FileNameInformation))) {
+							std::wstring fpath(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
+							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" FNI PATH: "<<fpath<<std::endl;
+						} else
+							std::wcerr<<L"HANDLE PID="<<cur_pid<<L" FNI ERROR"<<std::endl;
+					}
+					CloseHandle(hDupFile);
+				}
 			}
-#if DEBUG>=3
-			std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": FILE_COUNT="<<fcnt<<std::endl;
-#endif			
+			CloseHandle(hProcess);	
 		}
 		
 		if (h_ownexe!=INVALID_HANDLE_VALUE) CloseHandle(h_ownexe);
