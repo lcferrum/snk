@@ -48,7 +48,7 @@ void Processes::DumpProcesses()
 {
 #if DEBUG>=1
 	for (PData &data: CAN)
-		std::wcerr<<data.GetPID()<<L" => "<<data.GetDelta()<<L" ("<<(data.GetSystem()?L"s":L"_")<<(data.GetDiscarded()?L"d":L"_")<<(data.GetDisabled()?L"D) ":L"_) ")<<data.GetName()<<L" ["<<data.GetPath()<<L"]"<<std::endl;
+		std::wcerr<<data.GetPID()<<L" => "<<data.GetDelta()<<L" / "<<data.GetCrtTime()<<L" ("<<(data.GetSystem()?L"s":L"_")<<(data.GetDiscarded()?L"d":L"_")<<(data.GetDisabled()?L"D) ":L"_) ")<<data.GetName()<<L" ["<<data.GetPath()<<L"]"<<std::endl;
 #endif
 }
 
@@ -117,6 +117,9 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 					PROCESS_BASIC_INFORMATION proc_info;
 					if (NT_SUCCESS(fnNtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), NULL))) {
 						parent_pid=proc_info.InheritedFromUniqueProcessId;
+#if DEBUG>=3
+						std::wcerr<<L"" __FILE__ ":ManageProcessList:"<<__LINE__<<L": Parent PID found: "<<parent_pid<<std::endl;
+#endif
 						if (!invalid) {
 							std::vector<PData>::iterator pd=std::find(CAN.begin(), CAN.end(), parent_pid);
 							if (pd!=CAN.end()) pd->SetDisabled(true);
@@ -144,27 +147,31 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 			break;
 #endif
 		case LST_SHOW:
-			RequestPopulatedCAN();
-			bool avail_found=false;
-			//Old fashioned "for" because C++11 ranged-based version can't go in reverse
-			for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); ++rit) {
-				if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())) {
-					if (!avail_found) {
-						if (ModeAll())
-							std::wcout<<L"Available processes:"<<std::endl;
-						else
-							std::wcout<<L"Available user processes:"<<std::endl;	
-						avail_found=true;
+			{
+				RequestPopulatedCAN();
+				bool avail_found=false;
+				//Old fashioned "for" because C++11 ranged-based version can't go in reverse
+				for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); ++rit) {
+					if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())) {
+						if (!avail_found) {
+							if (ModeAll())
+								std::wcout<<L"Available processes:"<<std::endl;
+							else
+								std::wcout<<L"Available user processes:"<<std::endl;	
+							avail_found=true;
+						}
+						std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
 					}
-					std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
 				}
+				if (!avail_found) {
+					if (ModeAll())
+						std::wcout<<L"No processes available"<<std::endl;
+					else
+						std::wcout<<L"No user processes available"<<std::endl;	
+				}
+				break;
 			}
-			if (!avail_found) {
-				if (ModeAll())
-					std::wcout<<L"No processes available"<<std::endl;
-				else
-					std::wcout<<L"No user processes available"<<std::endl;	
-			}
+		default:
 			break;
 	}
 }
@@ -289,7 +296,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 
 //User SID identifies user that launched process
 //But if process was launched with RunAs - it will have SID of the RunAs user
-//Only Logon SID will stay the same in this case
+//Only Logon SID will stay the same in this case (not on NT4: Switch User utility from NT4 Resource Kit and PsExec use separate Logon SID)
 //Assuming that SnK is run with admin rights, it's better to use Logon SID to distinguish system processes from user processes
 PSID Processes::GetLogonSID(HANDLE hProcess)
 {
