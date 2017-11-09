@@ -1205,7 +1205,12 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					//And we dont't need pipes and other non-FILE_TYPE_DISK handles actually
 					if (GetFileType(hDupFile)==FILE_TYPE_DISK) {
 						std::wstring fpath=FPRoutines::GetHandlePath(hDupFile, param_full);
-						if (fpath.length()&&MultiWildcardCmp(arg_wcard, fpath.c_str(), param_strict?MWC_PTH:MWC_STR)) ul_array.push_back(prc_pid);
+						if (fpath.length()&&MultiWildcardCmp(arg_wcard, fpath.c_str(), param_strict?MWC_PTH:MWC_STR)) {
+							ul_array.push_back(prc_pid);
+							//Close handle to cached process so not to check it's handles again
+							CloseHandle(hProcess);
+							hProcess=NULL;
+						}
 					}
 					CloseHandle(hDupFile);
 				}
