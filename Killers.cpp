@@ -152,7 +152,8 @@ bool Killers::KillByPth(bool param_full, bool param_strict, const wchar_t* arg_w
 	PrintCommonWildcardInfix(arg_wcard);
 	
 	bool found=wcslen(arg_wcard)&&ApplyToProcesses([this, param_full, param_strict, arg_wcard](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
-		if (MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str(), param_strict?MWC_PTH:MWC_STR)) {
+		//PData.path not necessary have valid path - it can be empty if FPRoutines::GetFilePath failed during process enumeration (Processes::RequestPopulatedCAN)
+		if ((param_full?path.length():true)&&MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str(), param_strict?MWC_PTH:MWC_STR)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
