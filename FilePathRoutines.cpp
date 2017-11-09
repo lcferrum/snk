@@ -1086,3 +1086,24 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 	
 	return {};
 }
+
+std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
+{
+	/*
+	DWORD buf_len=1024;
+	BYTE oni_buf[buf_len];
+	if (NT_SUCCESS(fnNtQueryObject(hDupFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
+		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI PATH: "<<((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer<<std::endl;
+	} else
+		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI ERROR"<<std::endl;
+	IO_STATUS_BLOCK ioStatusBlock;
+	BYTE fni_buf[buf_len];
+	if (NT_SUCCESS(fnNtQueryInformationFile(hDupFile, &ioStatusBlock, (FILE_NAME_INFORMATION*)fni_buf, buf_len, FileNameInformation))) {
+		std::wstring fpath(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
+		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI PATH: "<<fpath<<std::endl;
+	} else
+		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI ERROR"<<std::endl;
+	*/
+	
+	return L"";
+}

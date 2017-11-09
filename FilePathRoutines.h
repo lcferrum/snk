@@ -10,6 +10,7 @@ namespace FPRoutines {
 	void FillServiceMap();
 	std::wstring GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read);
 	std::vector<std::pair<std::wstring, std::wstring>> GetModuleList(HANDLE hProcess);
+	std::wstring GetHandlePath(HANDLE hFile, bool full);
 }
 
 #endif //FPROUTINES_H

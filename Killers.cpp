@@ -38,8 +38,6 @@ typedef struct _LANGANDCODEPAGE {
 
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 extern pGetProcessMemoryInfo fnGetProcessMemoryInfo;
-extern pNtQueryObject fnNtQueryObject;
-extern pNtQueryInformationFile fnNtQueryInformationFile;
 
 #ifdef _WIN64
 #define EnumDisplayDevicesWrapper EnumDisplayDevices
@@ -1202,25 +1200,12 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					hProcess=OpenProcessWrapper(prc_pid, PROCESS_DUP_HANDLE);
 				}
 				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, FILE_READ_ATTRIBUTES, FALSE, 0)) {
-					if (GetFileType(hDupFile)!=FILE_TYPE_DISK) {
-						//NtQueryObject and NtQueryInformationFile hangs on pipe handles
-						//NtQueryInformationFile fails on most non-FILE_TYPE_DISK handles
-						//And we dont't need pipes and other non-FILE_TYPE_DISK handles actually
-						std::wcerr<<L"HANDLE PID="<<prc_pid<<L" NOT A FILE"<<std::endl;
-					} else {
-						DWORD buf_len=1024;
-						BYTE oni_buf[buf_len];
-						if (NT_SUCCESS(fnNtQueryObject(hDupFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
-							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI PATH: "<<((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer<<std::endl;
-						} else
-							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI ERROR"<<std::endl;
-						IO_STATUS_BLOCK ioStatusBlock;
-						BYTE fni_buf[buf_len];
-						if (NT_SUCCESS(fnNtQueryInformationFile(hDupFile, &ioStatusBlock, (FILE_NAME_INFORMATION*)fni_buf, buf_len, FileNameInformation))) {
-							std::wstring fpath(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
-							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI PATH: "<<fpath<<std::endl;
-						} else
-							std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI ERROR"<<std::endl;
+					//NtQueryObject and NtQueryInformationFile (used in FPRoutines::GetHandlePath) hang on pipe handles
+					//NtQueryInformationFile fails on most non-FILE_TYPE_DISK handles
+					//And we dont't need pipes and other non-FILE_TYPE_DISK handles actually
+					if (GetFileType(hDupFile)==FILE_TYPE_DISK) {
+						std::wstring fpath=FPRoutines::GetHandlePath(hDupFile, param_full);
+						if (fpath.length()&&MultiWildcardCmp(arg_wcard, fpath.c_str(), param_strict?MWC_PTH:MWC_STR)) ul_array.push_back(prc_pid);
 					}
 					CloseHandle(hDupFile);
 				}
