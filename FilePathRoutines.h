@@ -9,7 +9,7 @@ namespace FPRoutines {
 	void FillDriveList();
 	void FillServiceMap();
 	std::wstring GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read);
-	std::vector<std::pair<std::wstring, std::wstring>> GetModuleList(HANDLE hProcess);
+	std::vector<std::wstring> GetModuleList(HANDLE hProcess, bool full);
 	std::wstring GetHandlePath(HANDLE hFile, bool full);
 }
 

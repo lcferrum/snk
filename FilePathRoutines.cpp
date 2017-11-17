@@ -157,6 +157,7 @@ namespace FPRoutines {
 	bool GetFP_PEB(HANDLE hProcess, std::wstring &fpath);
 	bool GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpath);
 	bool GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath);
+	std::wstring GetLongPathNameWrapper(const wchar_t* path);
 }
 
 void FPRoutines::FillDriveList() 
@@ -846,14 +847,14 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 	std::wstring fpath;
 	
 	if (
-		(hProcess&&GetFP_ProcessImageFileNameWin32(hProcess, fpath))||	//First we use NtQueryInformationProcess(ProcessImageFileNameWin32) to get file path: assuming that SnK is run with admin rights and current OS is likely to be Vista or above (it's a method requirement), we will get Win32 path for every process
+//		(hProcess&&GetFP_ProcessImageFileNameWin32(hProcess, fpath))||	//First we use NtQueryInformationProcess(ProcessImageFileNameWin32) to get file path: assuming that SnK is run with admin rights and current OS is likely to be Vista or above (it's a method requirement), we will get Win32 path for every process
 		GetFP_QueryServiceConfig(PID, fpath)||							//If previous method failed, now starts guessing work: we assume that method most likely failed because of obsolete OS (because, hey, you'd better grant SnK admin rights to do it work properly!) - this is a pretty good method to get Win32 filepath, it doesn't require any rights, works on everything from NT4, the only downside being that it can only query services
 		(hProcess&&vm_read&&GetFP_PEB(hProcess, fpath))||				//One more method for obsolete OSes: obtaining file path from PEB is complex (and may require kernel to Win32 path conversion), needs more security rights than every other method, but works on everything from NT4 and doesn't have limited scope like previous method
 		GetFP_SystemProcessIdInformation(PID, fpath)||					//Previous methods failed so it seems that actually we doesn't have enough security rights (because previous two methods will get file path even from NT4 if given admin rights): NtQuerySystemInformation(SystemProcessIdInformation) is a good choice if current process is limited in rights, because it doesn't require any, but have two downsides - it works only on Vista and above and kernel to Win32 path conversion is mandatory
 		(hProcess&&GetFP_ProcessImageFileName(hProcess, fpath))			//It's a last chance: maybe we have a not-completely-obsolete OS (like XP) and security limitations prevent us from accessing PEB but permit something less complex - NtQueryInformationProcess(ProcessImageFileName) works starting from XP, requires same amount of rights as the very first method but kernel to Win32 path conversion is mandatory
 		) {
 #if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Got path for PID "<<(ULONG_PTR)PID<<L": \""<<fpath<<L"\"..."<<std::endl;
+		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Normalizing path with GetLongPathName: \""<<fpath<<L"\"..."<<std::endl;
 #endif
 		//There is a possibilty that returned path will include 8.3 portions (and be all-lowercase)
 		//So it's better convert it to LFN (this also restores character case)
@@ -889,10 +890,21 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 	return L"";
 }
 
-#define SELECTED_MODULE_LIST InMemoryOrderModuleList
-std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HANDLE hProcess) 
+std::wstring FPRoutines::GetLongPathNameWrapper(const wchar_t* path)
 {
-	std::vector<std::pair<std::wstring, std::wstring>> mlist;
+	if (DWORD buf_len=Probe_GetLongPathName(path, NULL, 0)) {
+		wchar_t buffer[buf_len];
+		if (Probe_GetLongPathName(path, buffer, buf_len)) {
+			return buffer;
+		}
+	}
+	return L"";
+}
+
+#define SELECTED_MODULE_LIST InMemoryOrderModuleList
+std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full) 
+{
+	std::vector<std::wstring> mlist;
 	
 	if (!hProcess)
 		return {};
@@ -948,20 +960,27 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 						if (ldteXX.DllBase==pebXX.ImageBaseAddress)	//Skip process image entry
 							continue;
 							
-						std::wstring mapped_buf;
-						if (pid_wow64&&GetMappedFileNameWrapper(hProcess, (LPVOID)ldteXX.DllBase, mapped_buf)) {
+						//Module paths can include 8.3 portions so normalize it with GetMappedFileName
+						std::wstring norm_buf;
+						if (pid_wow64) {
 							//GetMappedFileNameWrapper is used here only to undo WoW64 redirection
 							//So if target process is not WoW64 process - no need to call GetMappedFileNameWrapper for it
-							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
+							if (GetMappedFileNameWrapper(hProcess, (LPVOID)ldteXX.DllBase, norm_buf))
+								norm_buf=GetLongPathNameWrapper(norm_buf.c_str());
 						} else {
 							//Returned paths are all in Win32 form (except image path that is skipped)
-							wchar_t buffer1[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
-							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &buffer1, ldteXX.BaseDllName.MaximumLength, NULL)) 
-								break;
-							wchar_t buffer2[ldteXX.FullDllName.MaximumLength/sizeof(wchar_t)];						
-							if (!ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &buffer2, ldteXX.FullDllName.MaximumLength, NULL))
-								break;
-							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+							wchar_t name_buf[ldteXX.FullDllName.MaximumLength/sizeof(wchar_t)];						
+							if (ReadProcessMemory(hProcess, (LPCVOID)ldteXX.FullDllName.Buffer, &name_buf, ldteXX.FullDllName.MaximumLength, NULL))
+								norm_buf=GetLongPathNameWrapper(name_buf);
+						}
+						
+						if (norm_buf.length()) {
+							mlist.push_back(full?norm_buf:GetNamePartFromFullPath(norm_buf));
+						} else if (!full) {
+							//This is fallback option if we need just module name
+							wchar_t name_buf[ldteXX.BaseDllName.MaximumLength/sizeof(wchar_t)];
+							if (ReadProcessMemory(hProcess, (LPCVOID)ldteXX.BaseDllName.Buffer, &name_buf, ldteXX.BaseDllName.MaximumLength, NULL)) 
+								mlist.push_back(name_buf);
 						}
 					} else
 						break;
@@ -998,21 +1017,21 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 					if (ReadProcessMemory(hProcess, (LPCVOID)(ldte32.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY32, SELECTED_MODULE_LIST)), &ldte32, sizeof(ldte32), NULL)) {
 						if (ldte32.DllBase==peb32.ImageBaseAddress)	//Skip process image entry
 							continue;
-							
-						std::wstring mapped_buf;
-						if (GetMappedFileNameWrapper(hProcess, (LPVOID)(ULONG_PTR)ldte32.DllBase, mapped_buf)) {
-							//If current ptocess is 64-bit, surely we are on x64 OS and 32-bit process is run under WoW64
-							//We should use GetMappedFileNameWrapper to undo WoW64 redirection
-							mlist.push_back(std::make_pair(GetNamePartFromFullPath(mapped_buf), mapped_buf));
-						} else {
-							//Returned paths are all in Win32 form (except image path that is skipped)
-							wchar_t buffer1[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
-							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &buffer1, ldte32.BaseDllName.MaximumLength, NULL)) 
-								break;
-							wchar_t buffer2[ldte32.FullDllName.MaximumLength/sizeof(wchar_t)];						
-							if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.FullDllName.Buffer, &buffer2, ldte32.FullDllName.MaximumLength, NULL))
-								break;
-							mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+						
+						//If current ptocess is 64-bit, surely we are on x64 OS and 32-bit process is run under WoW64
+						//We should use GetMappedFileNameWrapper to undo WoW64 redirection
+						//Module paths can include 8.3 portions so normalize it with GetMappedFileName
+						std::wstring norm_buf;
+						if (GetMappedFileNameWrapper(hProcess, (LPVOID)(ULONG_PTR)ldte32.DllBase, norm_buf))
+							norm_buf=GetLongPathNameWrapper(norm_buf.c_str());
+						
+						if (norm_buf.length()) {
+							mlist.push_back(full?norm_buf:GetNamePartFromFullPath(norm_buf));
+						} else if (!full) {
+							//This is fallback option if we need just module name
+							wchar_t name_buf[ldte32.BaseDllName.MaximumLength/sizeof(wchar_t)];
+							if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)ldte32.BaseDllName.Buffer, &name_buf, ldte32.BaseDllName.MaximumLength, NULL)) 
+								mlist.push_back(name_buf);
 						}
 					} else
 						break;
@@ -1068,13 +1087,20 @@ std::vector<std::pair<std::wstring, std::wstring>> FPRoutines::GetModuleList(HAN
 						//But we are queryng x64 process - it's simply doesn't run on WoW64 so has nothing to do with WoW64 redirection
 							
 						//Returned paths are all in Win32 form (except image path that is skipped)
-						wchar_t buffer1[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
-						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &buffer1, ldte64.BaseDllName.MaximumLength, NULL))) 
-							break;
-						wchar_t buffer2[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];						
-						if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &buffer2, ldte64.FullDllName.MaximumLength, NULL)))
-							break;
-						mlist.push_back(std::make_pair((wchar_t*)buffer1, (wchar_t*)buffer2));
+						//Module paths can include 8.3 portions so normalize it with GetMappedFileName
+						std::wstring norm_buf;
+						wchar_t name_buf[ldte64.FullDllName.MaximumLength/sizeof(wchar_t)];
+						if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.FullDllName.Buffer, &name_buf, ldte64.FullDllName.MaximumLength, NULL)))
+							norm_buf=GetLongPathNameWrapper(name_buf);
+						
+						if (norm_buf.length()) {
+							mlist.push_back(full?norm_buf:GetNamePartFromFullPath(norm_buf));
+						} else if (!full) {
+							//This is fallback option if we need just module name
+							wchar_t name_buf[ldte64.BaseDllName.MaximumLength/sizeof(wchar_t)];
+							if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.BaseDllName.Buffer, &name_buf, ldte64.BaseDllName.MaximumLength, NULL))) 
+								mlist.push_back(name_buf);
+						}
 					} else
 						break;
 				}

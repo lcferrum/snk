@@ -184,15 +184,15 @@ bool Killers::KillByMod(bool param_full, bool param_strict, const wchar_t* arg_w
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":KillByMod:"<<__LINE__<<L": Processing modules for \""<<name<<L"\"..."<<std::endl;
 #endif
-		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		std::vector<std::wstring> mlist=FPRoutines::GetModuleList(hProcess, param_full);
 		CloseHandle(hProcess);
 #if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":KillByMod:"<<__LINE__<<L": Dumping modules for \""<<name<<L"\"..."<<std::endl;
-		for (const std::pair<std::wstring, std::wstring> &module: mlist)
-			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+		std::wcerr<<L"" __FILE__ ":KillByMod:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
+		for (const std::wstring &module: mlist)
+			std::wcerr<<L"\t\""<<module<<L"\""<<std::endl;
 #endif
 
-		if (CheckModListNames(mlist, param_full, param_strict, arg_wcard)) {
+		if (CheckModListNames(mlist, param_strict, arg_wcard)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -376,18 +376,18 @@ bool Killers::CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str
 	return item_matched==ARRAY_MATCHED;
 }
 
-bool Killers::CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, bool strict, const wchar_t* wcard) 
+bool Killers::CheckModListNames(const std::vector<std::wstring> &mlist, bool strict, const wchar_t* wcard) 
 {
-	for (const std::pair<std::wstring, std::wstring> &module: mlist)
-		if (MultiWildcardCmp(wcard, full?module.second.c_str():module.first.c_str(), strict?MWC_PTH:MWC_STR)) return true;
+	for (const std::wstring &module: mlist)
+		if (MultiWildcardCmp(wcard, module.c_str(), strict?MWC_PTH:MWC_STR)) return true;
 	
 	return false;
 }
 
-bool Killers::CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str) 
+bool Killers::CheckModListDescriptions(const std::vector<std::wstring> &mlist, const wchar_t** item_str, const wchar_t** desc_str) 
 {
-	for (const std::pair<std::wstring, std::wstring> &module: mlist)
-		if (CheckStringFileInfo(module.second.c_str(), item_str, desc_str)) return true;
+	for (const std::wstring &module: mlist)
+		if (CheckStringFileInfo(module.c_str(), item_str, desc_str)) return true;
 	
 	return false;
 }
@@ -413,15 +413,15 @@ bool Killers::KillByD3d(bool param_simple)
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":KillByD3d:"<<__LINE__<<L": Processing modules for \""<<name<<"\"..."<<std::endl;
 #endif
-		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		std::vector<std::wstring> mlist=FPRoutines::GetModuleList(hProcess, !param_simple);
 		CloseHandle(hProcess);
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":KillByD3d:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
-		for (const std::pair<std::wstring, std::wstring> &module: mlist)
-			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+		for (const std::wstring &module: mlist)
+			std::wcerr<<L"\t\""<<module<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckModListNames(mlist, false, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -456,15 +456,15 @@ bool Killers::KillByOgl(bool param_simple)
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":KillByOgl:"<<__LINE__<<L": Processing modules for \""<<name<<"\"..."<<std::endl;
 #endif
-		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		std::vector<std::wstring> mlist=FPRoutines::GetModuleList(hProcess, !param_simple);
 		CloseHandle(hProcess);
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":KillByOgl:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
-		for (const std::pair<std::wstring, std::wstring> &module: mlist)
-			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+		for (const std::wstring &module: mlist)
+			std::wcerr<<L"\t\""<<module<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckModListNames(mlist, false, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;
@@ -499,15 +499,15 @@ bool Killers::KillByGld(bool param_simple)
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":KillByGld:"<<__LINE__<<L": Processing modules for \""<<name<<"\"..."<<std::endl;
 #endif
-		std::vector<std::pair<std::wstring, std::wstring>> mlist=FPRoutines::GetModuleList(hProcess);
+		std::vector<std::wstring> mlist=FPRoutines::GetModuleList(hProcess, !param_simple);
 		CloseHandle(hProcess);
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":KillByGld:"<<__LINE__<<L": Dumping modules for \""<<name<<"\"..."<<std::endl;
-		for (const std::pair<std::wstring, std::wstring> &module: mlist)
-			std::wcerr<<L"\""<<module.first<<L"\" : \""<<module.second<<L"\""<<std::endl;
+		for (const std::wstring &module: mlist)
+			std::wcerr<<L"\t\""<<module<<L"\""<<std::endl;
 #endif
 		
-		if (param_simple?CheckModListNames(mlist, false, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
+		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
 			KillProcess(PID, name);
 			return true;

@@ -12,8 +12,8 @@ private:
 	void PrintCommonKillPrefix();
 	void PrintCommonWildcardInfix(const wchar_t* arg_wcard, const wchar_t* delim=L";");
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
-	bool CheckModListNames(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, bool full, bool strict, const wchar_t* wcard);
-	bool CheckModListDescriptions(const std::vector<std::pair<std::wstring, std::wstring>> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
+	bool CheckModListNames(const std::vector<std::wstring> &mlist, bool strict, const wchar_t* wcard);
+	bool CheckModListDescriptions(const std::vector<std::wstring> &mlist, const wchar_t** item_str, const wchar_t** desc_str);
 	bool CheckProcessUserName(ULONG_PTR PID, const wchar_t* wcard, bool incl_domain);
 	bool PidListPrepare(const wchar_t* pid_list, std::vector<ULONG_PTR> &uptr_array);
 	bool PidListCompare(std::vector<ULONG_PTR> &uptr_array, ULONG_PTR pid);
