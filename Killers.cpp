@@ -1199,18 +1199,27 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					prc_pid=pshi->Handle[entry_idx].OwnerPid;
 					if (hProcess) CloseHandle(hProcess);
 					hProcess=OpenProcessWrapper(prc_pid, PROCESS_DUP_HANDLE);
+#if DEBUG>=3
+					std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": Handles for PID "<<prc_pid<<std::endl;
+#endif
 				}
-				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, FILE_READ_ATTRIBUTES, FALSE, 0)) {
+				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, 0, FALSE, DUPLICATE_SAME_ACCESS)) {				
 					//NtQueryObject and NtQueryInformationFile (used in FPRoutines::GetHandlePath) hang on pipe handles
 					//NtQueryInformationFile fails on most non-FILE_TYPE_DISK handles
 					//And we dont't need pipes and other non-FILE_TYPE_DISK handles actually
 					if (GetFileType(hDupFile)==FILE_TYPE_DISK) {
 						std::wstring fpath=FPRoutines::GetHandlePath(hDupFile, param_full);
+#if DEBUG>=3
+						if (fpath.length()) std::wcerr<<L"\t\""<<fpath<<L"\""<<std::endl;
+#endif
 						if (fpath.length()&&MultiWildcardCmp(arg_wcard, fpath.c_str(), param_strict?MWC_PTH:MWC_STR)) {
 							ul_array.push_back(prc_pid);
 							//Close handle to cached process so not to check it's handles again
 							CloseHandle(hProcess);
 							hProcess=NULL;
+#if DEBUG>=3
+							std::wcerr<<L"\tMATCHED"<<std::endl;
+#endif
 						}
 					}
 					CloseHandle(hDupFile);

@@ -42,10 +42,6 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 		return 0;
 	}
 	
-	//HMODULE lib=LoadLibrary(L"msvcrt_.dll");
-	//if (lib) std::wcerr<<L"MSVCRT LOADED"<<std::endl;
-	
-	
 	CoInitialize(NULL);								//COM is needed for GetLongPathName implementation from newapis.h
 	AccessHacks::MakeInstance();
 
@@ -72,8 +68,6 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	
 	CachedNtQuerySystemProcessInformation(NULL, true);
 	CachedNtQuerySystemHandleInformation(NULL, true);
-	
-	//FreeLibrary(lib);
 	
 	Win32WcostreamDeactivate();
 

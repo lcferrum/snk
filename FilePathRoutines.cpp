@@ -158,6 +158,7 @@ namespace FPRoutines {
 	bool GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpath);
 	bool GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath);
 	std::wstring GetLongPathNameWrapper(const wchar_t* path);
+	bool MaxPathAwareGetLongPathNameWrapper(std::wstring &fpath, bool *is_dir=NULL);
 }
 
 void FPRoutines::FillDriveList() 
@@ -839,6 +840,35 @@ bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath
 	return false;
 }
 
+bool FPRoutines::MaxPathAwareGetLongPathNameWrapper(std::wstring &fpath, bool *is_dir)
+{
+	//GetLongPathName is UNC aware, affected by Wow64FsRedirection, may fail because of security restrictions
+	//Prepend returned path with "\\?\" so GetLongPathName won't fail if path length is more than MAX_PATH
+	
+	wchar_t upath[fpath.length()+7]; //7 is "\?\UNC" w/ NULL-terminator
+	bool is_unc=fpath.front()==L'\\';
+	if (is_unc) {
+		wcscpy(upath, L"\\\\?\\UNC");
+		wcscat(upath, fpath.c_str()+1);
+	} else {
+		wcscpy(upath, L"\\\\?\\");
+		wcscat(upath, fpath.c_str());
+	}
+	if (DWORD buf_len=Probe_GetLongPathName(upath, NULL, 0)) {
+		wchar_t buffer[buf_len];
+		if (Probe_GetLongPathName(upath, buffer, buf_len)) {
+			if (is_dir) *is_dir=GetFileAttributes(upath)&FILE_ATTRIBUTE_DIRECTORY;
+			//We now have valid (GetLongPathName fails if path doesn't exist - relative check) Win32 LFN file path
+			//Removing "\\?\" prefix
+			wchar_t* clean_buf=buffer+4;
+			if (is_unc) *(clean_buf+=2)=L'\\';
+			fpath=clean_buf;
+			return true;
+		}
+	}
+	return false;
+}
+
 std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read) 
 {
 #if DEBUG>=3
@@ -847,7 +877,7 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 	std::wstring fpath;
 	
 	if (
-//		(hProcess&&GetFP_ProcessImageFileNameWin32(hProcess, fpath))||	//First we use NtQueryInformationProcess(ProcessImageFileNameWin32) to get file path: assuming that SnK is run with admin rights and current OS is likely to be Vista or above (it's a method requirement), we will get Win32 path for every process
+		(hProcess&&GetFP_ProcessImageFileNameWin32(hProcess, fpath))||	//First we use NtQueryInformationProcess(ProcessImageFileNameWin32) to get file path: assuming that SnK is run with admin rights and current OS is likely to be Vista or above (it's a method requirement), we will get Win32 path for every process
 		GetFP_QueryServiceConfig(PID, fpath)||							//If previous method failed, now starts guessing work: we assume that method most likely failed because of obsolete OS (because, hey, you'd better grant SnK admin rights to do it work properly!) - this is a pretty good method to get Win32 filepath, it doesn't require any rights, works on everything from NT4, the only downside being that it can only query services
 		(hProcess&&vm_read&&GetFP_PEB(hProcess, fpath))||				//One more method for obsolete OSes: obtaining file path from PEB is complex (and may require kernel to Win32 path conversion), needs more security rights than every other method, but works on everything from NT4 and doesn't have limited scope like previous method
 		GetFP_SystemProcessIdInformation(PID, fpath)||					//Previous methods failed so it seems that actually we doesn't have enough security rights (because previous two methods will get file path even from NT4 if given admin rights): NtQuerySystemInformation(SystemProcessIdInformation) is a good choice if current process is limited in rights, because it doesn't require any, but have two downsides - it works only on Vista and above and kernel to Win32 path conversion is mandatory
@@ -857,30 +887,16 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Normalizing path with GetLongPathName: \""<<fpath<<L"\"..."<<std::endl;
 #endif
 		//There is a possibilty that returned path will include 8.3 portions (and be all-lowercase)
-		//So it's better convert it to LFN (this also restores character case)
-		//GetLongPathName is UNC aware, affected by Wow64FsRedirection, may fail because of security restrictions
-		//Prepend returned path with "\\?\" so GetLongPathName won't fail if path length is more than MAX_PATH
+		//So it's better convert it to LFN with GetLongPathName (this also restores character case)
 		//N.B.:
 		//GetLongPathName accepts slash as path deparator but not with "\\?\"
 		//Also GetLongPathName doesn't convert slashes to backslashes in returned path
 		//But it's not of concern here because none of GetFP functions is able to return path with slashes as path separator
-		bool unc_path;
-		if ((unc_path=fpath.front()==L'\\'))
-			fpath.insert(1, L"\\?\\UNC");
-		else
-			fpath.insert(0, L"\\\\?\\");
-		if (DWORD buf_len=Probe_GetLongPathName(fpath.c_str(), NULL, 0)) {
-			wchar_t buffer[buf_len];
-			if (Probe_GetLongPathName(fpath.c_str(), buffer, buf_len)) {
-				//We now have valid (GetLongPathName fails if path doesn't exist - relative check) Win32 LFN file path
-				//Removing "\\?\" prefix
-				wchar_t* clean_buf=buffer+4;
-				if (unc_path) *(clean_buf+=2)=L'\\';
+		if (MaxPathAwareGetLongPathNameWrapper(fpath)) {
 #if DEBUG>=3
-				std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Found path for PID "<<(ULONG_PTR)PID<<L": \""<<clean_buf<<L"\""<<std::endl;
+			std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Found path for PID "<<(ULONG_PTR)PID<<L": \""<<fpath<<L"\""<<std::endl;
 #endif
-				return clean_buf;
-			}
+			return fpath;
 		}
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": GetLongPathName failed for PID "<<(ULONG_PTR)PID<<std::endl;
@@ -1115,21 +1131,71 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 
 std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 {
-	/*
-	DWORD buf_len=1024;
-	BYTE oni_buf[buf_len];
-	if (NT_SUCCESS(fnNtQueryObject(hDupFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
-		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI PATH: "<<((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer<<std::endl;
-	} else
-		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" ONI ERROR"<<std::endl;
-	IO_STATUS_BLOCK ioStatusBlock;
-	BYTE fni_buf[buf_len];
-	if (NT_SUCCESS(fnNtQueryInformationFile(hDupFile, &ioStatusBlock, (FILE_NAME_INFORMATION*)fni_buf, buf_len, FileNameInformation))) {
-		std::wstring fpath(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
-		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI PATH: "<<fpath<<std::endl;
-	} else
-		std::wcerr<<L"HANDLE PID="<<prc_pid<<L" FNI ERROR"<<std::endl;
-	*/
+	if (!fnNtQueryInformationFile) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":GetHandlePath:"<<__LINE__<<L": NtQueryInformationFile not found!"<<std::endl;
+#endif
+		return L"";
+	}
 	
+	if (!fnNtQueryObject) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":GetHandlePath:"<<__LINE__<<L": NtQueryObject not found!"<<std::endl;
+#endif
+		return L"";
+	}
+	
+	//To get needed buffer size just supply buffer that holds FILE_NAME_INFORMATION structure and wait for STATUS_BUFFER_OVERFLOW (in this case it's just a status, don't worry)
+	//Needed buffer size (minus sizeof(FILE_NAME_INFORMATION)) will be in FILE_NAME_INFORMATION.FileNameLength
+	//NtQueryInformationFile(FileNameInformation) returns path relative to device
+	//Returned path is not NULL-terminated (FileNameLength is string length in bytes)
+	FILE_NAME_INFORMATION fni_tmp;
+	IO_STATUS_BLOCK ioStatusBlock;
+	NTSTATUS nqif_status=fnNtQueryInformationFile(hFile, &ioStatusBlock, &fni_tmp, sizeof(FILE_NAME_INFORMATION), FileNameInformation);
+	//FileName member of FILE_NAME_INFORMATION is actually defined not as a pointer but as single char length buffer
+	//If NtQueryInformationFile returned STATUS_SUCCESS then we have root directory
+	//NtQueryInformationFile and NtQueryObject are not affected by WoW64 redirection
+	if (nqif_status==STATUS_BUFFER_OVERFLOW||nqif_status==STATUS_SUCCESS) {
+		DWORD buf_len=fni_tmp.FileNameLength+1024;
+		BYTE oni_buf[buf_len];
+		if (NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
+			std::wstring hpath;
+			wchar_t* res_krn_path=((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer;
+			
+			for (std::pair<std::wstring, wchar_t> &drive: DriveList) {
+				if (!wcsncmp(drive.first.c_str(), res_krn_path, drive.first.length())&&(drive.first.back()==L'\\'||res_krn_path[drive.first.length()]==L'\\')) {
+					if (drive.first.back()==L'\\')
+						hpath={drive.second, L':', L'\\'};
+					else
+						hpath={drive.second, L':'};
+					hpath.append(res_krn_path+drive.first.length());
+					break;
+				}
+			}
+			
+			if (hpath.empty()) {
+				buf_len=fni_tmp.FileNameLength+sizeof(FILE_NAME_INFORMATION);
+				BYTE fni_buf[buf_len];
+				if (NT_SUCCESS(fnNtQueryInformationFile(hFile, &ioStatusBlock, (FILE_NAME_INFORMATION*)fni_buf, buf_len, FileNameInformation))) {
+					hpath={L'\\'};
+					hpath.append(((FILE_NAME_INFORMATION*)fni_buf)->FileName, ((FILE_NAME_INFORMATION*)fni_buf)->FileNameLength/sizeof(wchar_t));
+				}
+			}
+			
+			if (hpath.length()) {
+				//There is a possibilty that returned path will include 8.3 portions
+				//So it's better convert it to LFN with GetLongPathName
+				//GetLongPathName failes for paths that doesn't exist
+				bool is_dir;
+				if (MaxPathAwareGetLongPathNameWrapper(hpath, &is_dir)) {
+					if (full)
+						return hpath;
+					else if (!is_dir)
+						return GetNamePartFromFullPath(hpath);
+				}
+			}
+		}
+	}
+
 	return L"";
 }
