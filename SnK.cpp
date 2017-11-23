@@ -42,9 +42,10 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 		return 0;
 	}
 	
+	std::setlocale(LC_ALL, "");						//Set entire locale to environment's default so std::towlower (used in case-insensitive compare) will work correctly for non-English characters
 	CoInitialize(NULL);								//COM is needed for GetLongPathName implementation from newapis.h
+	
 	AccessHacks::MakeInstance();
-
 	AccessHacks::EnableDebugPrivileges();			//Will set debug privileges (administrator privileges should be already present for this to actually work) needed for OpenProcess to work succesfully on all non-user processes
 	AccessHacks::ImpersonateLocalSystem();			//OpenProcessToken will fail on some system processes and foreign user processes if not done under Local System account even if done with debug privileges
 	AccessHacks::Wow64DisableWow64FsRedirection();	//Turning off Wow64FsRedirection so GetLongPathName and GetFileAttributes uses correct path
