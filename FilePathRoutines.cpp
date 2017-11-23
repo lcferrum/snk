@@ -1145,17 +1145,19 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 		return L"";
 	}
 	
-	//To get needed buffer size just supply buffer that holds FILE_NAME_INFORMATION structure and wait for STATUS_BUFFER_OVERFLOW (in this case it's just a status, don't worry)
+	//To get needed buffer size just supply buffer that holds FILE_NAME_INFORMATION structure and wait for STATUS_BUFFER_OVERFLOW
 	//Needed buffer size (minus sizeof(FILE_NAME_INFORMATION)) will be in FILE_NAME_INFORMATION.FileNameLength
 	//NtQueryInformationFile(FileNameInformation) returns path relative to device
 	//Returned path is not NULL-terminated (FileNameLength is string length in bytes)
+	//FileName member of FILE_NAME_INFORMATION is actually defined not as a pointer but as single char length buffer
+	//If NtQueryInformationFile returned STATUS_SUCCESS then we have root directory
+	//NtQueryInformationFile is not affected by WoW64 redirection
 	FILE_NAME_INFORMATION fni_tmp;
 	IO_STATUS_BLOCK ioStatusBlock;
 	NTSTATUS nqif_status=fnNtQueryInformationFile(hFile, &ioStatusBlock, &fni_tmp, sizeof(FILE_NAME_INFORMATION), FileNameInformation);
-	//FileName member of FILE_NAME_INFORMATION is actually defined not as a pointer but as single char length buffer
-	//If NtQueryInformationFile returned STATUS_SUCCESS then we have root directory
-	//NtQueryInformationFile and NtQueryObject are not affected by WoW64 redirection
 	if (nqif_status==STATUS_BUFFER_OVERFLOW||nqif_status==STATUS_SUCCESS) {
+		//See KernelToWin32Path for comments on NtQueryObject and general algorithm on getting Win32 path from file handle
+		//NtQueryObject is not affected by WoW64 redirection
 		DWORD buf_len=fni_tmp.FileNameLength+1024;
 		BYTE oni_buf[buf_len];
 		if (NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
@@ -1185,7 +1187,7 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 			if (hpath.length()) {
 				//There is a possibilty that returned path will include 8.3 portions
 				//So it's better convert it to LFN with GetLongPathName
-				//GetLongPathName failes for paths that doesn't exist
+				//GetLongPathName fails for paths that don't exist
 				bool is_dir;
 				if (MaxPathAwareGetLongPathNameWrapper(hpath, &is_dir)) {
 					if (full)
