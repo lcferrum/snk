@@ -8,6 +8,7 @@
 		- Better wording in results output
 		- Improved performance - faster searches and kills
 		- Now globbing is not path-aware by default for /pth and /mod (use 'strict' parameter for path-aware globbing)
+		- +r/-r setting (recently created sorting) renamed to +s/-s
 	* Added:
 		- /usr switch (kill by user name)
 		- /wnd switch (kill by window title)
@@ -15,6 +16,7 @@
 		- /aim switch (kill targeted process)
 		- +p setting (exclude parent process)
 		- +f setting (fast mode)
+		- +r/-r setting (restart killed process)
 		- 'strict' parameter for /fsc switch
 		- 'reset' parameter for /lst switch
 		- 'strict' parameter for /pth and /mod switches

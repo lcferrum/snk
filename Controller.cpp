@@ -353,12 +353,12 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_all=true;
 	} else if (!top_rule.compare(L"-a")) {
 		ctrl_vars.mode_all=false;
-	} else if (!top_rule.compare(L"+r")) {
+	} else if (!top_rule.compare(L"+s")) {
 		if (ctrl_vars.mode_recent==false) {
 			SortByRecentlyCreated();
 			ctrl_vars.mode_recent=true;
 		}
-	} else if (!top_rule.compare(L"-r")) {
+	} else if (!top_rule.compare(L"-s")) {
 		if (ctrl_vars.mode_recent==true) {
 			SortByCpuUsage();
 			ctrl_vars.mode_recent=false;
@@ -373,6 +373,10 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 		ctrl_vars.mode_loop=true;
 	} else if (!top_rule.compare(L"-l")) {
 		ctrl_vars.mode_loop=false;
+	} else if (!top_rule.compare(L"+r")) {
+		ctrl_vars.mode_restart=true;
+	} else if (!top_rule.compare(L"-r")) {
+		ctrl_vars.mode_restart=false;
 	} else if (!top_rule.compare(L"+b")) {
 		ctrl_vars.mode_blacklist=true;
 	} else if (!top_rule.compare(L"-b")) {

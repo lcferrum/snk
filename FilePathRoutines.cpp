@@ -46,12 +46,14 @@ typedef struct _UNICODE_STRING64 {
 typedef struct _RTL_USER_PROCESS_PARAMETERS32 {
 	BYTE Reserved[56];
 	UNICODE_STRING32 ImagePathName;
+	UNICODE_STRING32 CommandLine;
 } RTL_USER_PROCESS_PARAMETERS32;
 
 //Cut-down version of RTL_USER_PROCESS_PARAMETERS with x86_64 align
 typedef struct _RTL_USER_PROCESS_PARAMETERS64 {
 	BYTE Reserved[96];
 	UNICODE_STRING64 ImagePathName;
+	UNICODE_STRING64 CommandLine;
 } RTL_USER_PROCESS_PARAMETERS64;
 
 //Cut-down version of PEB_LDR_DATA with x86 align
@@ -923,13 +925,13 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 	std::vector<std::wstring> mlist;
 	
 	if (!hProcess)
-		return {};
+		return mlist;
 	
 	if (!fnNtQueryInformationProcess) {
 #if DEBUG>=2
 		std::wcerr<<L"" __FILE__ ":GetModuleList:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
 #endif
-		return {};
+		return mlist;
 	}
 
 	PROCESS_BASIC_INFORMATION proc_info={};
@@ -945,7 +947,7 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 	if (fnIsWow64Process) {
 		//If IsWow64Process is available and returns false - it's an actual error and we should fail
 		if (!fnIsWow64Process(hProcess, &pid_wow64)||!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
-			return {};
+			return mlist;
 	}
 	
 	//UNICODE_STRING in LDR_DATA_TABLE_ENTRY usually includes terminating NULL character in it's buffer
@@ -960,7 +962,7 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 			if (st==STATUS_INVALID_INFO_CLASS)
 				std::wcerr<<L"" __FILE__ ":GetModuleList:"<<__LINE__<<L": NtQueryInformationProcess(ProcessImageFileName) failed - information class not supported!"<<std::endl;
 #endif
-			return {};
+			return mlist;
 		}
 		
 		//Requires PROCESS_VM_READ	
@@ -1001,7 +1003,6 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 					} else
 						break;
 				}
-				return mlist;
 			}
 		}
 	} else {
@@ -1018,7 +1019,7 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 			if (st==STATUS_INVALID_INFO_CLASS)
 				std::wcerr<<L"" __FILE__ ":GetModuleList:"<<__LINE__<<L": NtQueryInformationProcess(ProcessWow64Information) failed - information class not supported!"<<std::endl;
 #endif
-			return {};
+			return mlist;
 		}
 		
 		//Requires PROCESS_VM_READ
@@ -1052,7 +1053,6 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 					} else
 						break;
 				}
-				return mlist;
 			}
 		}
 #else	//_WIN64 ***********************************
@@ -1062,14 +1062,14 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 #if DEBUG>=2
 			std::wcerr<<L"" __FILE__ ":GetModuleList:"<<__LINE__<<L": NtWow64QueryInformationProcess64 not found!"<<std::endl;
 #endif
-			return {};
+			return mlist;
 		}
 		
 		if (!fnNtWow64ReadVirtualMemory64) {
 #if DEBUG>=2
 			std::wcerr<<L"" __FILE__ ":GetModuleList:"<<__LINE__<<L": NtWow64ReadVirtualMemory64 not found!"<<std::endl;
 #endif
-			return {};
+			return mlist;
 		}
 	
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
@@ -1079,7 +1079,7 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 			if (st==STATUS_INVALID_INFO_CLASS)
 				std::wcerr<<L"" __FILE__ ":GetModuleList:"<<__LINE__<<L": NtWow64QueryInformationProcess64(ProcessImageFileName) failed - information class not supported!"<<std::endl;
 #endif
-			return {};
+			return mlist;
 		}
 		
 		//Requires PROCESS_VM_READ
@@ -1120,13 +1120,12 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 					} else
 						break;
 				}
-				return mlist;
 			}
 		}
 #endif	//_WIN64 ***********************************
 	}
 	
-	return {};
+	return mlist;
 }
 
 std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
@@ -1200,4 +1199,130 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 	}
 
 	return L"";
+}
+
+std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
+{
+	std::wstring cmdline;
+	
+	if (!hProcess)
+		return cmdline;
+	
+	if (!fnNtQueryInformationProcess) {
+#if DEBUG>=2
+		std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
+#endif
+		return cmdline;
+	}
+
+	
+	PROCESS_BASIC_INFORMATION proc_info={};
+	NTSTATUS st;
+	ULONG_PTR PebBaseAddress32=0;
+	PROCESS_BASIC_INFORMATION64 proc_info64={};
+	//By default it's assumed that target PID and current process are not WOW64 processes, i.e. run natively
+	BOOL pid_wow64=FALSE;
+	BOOL cur_wow64=FALSE;
+
+	//In case when IsWow64Process is available - check whether target PID and current process is WoW64
+	//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
+	if (fnIsWow64Process) {
+		//If IsWow64Process is available and returns false - it's an actual error and we should fail
+		if (!fnIsWow64Process(hProcess, &pid_wow64)||!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
+			return cmdline;
+	}
+	
+	if (pid_wow64==cur_wow64) {
+		//Bitness of current process and target process is the same - it's safe to use native ReadProcessMemory with native structures
+	
+		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
+		st=fnNtQueryInformationProcess(hProcess, ProcessBasicInformation, &proc_info, sizeof(PROCESS_BASIC_INFORMATION), NULL);
+		if (!NT_SUCCESS(st)||!proc_info.PebBaseAddress) {
+#if DEBUG>=2
+			if (st==STATUS_INVALID_INFO_CLASS)
+				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed - information class not supported!"<<std::endl;
+#endif
+			return cmdline;
+		}
+		
+		PVOID pRUPP;
+		//Requires PROCESS_VM_READ	
+		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), NULL)) {
+			UNICODE_STRING CommandLine;
+			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, CommandLine)), &CommandLine, sizeof(CommandLine), NULL)) {
+				wchar_t buffer[CommandLine.Length/sizeof(wchar_t)];
+				if (ReadProcessMemory(hProcess, CommandLine.Buffer, &buffer, CommandLine.Length, NULL))
+					cmdline.assign(buffer, CommandLine.Length/sizeof(wchar_t));
+			}
+		}
+	} else {
+#ifdef _WIN64	//_WIN64 ***********************************
+		//Reading 32-bit process from 64-bit process
+		
+		//Some kind of undocumented behaviour:
+		//Documentation states that ProcessWow64Information returns WoW64 flag for selected process
+		//But actually this flag contains WoW64 process' PEB address
+		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
+		st=fnNtQueryInformationProcess(hProcess, ProcessWow64Information, &PebBaseAddress32, sizeof(PebBaseAddress32), NULL);
+		if (!NT_SUCCESS(st)||!PebBaseAddress32) {
+#if DEBUG>=2
+			if (st==STATUS_INVALID_INFO_CLASS)
+				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess(ProcessWow64Information) failed - information class not supported!"<<std::endl;
+#endif
+			return cmdline;
+		}
+		
+		PTR_32(PVOID) pRUPP32;
+		//Requires PROCESS_VM_READ
+		//PebBaseAddress32, pRUPP32 and CommandLine32.Buffer pointers are already casted to integers
+		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), NULL)) {
+			UNICODE_STRING32 CommandLine32;
+			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, CommandLine)), &CommandLine32, sizeof(CommandLine32), NULL)) {
+				wchar_t buffer[CommandLine32.Length/sizeof(wchar_t)];
+				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)CommandLine32.Buffer, &buffer, CommandLine32.Length, NULL))
+					cmdline.assign(buffer, CommandLine32.Length/sizeof(wchar_t));
+			}
+		}
+#else	//_WIN64 ***********************************
+		//Reading 64-bit process from 32-bit process
+	
+		if (!fnNtWow64QueryInformationProcess64) {
+#if DEBUG>=2
+			std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64QueryInformationProcess64 not found!"<<std::endl;
+#endif
+			return cmdline;
+		}
+		
+		if (!fnNtWow64ReadVirtualMemory64) {
+#if DEBUG>=2
+			std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64ReadVirtualMemory64 not found!"<<std::endl;
+#endif
+			return cmdline;
+		}
+	
+		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
+		st=fnNtWow64QueryInformationProcess64(hProcess, ProcessBasicInformation, &proc_info64, sizeof(PROCESS_BASIC_INFORMATION64), NULL);
+		if (!NT_SUCCESS(st)||!proc_info64.PebBaseAddress) {
+#if DEBUG>=2
+			if (st==STATUS_INVALID_INFO_CLASS)
+				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64QueryInformationProcess64(ProcessImageFileName) failed - information class not supported!"<<std::endl;
+#endif
+			return cmdline;
+		}
+		
+		PTR_64(PVOID) pRUPP64;
+		//Requires PROCESS_VM_READ
+		//proc_info64.PebBaseAddress, pRUPP64 and CommandLine64.Buffer pointers are already casted to integers
+		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), NULL))) {
+			UNICODE_STRING64 CommandLine64;
+			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, CommandLine), &CommandLine64, sizeof(CommandLine64), NULL))) {
+				wchar_t buffer[CommandLine64.Length/sizeof(wchar_t)];
+				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, CommandLine64.Buffer, &buffer, CommandLine64.Length, NULL)))
+					cmdline.assign(buffer, CommandLine64.Length/sizeof(wchar_t));
+			}
+		}
+#endif	//_WIN64 ***********************************
+	}
+	
+	return cmdline;
 }
