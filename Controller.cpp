@@ -45,9 +45,20 @@ bool Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput(bool do_restar
 		std::wcout<<L"Press OK to restart killed apps or CANCEL to finish..."<<std::endl;
 		do_restart=Win32WcostreamMessageBox(true);
 #else
-		//TODO: somehow handle ESC and maintain compatibility with STDIN redirection
-		std::wcout<<L"Press ENTER to restart killed apps or ESC to finish..."<<std::flush;
-		std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
+		DWORD conmode;
+		if (GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &conmode)) {
+			//ANSI input is ok for this case
+			//0x1B is ESC
+			std::wcout<<L"Press ENTER to restart killed apps or ESC to finish..."<<std::flush;
+			char command;
+			do command=tolower(_getch()); while (command!='\r'&&command!=0x1B&&command!=EOF);
+			do_restart=command=='\r';
+			std::wcout<<std::endl;
+		} else {
+			//For non-console input allow only ENTER because it becomes ugly when trying to support anything else
+			std::wcout<<L"Killed apps will be restarted. When finished, press ENTER..."<<std::flush;
+			std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
+		}
 #endif
 		return do_restart;
 	} else {
