@@ -79,6 +79,8 @@ private:
 	} ctrl_vars;
 	
 	std::stack<std::wstring> args_stack;
+	std::vector<std::pair<std::wstring, std::wstring>> rlist_normal;
+	std::vector<std::pair<std::wstring, std::wstring>> rlist_elevated;
 	
 	//Windows will close mutex handle automatically when the process terminates
 	HANDLE sec_mutex;
@@ -87,12 +89,14 @@ private:
 	void NoArgsAllowed(const std::wstring &sw);
 	void DiscardedParam(const std::wstring &sw_param);
 	void IgnoredSwitch(const std::wstring &sw);
-	void WaitForUserInput();
+	bool WaitForUserInput(bool do_restart);
 	bool SecuredExecution();
 	DWORD IsBOM(DWORD bom);
 	std::wstring ExpandEnvironmentStringsWrapper(const std::wstring &args);
 	bool IsDone(bool sw_res);
 	bool ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
+	void DoRestart();
+	void RestartApp(const std::wstring &path, const std::wstring &cmdline);
 	MIDStatus MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
 	virtual bool ModeAll() { return ctrl_vars.mode_all||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
@@ -105,6 +109,9 @@ private:
 	virtual bool ModeClose() { return ctrl_vars.mode_close; }
 	virtual bool ModeBlacklist() { return ctrl_vars.mode_blacklist&&!ctrl_vars.mode_whitelist; }
 	virtual bool ModeWhitelist() { return ctrl_vars.mode_whitelist&&!ctrl_vars.mode_blacklist; }
+	
+	virtual void RestartNormal(const std::wstring &path, const std::wstring &cmdline) { rlist_normal.push_back({path, cmdline}); }
+	virtual void RestartElevated(const std::wstring &path, const std::wstring &cmdline) { rlist_elevated.push_back({path, cmdline}); }
 public:
 	void MakeItDead(std::stack<std::wstring> &rules);
 	Controller();

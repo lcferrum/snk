@@ -75,7 +75,7 @@ void Killers::PrintCommonKillPrefix()
 	}
 }
 
-void Killers::KillProcess(DWORD PID, const std::wstring &name) 
+void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstring &path) 
 {
 	if (ModeBlank()) {
 		if (ModeBlacklist())
@@ -85,16 +85,56 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name)
 		else
 			std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
 	} else {
+		std::wstring cmdline;
+		BYTE rstat=0x00;	//0x00 - do not restart; 0x01 - restart w/o elevation; 0x02 - restart w/ elevation
+
+		//If restart mode is enabled - restart only processes w/ valid path, command line and from the same user as current process
+		if (ModeRestart()&&path.length()) {
+			if (HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
+				if (FPRoutines::GetCommandLine(hProcess, cmdline)) {
+					HANDLE hOwnToken;
+					if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
+						if (PTOKEN_USER own_tu=GetTokenUserInformation(hOwnToken)) {
+							HANDLE hPidToken;
+							if (OpenProcessToken(hProcess, TOKEN_QUERY, &hPidToken)) {
+								if (PTOKEN_USER pid_tu=GetTokenUserInformation(hPidToken)) {
+									if (EqualSid(own_tu->User.Sid, pid_tu->User.Sid)) {
+										rstat=0x01;
+										TOKEN_ELEVATION elevation; 
+										DWORD ret_len; 
+										if (GetTokenInformation(hOwnToken, TokenElevation, &elevation, sizeof(elevation), &ret_len)&&elevation.TokenIsElevated) 
+											rstat=0x02;
+									}
+									FreeTokenUserInformation(pid_tu);
+								}
+								CloseHandle(hPidToken);
+							}
+							FreeTokenUserInformation(own_tu);
+						}
+						CloseHandle(hOwnToken);
+					}
+				}
+				CloseHandle(hProcess);
+			}
+		}
+
 		if (!ModeClose()||EnumWindows(EnumWndClose, (LPARAM)PID)||GetLastError()) {
 			HANDLE hProcess;
 			//PROCESS_TERMINATE is needed for TerminateProcess
-			if ((hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE))&&TerminateProcess(hProcess, 1))
+			if ((hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE))&&TerminateProcess(hProcess, 1)) {
 				std::wcout<<PID<<L" ("<<name<<L") - killed"<<std::endl;
-			else
+			} else {
+				rstat=0x00;
 				std::wcout<<PID<<L" ("<<name<<L") - can't be terminated"<<std::endl;
+			}
 			if (hProcess) CloseHandle(hProcess);
 		} else
 			std::wcout<<PID<<L" ("<<name<<L") - closed"<<std::endl;
+		
+		if (rstat==0x01)
+			RestartNormal(path, cmdline);
+		else if (rstat==0x02)
+			RestartElevated(path, cmdline);
 	}
 }
 
@@ -118,7 +158,7 @@ bool Killers::KillByCpu()
 	PrintCommonKillPrefix();
 	bool found=ApplyToProcesses([this](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-		KillProcess(PID, name);
+		KillProcess(PID, name, path);
 		return true;
 	});
 	
@@ -155,7 +195,7 @@ bool Killers::KillByPth(bool param_full, bool param_strict, const wchar_t* arg_w
 		//PData.path not necessary have valid path - it can be empty if FPRoutines::GetFilePath failed during process enumeration (Processes::RequestPopulatedCAN)
 		if ((param_full?path.length():true)&&MultiWildcardCmp(arg_wcard, param_full?path.c_str():name.c_str(), param_strict?MWC_PTH:MWC_STR)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -194,7 +234,7 @@ bool Killers::KillByMod(bool param_full, bool param_strict, const wchar_t* arg_w
 
 		if (CheckModListNames(mlist, param_strict, arg_wcard)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -293,7 +333,7 @@ bool Killers::KillByPid(const wchar_t* arg_parray)
 	bool found=!uptr_array.empty()&&ApplyToProcesses([this, &uptr_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (PidListCompare(uptr_array, PID)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -423,7 +463,7 @@ bool Killers::KillByD3d(bool param_simple)
 		
 		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -466,7 +506,7 @@ bool Killers::KillByOgl(bool param_simple)
 		
 		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -509,7 +549,7 @@ bool Killers::KillByGld(bool param_simple)
 		
 		if (param_simple?CheckModListNames(mlist, false, wcrdA):CheckModListDescriptions(mlist, itemA, descA)) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -563,7 +603,7 @@ bool Killers::KillByInr(bool param_plus)
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -684,7 +724,7 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
 			if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -804,7 +844,7 @@ bool Killers::KillByFgd()
 		ApplyToProcesses([this, pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 			if (pid==PID) {
 				if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-				KillProcess(PID, name);
+				KillProcess(PID, name, path);
 				return true;
 			} else
 				return false;
@@ -841,7 +881,7 @@ bool Killers::KillByWnd(const wchar_t* arg_wcard)
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -955,7 +995,7 @@ bool Killers::KillByUsr(bool param_full, const wchar_t* arg_wcard)
 #endif	
 		if (CheckProcessUserName(PID, arg_wcard, param_full)) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;
@@ -1014,7 +1054,7 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 			std::wcerr<<L"" __FILE__ ":KillByMem:"<<__LINE__<<L": GetProcessMemoryInfo not found!"<<std::endl;
 #endif
 
-		std::vector<std::pair<ULONG_PTR, std::wstring>> pid_array;
+		std::vector<std::tuple<ULONG_PTR, std::wstring, std::wstring>> pid_array;
 		SIZE_T cur_highest_mem=0;
 		
 		found_noerr=fnGetProcessMemoryInfo&&ApplyToProcesses([this, top_mem, param_vm, st_maxmem, &cur_highest_mem, &pid_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
@@ -1029,15 +1069,15 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 					SIZE_T cur_mem=param_vm?pmc.PagefileUsage:pmc.WorkingSetSize;
 					if (top_mem) {
 						if (cur_mem==cur_highest_mem) {
-							pid_array.push_back({PID, name});
+							pid_array.push_back(std::make_tuple(PID, name, path));
 						} else if (cur_mem>cur_highest_mem) {
 							cur_highest_mem=cur_mem;
 							pid_array.clear();
-							pid_array.push_back({PID, name});
+							pid_array.push_back(std::make_tuple(PID, name, path));
 						}							
 					} else if (cur_mem>st_maxmem*1024) {
 						if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-						KillProcess(PID, name);
+						KillProcess(PID, name, path);
 						triggered=true;
 					}
 				}
@@ -1048,9 +1088,9 @@ bool Killers::KillByMem(bool param_vm, const wchar_t* arg_maxmem)
 		});
 		
 		if (top_mem) {
-			for (const std::pair<ULONG_PTR, std::wstring> &pid_data: pid_array) {
+			for (const std::tuple<ULONG_PTR, std::wstring, std::wstring> &pid_data: pid_array) {
 				if (!found_noerr) std::wcout<<L"FOUND:"<<std::endl;
-				KillProcess(pid_data.first, pid_data.second);
+				KillProcess(std::get<0>(pid_data), std::get<1>(pid_data), std::get<2>(pid_data));
 				found_noerr=true;
 				if (!ModeLoop()) break;
 			}
@@ -1100,7 +1140,7 @@ bool Killers::KillByAim()
 	bool found=aim_pid&&ApplyToProcesses([this, aim_pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 			if (aim_pid==PID) {
 				if (!applied) std::wcout<<L"FOUND:"<<std::endl;
-				KillProcess(PID, name);
+				KillProcess(PID, name, path);
 				return true;
 			} else
 				return false;
@@ -1238,7 +1278,7 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 	bool found=!ul_array.empty()&&ApplyToProcesses([this, &ul_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(ul_array.begin(), ul_array.end(), PID)!=ul_array.end()) {
 			if (!applied) std::wcout<<L"\" FOUND:"<<std::endl;
-			KillProcess(PID, name);
+			KillProcess(PID, name, path);
 			return true;
 		} else
 			return false;

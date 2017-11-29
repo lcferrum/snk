@@ -3,6 +3,7 @@
 #include "Killers.h"
 #include "ProcessUsage.h"
 #include "Controller.h"
+#include <conio.h>
 #include <stdio.h>
 #include <iostream>
 #include <algorithm> 
@@ -37,15 +38,28 @@ void Controller<ProcessesPolicy, KillersPolicy>::IgnoredSwitch(const std::wstrin
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput()
+bool Controller<ProcessesPolicy, KillersPolicy>::WaitForUserInput(bool do_restart)
 {
+	if (do_restart) {
 #ifdef HIDDEN
-	std::wcout<<L"When finished, press OK..."<<std::endl;
-	Win32WcostreamMessageBox();
+		std::wcout<<L"Press OK to restart killed apps or CANCEL to finish..."<<std::endl;
+		do_restart=Win32WcostreamMessageBox(true);
 #else
-	std::wcout<<L"When finished, press ENTER..."<<std::flush;
-	std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
+		//TODO: somehow handle ESC and maintain compatibility with STDIN redirection
+		std::wcout<<L"Press ENTER to restart killed apps or ESC to finish..."<<std::flush;
+		std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
 #endif
+		return do_restart;
+	} else {
+#ifdef HIDDEN
+		std::wcout<<L"When finished, press OK..."<<std::endl;
+		Win32WcostreamMessageBox(false);
+#else
+		std::wcout<<L"When finished, press ENTER..."<<std::flush;
+		std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');	//Needs defined NOMINMAX
+#endif
+		return false;
+	}
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -314,6 +328,44 @@ bool Controller<ProcessesPolicy, KillersPolicy>::IsDone(bool sw_res)
 		return !sw_res;
 	else
 		return sw_res;
+}
+
+//TODO:
+//Test on Win7+ running as admin on non-admin account
+//	https://blogs.msdn.microsoft.com/oldnewthing?p=2643
+//	https://blogs.msdn.microsoft.com/aaron_margosis/faq-how-do-i-start-a-program-as-the-desktop-user-from-an-elevated-app/
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
+{
+	HANDLE hOwnToken;
+	bool elevated=false;
+	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
+		TOKEN_ELEVATION elevation; 
+		DWORD ret_len; 
+		if (GetTokenInformation(hOwnToken, TokenElevation, &elevation, sizeof(elevation), &ret_len))
+			elevated=elevation.TokenIsElevated;
+		CloseHandle(hOwnToken);
+	}
+	
+	//WIP
+	if (elevated) {
+		for (const std::pair<std::wstring, std::wstring> &rprc: rlist_elevated)
+			RestartApp(rprc.first, rprc.second);
+	} else {
+		for (const std::pair<std::wstring, std::wstring> &rprc: rlist_normal)
+			RestartApp(rprc.first, rprc.second);
+	}
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::RestartApp(const std::wstring &path, const std::wstring &cmdline)
+{
+	PROCESS_INFORMATION pi={};
+	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
+	if (CreateProcess(const_cast<wchar_t*>(path.c_str()), const_cast<wchar_t*>(cmdline.c_str()), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+	}
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -642,7 +694,9 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 {
 	while (MakeItDeadInternal(rules)==MID_NONE);
 	
-	if (ctrl_vars.mode_verbose) WaitForUserInput();
+	bool do_restart=rlist_elevated.size()||rlist_normal.size();
+	
+	if (ctrl_vars.mode_verbose) do_restart=WaitForUserInput(do_restart);
 	
 	if (sec_mutex) { 
 		CloseHandle(sec_mutex);
@@ -655,6 +709,11 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 	std::stack<std::wstring>().swap(args_stack);
 	
 	ManageProcessList(LstPriMode::RST_CAN, LstSecMode::LST_DUNNO);
+	
+	if (do_restart) DoRestart();
+	
+	rlist_normal.clear();
+	rlist_elevated.clear();
 }
 
 template class Controller<Processes, Killers>;

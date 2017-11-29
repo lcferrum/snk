@@ -1201,18 +1201,16 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 	return L"";
 }
 
-std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
+bool FPRoutines::GetCommandLine(HANDLE hProcess, std::wstring &cmdline)
 {
-	std::wstring cmdline;
-	
 	if (!hProcess)
-		return cmdline;
+		return false;
 	
 	if (!fnNtQueryInformationProcess) {
 #if DEBUG>=2
 		std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
 #endif
-		return cmdline;
+		return false;
 	}
 
 	
@@ -1229,7 +1227,7 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 	if (fnIsWow64Process) {
 		//If IsWow64Process is available and returns false - it's an actual error and we should fail
 		if (!fnIsWow64Process(hProcess, &pid_wow64)||!fnIsWow64Process(GetCurrentProcess(), &cur_wow64))
-			return cmdline;
+			return false;
 	}
 	
 	if (pid_wow64==cur_wow64) {
@@ -1242,7 +1240,7 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 			if (st==STATUS_INVALID_INFO_CLASS)
 				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed - information class not supported!"<<std::endl;
 #endif
-			return cmdline;
+			return false;
 		}
 		
 		PVOID pRUPP;
@@ -1250,9 +1248,16 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), NULL)) {
 			UNICODE_STRING CommandLine;
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, CommandLine)), &CommandLine, sizeof(CommandLine), NULL)) {
-				wchar_t buffer[CommandLine.Length/sizeof(wchar_t)];
-				if (ReadProcessMemory(hProcess, CommandLine.Buffer, &buffer, CommandLine.Length, NULL))
-					cmdline.assign(buffer, CommandLine.Length/sizeof(wchar_t));
+				if (CommandLine.Length) {
+					wchar_t buffer[CommandLine.Length/sizeof(wchar_t)];
+					if (ReadProcessMemory(hProcess, CommandLine.Buffer, &buffer, CommandLine.Length, NULL)) {
+						cmdline.assign(buffer, CommandLine.Length/sizeof(wchar_t));
+						return true;
+					}
+				} else {
+					cmdline.clear();
+					return true;
+				}
 			}
 		}
 	} else {
@@ -1269,7 +1274,7 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 			if (st==STATUS_INVALID_INFO_CLASS)
 				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess(ProcessWow64Information) failed - information class not supported!"<<std::endl;
 #endif
-			return cmdline;
+			return false;
 		}
 		
 		PTR_32(PVOID) pRUPP32;
@@ -1278,9 +1283,16 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), NULL)) {
 			UNICODE_STRING32 CommandLine32;
 			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, CommandLine)), &CommandLine32, sizeof(CommandLine32), NULL)) {
-				wchar_t buffer[CommandLine32.Length/sizeof(wchar_t)];
-				if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)CommandLine32.Buffer, &buffer, CommandLine32.Length, NULL))
-					cmdline.assign(buffer, CommandLine32.Length/sizeof(wchar_t));
+				if (CommandLine32.Length) {
+					wchar_t buffer[CommandLine32.Length/sizeof(wchar_t)];
+					if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)CommandLine32.Buffer, &buffer, CommandLine32.Length, NULL)) {
+						cmdline.assign(buffer, CommandLine32.Length/sizeof(wchar_t));
+						return true;
+					}
+				} else {
+					cmdline.clear();
+					return true;
+				}
 			}
 		}
 #else	//_WIN64 ***********************************
@@ -1290,14 +1302,14 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 #if DEBUG>=2
 			std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64QueryInformationProcess64 not found!"<<std::endl;
 #endif
-			return cmdline;
+			return false;
 		}
 		
 		if (!fnNtWow64ReadVirtualMemory64) {
 #if DEBUG>=2
 			std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64ReadVirtualMemory64 not found!"<<std::endl;
 #endif
-			return cmdline;
+			return false;
 		}
 	
 		//Requires PROCESS_QUERY_(LIMITED_)INFORMATION
@@ -1307,7 +1319,7 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 			if (st==STATUS_INVALID_INFO_CLASS)
 				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64QueryInformationProcess64(ProcessImageFileName) failed - information class not supported!"<<std::endl;
 #endif
-			return cmdline;
+			return false;
 		}
 		
 		PTR_64(PVOID) pRUPP64;
@@ -1316,13 +1328,20 @@ std::wstring FPRoutines::GetCommandLine(HANDLE hProcess)
 		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), NULL))) {
 			UNICODE_STRING64 CommandLine64;
 			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, CommandLine), &CommandLine64, sizeof(CommandLine64), NULL))) {
-				wchar_t buffer[CommandLine64.Length/sizeof(wchar_t)];
-				if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, CommandLine64.Buffer, &buffer, CommandLine64.Length, NULL)))
-					cmdline.assign(buffer, CommandLine64.Length/sizeof(wchar_t));
+				if (CommandLine64.Length) {
+					wchar_t buffer[CommandLine64.Length/sizeof(wchar_t)];
+					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, CommandLine64.Buffer, &buffer, CommandLine64.Length, NULL))) {
+						cmdline.assign(buffer, CommandLine64.Length/sizeof(wchar_t));
+						return true;
+					}
+				} else {
+					cmdline.clear();
+					return true;
+				}
 			}
 		}
 #endif	//_WIN64 ***********************************
 	}
 	
-	return cmdline;
+	return false;
 }

@@ -35,7 +35,7 @@ void Win32WcostreamActivate();
 void Win32WcostreamDeactivate();
 void Win32WcostreamEnabled(bool state);
 #ifdef HIDDEN
-void Win32WcostreamMessageBox();
+bool Win32WcostreamMessageBox(bool ok_cancel);
 #endif
 
 bool CachedNtQuerySystemProcessInformation(SYSTEM_PROCESS_INFORMATION** spi_buffer, bool clear_cache=false);

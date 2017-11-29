@@ -8,7 +8,7 @@
 
 class Killers: virtual protected ProcessesCrossBase {
 private:
-	void KillProcess(DWORD PID, const std::wstring &name);
+	void KillProcess(DWORD PID, const std::wstring &name, const std::wstring &path);
 	void PrintCommonKillPrefix();
 	void PrintCommonWildcardInfix(const wchar_t* arg_wcard, const wchar_t* delim=L";");
 	bool CheckStringFileInfo(const wchar_t* fpath, const wchar_t** item_str, const wchar_t** desc_str);
@@ -29,11 +29,15 @@ private:
 	
 	virtual bool ModeBlank()=0;
 	virtual bool ModeRecent()=0;
+	virtual bool ModeRestart()=0;
 	virtual bool ModeClose()=0;
 	virtual bool ModeAll()=0;
 	virtual bool ModeLoop()=0;
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
+	
+	virtual void RestartNormal(const std::wstring &path, const std::wstring &cmdline)=0;
+	virtual void RestartElevated(const std::wstring &path, const std::wstring &cmdline)=0;
 protected:	
 	//Kills process with highest cpu load (or whatever actual sorting was)
 	bool KillByCpu();

@@ -290,15 +290,19 @@ void Win32WcostreamEnabled(bool state)
 }
 
 #ifdef HIDDEN
-void Win32WcostreamMessageBox()
+bool Win32WcostreamMessageBox(bool ok_cancel)
 {
 	//MessageBox is not only made foregroung and topmost, but also steals focus through AttachThreadInput hack
 	std::wcout.flush();
 	DWORD fg_tid=GetWindowThreadProcessId(GetForegroundWindow(), NULL);
 	AttachThreadInput(fg_tid, GetCurrentThreadId(), TRUE);
-	MessageBox(NULL, Win32Wcostream::tee_buf.c_str(), L"Search and Kill", MB_OK|MB_ICONWARNING|MB_SETFOREGROUND|MB_TOPMOST|MB_SYSTEMMODAL);	//Actually MB_TOPMOST and MB_SETFOREGROUND are rudementary - it's MB_SYSTEMMODAL that sets window to foreground and makes it topmost
+	UINT mb_type=MB_ICONWARNING|MB_SETFOREGROUND|MB_TOPMOST|MB_SYSTEMMODAL;
+	if (ok_cancel) mb_type|=MB_OKCANCEL|MB_DEFBUTTON1;
+		else mb_type|=MB_OK;
+	bool ret=MessageBox(NULL, Win32Wcostream::tee_buf.c_str(), L"Search and Kill", mb_type)==IDOK;	//Actually MB_TOPMOST and MB_SETFOREGROUND are rudementary - it's MB_SYSTEMMODAL that sets window to foreground and makes it topmost
 	AttachThreadInput(fg_tid, GetCurrentThreadId(), FALSE);
 	Win32Wcostream::tee_buf.clear();
+	return ret;
 }
 #endif
 

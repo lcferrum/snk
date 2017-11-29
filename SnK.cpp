@@ -37,7 +37,7 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	if (argc<2) {
 		PrintVersion();
 #ifdef HIDDEN
-		Win32WcostreamMessageBox();
+		Win32WcostreamMessageBox(false);
 #endif
 		return 0;
 	}
