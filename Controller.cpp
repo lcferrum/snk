@@ -343,11 +343,18 @@ bool Controller<ProcessesPolicy, KillersPolicy>::IsDone(bool sw_res)
 
 //TODO:
 //Test on Win7+ running as admin on non-admin account
+//	https://stackoverflow.com/questions/1533017/dropping-privileges-in-c-on-windows
 //	https://blogs.msdn.microsoft.com/oldnewthing?p=2643
 //	https://blogs.msdn.microsoft.com/aaron_margosis/faq-how-do-i-start-a-program-as-the-desktop-user-from-an-elevated-app/
 template <typename ProcessesPolicy, typename KillersPolicy>	
 void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 {
+	//On Win Vista+ w/ UAC enabled application running under admin account by default will run with "limited user" rights if not asked otherwise (rights "elevation")
+	//Interesting thing is that option to run with administrator privileges is available also to non-admin accounts
+	//But here this results in "run as" dialog because you can't "elevate" rights for non-admin account
+	//In Task Scheduler option to "run with highest privileges" will work only with admin accounts and result in task running with "elevated" rights
+	//On non-admin accounts this will do nothing - task won't be run under admin account, and current non-admin account rights won't be "elevated"
+
 	HANDLE hOwnToken;
 	bool elevated=false;
 	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
