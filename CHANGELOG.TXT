@@ -21,7 +21,7 @@
 		- 'reset' parameter for /lst switch
 		- 'strict' parameter for /pth and /mod switches
 	* Removed:
-		- 'sub' parameter for /cmd switch (temporary - will be returned in future versions)
+		- 'sub' parameter for /cmd switch (temporary - will be returned in future versions in one way or another)
 		- 'parent' parameter for /pid switch (use +p setting instead)
 		- 'anywnd' parameter for /fgd switch (use blacklist/whitelist instead)
 
