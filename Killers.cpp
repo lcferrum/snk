@@ -86,12 +86,14 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 			std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
 	} else {
 		std::wstring cmdline;
+		std::wstring cwdpath;
+		std::unique_ptr<BYTE> envblock;
 		BYTE rstat=0x00;	//0x00 - do not restart; 0x01 - restart w/o elevation; 0x02 - restart w/ elevation
 
 		//If restart mode is enabled - restart only processes w/ valid path, command line and from the same user as current process
 		if (ModeRestart()&&path.length()) {
 			if (HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
-				if (FPRoutines::GetCommandLine(hProcess, cmdline)) {
+				if (FPRoutines::GetCmdCwdEnv(hProcess, cmdline, cwdpath, envblock)) {
 					HANDLE hOwnToken;
 					if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
 						if (PTOKEN_USER own_tu=GetTokenUserInformation(hOwnToken)) {

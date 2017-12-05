@@ -42,18 +42,36 @@ typedef struct _UNICODE_STRING64 {
 	PTR_64(PWSTR) Buffer;
 } UNICODE_STRING64;
 
+//Version of CURDIR with x86 align
+typedef struct _CURDIR32 {
+	UNICODE_STRING32 DosPath;
+	PTR_32(HANDLE) Handle;
+} CURDIR32;
+
+//Version of CURDIR with x86_64 align
+typedef struct _CURDIR64 {
+	UNICODE_STRING64 DosPath;
+	PTR_64(HANDLE) Handle;
+} CURDIR64;
+
 //Cut-down version of RTL_USER_PROCESS_PARAMETERS with x86 align
 typedef struct _RTL_USER_PROCESS_PARAMETERS32 {
-	BYTE Reserved[56];
+	BYTE Reserved[36];
+	CURDIR32 CurrentDirectory;
+	UNICODE_STRING32 DllPath;
 	UNICODE_STRING32 ImagePathName;
 	UNICODE_STRING32 CommandLine;
+	PTR_32(PVOID) Environment;
 } RTL_USER_PROCESS_PARAMETERS32;
 
 //Cut-down version of RTL_USER_PROCESS_PARAMETERS with x86_64 align
 typedef struct _RTL_USER_PROCESS_PARAMETERS64 {
-	BYTE Reserved[96];
+	BYTE Reserved[56];
+	CURDIR64 CurrentDirectory;
+	UNICODE_STRING64 DllPath;
 	UNICODE_STRING64 ImagePathName;
 	UNICODE_STRING64 CommandLine;
+	PTR_64(PVOID) Environment;
 } RTL_USER_PROCESS_PARAMETERS64;
 
 //Cut-down version of PEB_LDR_DATA with x86 align
@@ -117,14 +135,16 @@ typedef struct _SYSTEM_PROCESS_ID_INFORMATION {
 	UNICODE_STRING ImageName;
 } SYSTEM_PROCESS_ID_INFORMATION, *PSYSTEM_PROCESS_ID_INFORMATION;
 
-//Not using native RTL_USER_PROCESS_PARAMETERS, PEB_LDR_DATA, LDR_DATA_TABLE_ENTRY and PEB structures so to be sure in offset consistency
+//Not using native RTL_USER_PROCESS_PARAMETERS, MEMORY_BASIC_INFORMATION, PEB_LDR_DATA, LDR_DATA_TABLE_ENTRY and PEB structures so to be sure in offset consistency
 #ifdef _WIN64
 	typedef RTL_USER_PROCESS_PARAMETERS64 RTL_USER_PROCESS_PARAMETERSXX;
+	typedef CURDIR64 CURDIRXX;
 	typedef PEB_LDR_DATA64 PEB_LDR_DATAXX;
 	typedef LDR_DATA_TABLE_ENTRY64 LDR_DATA_TABLE_ENTRYXX;
 	typedef PEB64 PEBXX;
 #else
 	typedef RTL_USER_PROCESS_PARAMETERS32 RTL_USER_PROCESS_PARAMETERSXX;
+	typedef CURDIR32 CURDIRXX;
 	typedef PEB_LDR_DATA32 PEB_LDR_DATAXX;
 	typedef LDR_DATA_TABLE_ENTRY32 LDR_DATA_TABLE_ENTRYXX;
 	typedef PEB32 PEBXX;
@@ -1201,7 +1221,7 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 	return L"";
 }
 
-bool FPRoutines::GetCommandLine(HANDLE hProcess, std::wstring &cmdline)
+bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstring &cwdpath, std::unique_ptr<BYTE> &envblock)
 {
 	if (!hProcess)
 		return false;
@@ -1242,23 +1262,42 @@ bool FPRoutines::GetCommandLine(HANDLE hProcess, std::wstring &cmdline)
 #endif
 			return false;
 		}
-		
+				
 		PVOID pRUPP;
 		//Requires PROCESS_VM_READ	
 		if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)proc_info.PebBaseAddress+offsetof(PEBXX, ProcessParameters)), &pRUPP, sizeof(pRUPP), NULL)) {
 			UNICODE_STRING CommandLine;
+			CURDIRXX CurrentDirectory;
+			MEMORY_BASIC_INFORMATION env_mbi;
+			unsigned char success=0;
+
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, CommandLine)), &CommandLine, sizeof(CommandLine), NULL)) {
 				if (CommandLine.Length) {
 					wchar_t buffer[CommandLine.Length/sizeof(wchar_t)];
 					if (ReadProcessMemory(hProcess, CommandLine.Buffer, &buffer, CommandLine.Length, NULL)) {
 						cmdline.assign(buffer, CommandLine.Length/sizeof(wchar_t));
-						return true;
+						success++;
 					}
 				} else {
 					cmdline.clear();
-					return true;
+					success++;
 				}
 			}
+			
+			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, CurrentDirectory)), &CurrentDirectory, sizeof(CurrentDirectory), NULL)) {
+				if (CurrentDirectory.DosPath.Length) {
+					wchar_t buffer[CurrentDirectory.DosPath.Length/sizeof(wchar_t)];
+					if (ReadProcessMemory(hProcess, (LPCVOID)CurrentDirectory.DosPath.Buffer, &buffer, CurrentDirectory.DosPath.Length, NULL)) {
+						cwdpath.assign(buffer, CurrentDirectory.DosPath.Length/sizeof(wchar_t));
+						success++;
+					}
+				} else {
+					cwdpath.clear();
+					success++;
+				}
+			}
+			
+			return success>=3;
 		}
 	} else {
 #ifdef _WIN64	//_WIN64 ***********************************
