@@ -28,7 +28,7 @@ public:
 	~Externs();
 	Externs(const Externs&)=delete;				//Get rid of default copy constructor
 	Externs& operator=(const Externs&)=delete;	//Get rid of default copy assignment operator
-	Externs(const Externs&&)=delete;				//Get rid of default move constructor
+	Externs(const Externs&&)=delete;			//Get rid of default move constructor
 	Externs& operator=(const Externs&&)=delete;	//Get rid of default move assignment operator
 	
 	static bool MakeInstance();	

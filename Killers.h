@@ -4,6 +4,7 @@
 #include "ProcessUsage.h"
 #include <string>
 #include <vector>
+#include <memory>
 #include <windows.h>
 
 class Killers: virtual protected ProcessesCrossBase {
@@ -36,8 +37,8 @@ private:
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 	
-	virtual void RestartNormal(const std::wstring &path, const std::wstring &cmdline)=0;
-	virtual void RestartElevated(const std::wstring &path, const std::wstring &cmdline)=0;
+	virtual void RestartNormal(const std::wstring &path, std::wstring &&cmdline, std::wstring &&cwdpath, std::unique_ptr<BYTE[]> &&envblock)=0;
+	virtual void RestartElevated(const std::wstring &path, std::wstring &&cmdline, std::wstring &&cwdpath, std::unique_ptr<BYTE[]> &&envblock)=0;
 protected:	
 	//Kills process with highest cpu load (or whatever actual sorting was)
 	bool KillByCpu();

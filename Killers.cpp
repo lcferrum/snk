@@ -87,7 +87,7 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 	} else {
 		std::wstring cmdline;
 		std::wstring cwdpath;
-		std::unique_ptr<BYTE> envblock;
+		std::unique_ptr<BYTE[]> envblock;
 		BYTE rstat=0x00;	//0x00 - do not restart; 0x01 - restart w/o elevation; 0x02 - restart w/ elevation
 
 		//If restart mode is enabled - restart only processes w/ valid path, command line and from the same user as current process
@@ -134,9 +134,9 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 			std::wcout<<PID<<L" ("<<name<<L") - closed"<<std::endl;
 		
 		if (rstat==0x01)
-			RestartNormal(path, cmdline);
+			RestartNormal(path, std::move(cmdline), std::move(cwdpath), std::move(envblock));
 		else if (rstat==0x02)
-			RestartElevated(path, cmdline);
+			RestartElevated(path, std::move(cmdline), std::move(cwdpath), std::move(envblock));
 	}
 }
 

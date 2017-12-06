@@ -15,7 +15,7 @@
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 Controller<ProcessesPolicy, KillersPolicy>::Controller():
-	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, args_stack(), sec_mutex(NULL)
+	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, args_stack(), rlist_normal(), rlist_elevated(), sec_mutex(NULL)
 {}
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -367,20 +367,20 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 	
 	//WIP
 	if (elevated) {
-		for (const std::pair<std::wstring, std::wstring> &rprc: rlist_elevated)
-			RestartApp(rprc.first, rprc.second);
+		for (const RestartProcessTuple &rprc: rlist_elevated)
+			RestartProcess(rprc);
 	} else {
-		for (const std::pair<std::wstring, std::wstring> &rprc: rlist_normal)
-			RestartApp(rprc.first, rprc.second);
+		for (const RestartProcessTuple &rprc: rlist_normal)
+			RestartProcess(rprc);
 	}
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::RestartApp(const std::wstring &path, const std::wstring &cmdline)
+void Controller<ProcessesPolicy, KillersPolicy>::RestartProcess(const RestartProcessTuple &rprc)
 {
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	if (CreateProcess(const_cast<wchar_t*>(path.c_str()), const_cast<wchar_t*>(cmdline.c_str()), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+	if (CreateProcess(std::get<0>(rprc).c_str(), const_cast<wchar_t*>(std::get<1>(rprc).c_str()), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).c_str(), &si, &pi)) {
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
 	}
@@ -544,7 +544,8 @@ typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<Proces
 				MIDStatus sub_ret;
 				RequestPopulatedCAN();
 				ClearParamsAndArgs();
-				Controller<ProcessesPolicy, KillersPolicy> sub_controller(*this);
+				//Controller<ProcessesPolicy, KillersPolicy> sub_controller(*this); //We are using vector of unique_pointers - this is illegal now
+				Controller<ProcessesPolicy, KillersPolicy> sub_controller;
 				//ProcessesPolicy.Synchronize makes CAN members in sub_controller use some of the methods from local CAN members
 				//It is done by passing reference for each local CAN member to corresponding sub_controller CAN member
 				//That's why starting from Synchronize call till the end of the clause (when sub_controller will be destroyed) it's vital to not modify local CAN
