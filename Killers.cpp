@@ -85,8 +85,8 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 		else
 			std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
 	} else {
-		std::wstring cmdline;
-		std::wstring cwdpath;
+		std::unique_ptr<wchar_t[]> cmdline;
+		std::unique_ptr<wchar_t[]> cwdpath;
 		std::unique_ptr<BYTE[]> envblock;
 		BYTE rstat=0x00;	//0x00 - do not restart; 0x01 - restart w/o elevation; 0x02 - restart w/ elevation
 

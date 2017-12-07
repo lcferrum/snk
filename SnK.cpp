@@ -33,7 +33,7 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	Externs::MakeInstance();
 	
 	Win32WcostreamActivate();
-
+	
 	if (argc<2) {
 		PrintVersion();
 #ifdef HIDDEN

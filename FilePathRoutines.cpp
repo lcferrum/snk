@@ -74,6 +74,18 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS64 {
 	PTR_64(PVOID) Environment;
 } RTL_USER_PROCESS_PARAMETERS64;
 
+//Cut-down Vista version of RTL_USER_PROCESS_PARAMETERS with x86 align
+typedef struct _RTL_USER_PROCESS_PARAMETERS32_VISTA {
+	BYTE Reserved[656];
+	ULONG EnvironmentSize;
+} RTL_USER_PROCESS_PARAMETERS32_VISTA;
+
+//Cut-down Vista version of RTL_USER_PROCESS_PARAMETERS with x86_64 align
+typedef struct _RTL_USER_PROCESS_PARAMETERS64_VISTA {
+	BYTE Reserved[1008];
+	ULONG EnvironmentSize;
+} RTL_USER_PROCESS_PARAMETERS64_VISTA;
+
 //Cut-down version of PEB_LDR_DATA with x86 align
 typedef struct _PEB_LDR_DATA32 {
 	BYTE Reserved[12];
@@ -1221,7 +1233,7 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 	return L"";
 }
 
-bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstring &cwdpath, std::unique_ptr<BYTE[]> &envblock)
+bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::unique_ptr<wchar_t[]> &cmdline, std::unique_ptr<wchar_t[]> &cwdpath, std::unique_ptr<BYTE[]> &envblock)
 {
 	if (!hProcess)
 		return false;
@@ -1265,7 +1277,7 @@ bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstri
 		if (!NT_SUCCESS(st)||!proc_info.PebBaseAddress) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
-				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed - information class not supported!"<<std::endl;
+				std::wcerr<<L"" __FILE__ ":GetCmdCwdEnv:"<<__LINE__<<L": NtQueryInformationProcess(ProcessBasicInformation) failed - information class not supported!"<<std::endl;
 #endif
 			return false;
 		}
@@ -1278,32 +1290,24 @@ bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstri
 			ULONG_PTR Environment;
 			MEMORY_BASIC_INFORMATION env_mbi;
 
+			//GetCommandLine just returns RTL_USER_PROCESS_PARAMETER.CommandLine.Buffer
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, CommandLine)), &CommandLine, sizeof(CommandLine), NULL)) {
-				if (CommandLine.Length) {
-					wchar_t buffer[CommandLine.Length/sizeof(wchar_t)];
-					if (ReadProcessMemory(hProcess, CommandLine.Buffer, &buffer, CommandLine.Length, NULL)) {
-						cmdline.assign(buffer, CommandLine.Length/sizeof(wchar_t));
-					} else return false;
-				} else {
-					cmdline.clear();
-				}
+				cmdline.reset(new wchar_t[CommandLine.MaximumLength/sizeof(wchar_t)]);
+				if (!ReadProcessMemory(hProcess, CommandLine.Buffer, cmdline.get(), CommandLine.MaximumLength, NULL)) return false;
 			} else return false;
 			
-			MessageBox(NULL, cmdline.c_str(), L"CMD", MB_OK);
+			MessageBox(NULL, cmdline.get(), L"CMD", MB_OK);
 			
+			//GetCurrentDirectory always terminates RTL_USER_PROCESS_PARAMETER.CurrentDirectory.DosPath.Buffer with NULL
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, CurrentDirectory)), &CurrentDirectory, sizeof(CurrentDirectory), NULL)) {
-				if (CurrentDirectory.DosPath.Length) {
-					wchar_t buffer[CurrentDirectory.DosPath.Length/sizeof(wchar_t)];
-					if (ReadProcessMemory(hProcess, (LPCVOID)CurrentDirectory.DosPath.Buffer, &buffer, CurrentDirectory.DosPath.Length, NULL)) {
-						cwdpath.assign(buffer, CurrentDirectory.DosPath.Length/sizeof(wchar_t));
-					} else return false;
-				} else {
-					cwdpath.clear();
-				}
+				cwdpath.reset(new wchar_t[CurrentDirectory.DosPath.Length/sizeof(wchar_t)+1]);
+				cwdpath[CurrentDirectory.DosPath.Length/sizeof(wchar_t)]=L'\0';
+				if (!ReadProcessMemory(hProcess, (LPCVOID)CurrentDirectory.DosPath.Buffer, cwdpath.get(), CurrentDirectory.DosPath.Length, NULL)) return false;
 			} else return false;
 			
-			MessageBox(NULL, cwdpath.c_str(), L"CWD", MB_OK);
+			MessageBox(NULL, cwdpath.get(), L"CWD", MB_OK);
 			
+			//RTL_USER_PROCESS_PARAMETER.Environment contains continous block of memory allocated with NtAllocateVirtualMemory
 			if (ReadProcessMemory(hProcess, (LPCVOID)((ULONG_PTR)pRUPP+offsetof(RTL_USER_PROCESS_PARAMETERSXX, Environment)), &Environment, sizeof(Environment), NULL)&&
 				NT_SUCCESS(fnNtQueryVirtualMemory(hProcess, (LPVOID)Environment, MemoryBasicInformation, &env_mbi, sizeof(MEMORY_BASIC_INFORMATION), NULL))) {
 				SIZE_T env_len=env_mbi.RegionSize-(Environment-(ULONG_PTR)env_mbi.BaseAddress);
@@ -1331,7 +1335,7 @@ bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstri
 		if (!NT_SUCCESS(st)||!PebBaseAddress32) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
-				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtQueryInformationProcess(ProcessWow64Information) failed - information class not supported!"<<std::endl;
+				std::wcerr<<L"" __FILE__ ":GetCmdCwdEnv:"<<__LINE__<<L": NtQueryInformationProcess(ProcessWow64Information) failed - information class not supported!"<<std::endl;
 #endif
 			return false;
 		}
@@ -1341,32 +1345,52 @@ bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstri
 		//PebBaseAddress32, pRUPP32 and CommandLine32.Buffer pointers are already casted to integers
 		if (ReadProcessMemory(hProcess, (LPCVOID)(PebBaseAddress32+offsetof(PEB32, ProcessParameters)), &pRUPP32, sizeof(pRUPP32), NULL)) {
 			UNICODE_STRING32 CommandLine32;
+			CURDIR32 CurrentDirectory32;
+			PTR_32(PVOID) Environment32;
+			MEMORY_BASIC_INFORMATION env_mbi;
+			
+			//GetCommandLine just returns RTL_USER_PROCESS_PARAMETER.CommandLine.Buffer
 			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, CommandLine)), &CommandLine32, sizeof(CommandLine32), NULL)) {
-				if (CommandLine32.Length) {
-					wchar_t buffer[CommandLine32.Length/sizeof(wchar_t)];
-					if (ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)CommandLine32.Buffer, &buffer, CommandLine32.Length, NULL)) {
-						cmdline.assign(buffer, CommandLine32.Length/sizeof(wchar_t));
-						return true;
-					}
-				} else {
-					cmdline.clear();
-					return true;
-				}
-			}
+				cmdline.reset(new wchar_t[CommandLine32.MaximumLength/sizeof(wchar_t)]);
+				if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)CommandLine32.Buffer, cmdline.get(), CommandLine32.MaximumLength, NULL)) return false;
+			} else return false;
+			
+			//GetCurrentDirectory always terminates RTL_USER_PROCESS_PARAMETER.CurrentDirectory.DosPath.Buffer with NULL
+			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, CurrentDirectory)), &CurrentDirectory32, sizeof(CurrentDirectory32), NULL)) {
+				cwdpath.reset(new wchar_t[CurrentDirectory32.DosPath.Length/sizeof(wchar_t)+1]);
+				cwdpath[CurrentDirectory32.DosPath.Length/sizeof(wchar_t)]=L'\0';
+				if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)CurrentDirectory32.DosPath.Buffer, cwdpath.get(), CurrentDirectory32.DosPath.Length, NULL)) return false;
+			} else return false;
+			
+			//RTL_USER_PROCESS_PARAMETER.Environment contains continous block of memory allocated with NtAllocateVirtualMemory
+			if (ReadProcessMemory(hProcess, (LPCVOID)(pRUPP32+offsetof(RTL_USER_PROCESS_PARAMETERS32, Environment)), &Environment32, sizeof(Environment32), NULL)&&
+				NT_SUCCESS(fnNtQueryVirtualMemory(hProcess, (LPVOID)(ULONG_PTR)Environment32, MemoryBasicInformation, &env_mbi, sizeof(MEMORY_BASIC_INFORMATION), NULL))) {
+				SIZE_T env_len=env_mbi.RegionSize-(Environment32-(ULONG_PTR)env_mbi.BaseAddress);
+				envblock.reset(new BYTE[env_len]);
+				if (!ReadProcessMemory(hProcess, (LPCVOID)(ULONG_PTR)Environment32, envblock.get(), env_len, NULL)) return false;
+				
+				//DEBUG
+				HANDLE h_cmdfile=CreateFile(L"env.bin", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+				DWORD wlen;
+				WriteFile(h_cmdfile, envblock.get(), env_len, &wlen, NULL);
+				CloseHandle(h_cmdfile);
+			} else return false;
+			
+			return true;
 		}
 #else	//_WIN64 ***********************************
 		//Reading 64-bit process from 32-bit process
 	
 		if (!fnNtWow64QueryInformationProcess64) {
 #if DEBUG>=2
-			std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64QueryInformationProcess64 not found!"<<std::endl;
+			std::wcerr<<L"" __FILE__ ":GetCmdCwdEnv:"<<__LINE__<<L": NtWow64QueryInformationProcess64 not found!"<<std::endl;
 #endif
 			return false;
 		}
 		
 		if (!fnNtWow64ReadVirtualMemory64) {
 #if DEBUG>=2
-			std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64ReadVirtualMemory64 not found!"<<std::endl;
+			std::wcerr<<L"" __FILE__ ":GetCmdCwdEnv:"<<__LINE__<<L": NtWow64ReadVirtualMemory64 not found!"<<std::endl;
 #endif
 			return false;
 		}
@@ -1376,7 +1400,7 @@ bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstri
 		if (!NT_SUCCESS(st)||!proc_info64.PebBaseAddress) {
 #if DEBUG>=2
 			if (st==STATUS_INVALID_INFO_CLASS)
-				std::wcerr<<L"" __FILE__ ":GetCommandLine:"<<__LINE__<<L": NtWow64QueryInformationProcess64(ProcessImageFileName) failed - information class not supported!"<<std::endl;
+				std::wcerr<<L"" __FILE__ ":GetCmdCwdEnv:"<<__LINE__<<L": NtWow64QueryInformationProcess64(ProcessImageFileName) failed - information class not supported!"<<std::endl;
 #endif
 			return false;
 		}
@@ -1386,18 +1410,30 @@ bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::wstring &cmdline, std::wstri
 		//proc_info64.PebBaseAddress, pRUPP64 and CommandLine64.Buffer pointers are already casted to integers
 		if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, proc_info64.PebBaseAddress+offsetof(PEB64, ProcessParameters), &pRUPP64, sizeof(pRUPP64), NULL))) {
 			UNICODE_STRING64 CommandLine64;
+			CURDIR64 CurrentDirectory64;
+			PTR_64(PVOID) Environment;
+			MEMORY_BASIC_INFORMATION env_mbi;
+
+			//GetCommandLine just returns RTL_USER_PROCESS_PARAMETER.CommandLine.Buffer
 			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, CommandLine), &CommandLine64, sizeof(CommandLine64), NULL))) {
-				if (CommandLine64.Length) {
-					wchar_t buffer[CommandLine64.Length/sizeof(wchar_t)];
-					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, CommandLine64.Buffer, &buffer, CommandLine64.Length, NULL))) {
-						cmdline.assign(buffer, CommandLine64.Length/sizeof(wchar_t));
-						return true;
-					}
-				} else {
-					cmdline.clear();
-					return true;
-				}
-			}
+				cmdline.reset(new wchar_t[CommandLine64.MaximumLength/sizeof(wchar_t)]);
+				if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, CommandLine64.Buffer, cmdline.get(), CommandLine64.MaximumLength, NULL))) return false;
+			} else return false;
+			
+			MessageBox(NULL, cmdline.get(), L"CMD", MB_OK);
+			
+			//GetCurrentDirectory always terminates RTL_USER_PROCESS_PARAMETER.CurrentDirectory.DosPath.Buffer with NULL
+			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, pRUPP64+offsetof(RTL_USER_PROCESS_PARAMETERS64, CurrentDirectory), &CurrentDirectory64, sizeof(CurrentDirectory64), NULL))) {
+				cwdpath.reset(new wchar_t[CurrentDirectory64.DosPath.Length/sizeof(wchar_t)+1]);
+				cwdpath[CurrentDirectory64.DosPath.Length/sizeof(wchar_t)]=L'\0';
+				if (!NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, CurrentDirectory64.DosPath.Buffer, cwdpath.get(), CurrentDirectory64.DosPath.Length, NULL))) return false;
+			} else return false;
+			
+			MessageBox(NULL, cwdpath.get(), L"CWD", MB_OK);
+			
+			//TODO: Get environment for 64-bit process from WoW64
+			
+			return true;
 		}
 #endif	//_WIN64 ***********************************
 	}

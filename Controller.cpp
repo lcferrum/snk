@@ -380,7 +380,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::RestartProcess(const RestartPro
 {
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	if (CreateProcess(std::get<0>(rprc).c_str(), const_cast<wchar_t*>(std::get<1>(rprc).c_str()), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).c_str(), &si, &pi)) {
+	if (CreateProcess(std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
 	}
