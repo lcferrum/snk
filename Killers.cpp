@@ -104,7 +104,7 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 										rstat=0x01;
 										TOKEN_ELEVATION elevation; 
 										DWORD ret_len; 
-										if (GetTokenInformation(hOwnToken, TokenElevation, &elevation, sizeof(elevation), &ret_len)&&elevation.TokenIsElevated) 
+										if (GetTokenInformation(hPidToken, TokenElevation, &elevation, sizeof(elevation), &ret_len)&&elevation.TokenIsElevated) 
 											rstat=0x02;
 									}
 									FreeTokenUserInformation(pid_tu);

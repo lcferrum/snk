@@ -15,7 +15,6 @@
 #define SE_LOAD_DRIVER_PRIVILEGE (10L)	//Grants device driver load/unload rights [currently no use]
 #define SE_RESTORE_PRIVILEGE (18L)		//Grants write access to any file
 #define SE_SECURITY_PRIVILEGE (8L)		//Grants r/w access to audit and security messages [no use]
-//#define SE_IMPERSONATE_NAME (29L)		//Grants user impersonation rights (required for CreateProcessWithTokenW)
 
 #define ACC_WOW64FSREDIRDISABLED		(1<<0)
 #define ACC_LOCALSYSTEMIMPERSONATED		(1<<1)
@@ -69,7 +68,7 @@ bool AccessHacks::PrivateEnableDebugPrivileges()
 	bool success=true;
 	
 	//Privileges similar to Process Explorer
-	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE, 29L};	//SE_IMPERSONATE_NAME=29L
+	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE};
 
 	if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle)) {
 		PTOKEN_PRIVILEGES privileges=(PTOKEN_PRIVILEGES)new BYTE[offsetof(TOKEN_PRIVILEGES, Privileges)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];

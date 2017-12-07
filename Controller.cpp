@@ -373,12 +373,16 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 	HANDLE hProcess;
 	if (elevated&&(hShellWnd=GetShellWindow())&&(GetWindowThreadProcessId(hShellWnd, &shell_pid), shell_pid)&&
 		(hProcess=OpenProcessWrapper(shell_pid, PROCESS_QUERY_INFORMATION))) {
-		OpenProcessToken(hProcess, TOKEN_QUERY|TOKEN_DUPLICATE|TOKEN_ASSIGN_PRIMARY, &hShellToken);
+		HANDLE hOrigToken;
+		if (OpenProcessToken(hProcess, TOKEN_DUPLICATE, &hOrigToken)) {
+			DuplicateTokenEx(hOrigToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY|TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID, NULL, SecurityImpersonation, TokenPrimary, &hShellToken);
+			CloseHandle(hOrigToken);
+		}
 		CloseHandle(hProcess);
 	}
 	
 #if DEBUG>=2		
-	if (!fnNtWow64QueryVirtualMemory64) {
+	if (!fnCreateProcessWithTokenW) {
 		std::wcerr<<L"" __FILE__ ":DoRestart:"<<__LINE__<<L": CreateProcessWithTokenW not found!"<<std::endl;
 	}
 #endif
@@ -408,6 +412,8 @@ template <typename ProcessesPolicy, typename KillersPolicy>
 void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessTokenPrivileges(const RestartProcessTuple &rprc, HANDLE hToken)
 {
 	//Should check CreateProcessWithTokenW availability outside of this function
+	//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin
+	std::wcout<<L"RestartProcessTokenPrivileges"<<std::endl;
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
 	if (fnCreateProcessWithTokenW(hToken, 0, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
