@@ -19,6 +19,7 @@ private:
 	HMODULE hKernel32;
 	HMODULE hShlwapi;
 	HMODULE hPsapi;
+	HMODULE hAdvapi32;
 	
 	void LoadFunctions();
 	void UnloadFunctions();
@@ -54,5 +55,6 @@ typedef BOOL (WINAPI *pWow64RevertWow64FsRedirection)(PVOID OldValue);
 typedef HWND (WINAPI *pGetConsoleWindow)(void);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
 typedef BOOL (WINAPI *pGetProcessMemoryInfo)(HANDLE Process, PPROCESS_MEMORY_COUNTERS ppsmemCounters, DWORD cb);
+typedef BOOL (WINAPI *pCreateProcessWithTokenW)(HANDLE hToken, DWORD dwLogonFlags, LPCWSTR lpApplicationName, LPWSTR lpCommandLine, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCWSTR lpCurrentDirectory, LPSTARTUPINFOW lpStartupInfo, LPPROCESS_INFORMATION lpProcessInfo);
 
 #endif //EXTERNS_H

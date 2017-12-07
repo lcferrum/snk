@@ -13,9 +13,11 @@
 
 #define MUTEX_NAME		L"MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
 
+extern pCreateProcessWithTokenW fnCreateProcessWithTokenW;
+
 template <typename ProcessesPolicy, typename KillersPolicy>	
 Controller<ProcessesPolicy, KillersPolicy>::Controller():
-	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, args_stack(), rlist_normal(), rlist_elevated(), sec_mutex(NULL)
+	ProcessesPolicy(), KillersPolicy(), ctrl_vars{true}, args_stack(), rlist(), sec_mutex(NULL)
 {}
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
@@ -355,8 +357,8 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 	//In Task Scheduler option to "run with highest privileges" will work only with admin accounts and result in task running with "elevated" rights
 	//On non-admin accounts this will do nothing - task won't be run under admin account, and current non-admin account rights won't be "elevated"
 
-	HANDLE hOwnToken;
 	bool elevated=false;
+	HANDLE hOwnToken;
 	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
 		TOKEN_ELEVATION elevation; 
 		DWORD ret_len; 
@@ -365,18 +367,34 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 		CloseHandle(hOwnToken);
 	}
 	
-	//WIP
-	if (elevated) {
-		for (const RestartProcessTuple &rprc: rlist_elevated)
-			RestartProcess(rprc);
-	} else {
-		for (const RestartProcessTuple &rprc: rlist_normal)
-			RestartProcess(rprc);
+	HANDLE hShellToken=NULL;
+	HWND hShellWnd;
+	DWORD shell_pid;
+	HANDLE hProcess;
+	if (elevated&&(hShellWnd=GetShellWindow())&&(GetWindowThreadProcessId(hShellWnd, &shell_pid), shell_pid)&&
+		(hProcess=OpenProcessWrapper(shell_pid, PROCESS_QUERY_INFORMATION))) {
+		OpenProcessToken(hProcess, TOKEN_QUERY|TOKEN_DUPLICATE|TOKEN_ASSIGN_PRIMARY, &hShellToken);
+		CloseHandle(hProcess);
 	}
+	
+#if DEBUG>=2		
+	if (!fnNtWow64QueryVirtualMemory64) {
+		std::wcerr<<L"" __FILE__ ":DoRestart:"<<__LINE__<<L": CreateProcessWithTokenW not found!"<<std::endl;
+	}
+#endif
+	
+	for (const RestartProcessTuple &rprc: rlist) {
+		if (elevated==std::get<4>(rprc))
+			RestartProcessSamePrivileges(rprc);
+		else if (elevated&&fnCreateProcessWithTokenW&&hShellToken)
+			RestartProcessTokenPrivileges(rprc, hShellToken);
+	}
+	
+	if (hShellToken) CloseHandle(hShellToken);
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::RestartProcess(const RestartProcessTuple &rprc)
+void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessSamePrivileges(const RestartProcessTuple &rprc)
 {
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
@@ -385,6 +403,19 @@ void Controller<ProcessesPolicy, KillersPolicy>::RestartProcess(const RestartPro
 		CloseHandle(pi.hThread);
 	}
 }
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessTokenPrivileges(const RestartProcessTuple &rprc, HANDLE hToken)
+{
+	//Should check CreateProcessWithTokenW availability outside of this function
+	PROCESS_INFORMATION pi={};
+	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
+	if (fnCreateProcessWithTokenW(hToken, 0, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+	}
+}
+
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<std::wstring> &rules)
@@ -713,7 +744,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 {
 	while (MakeItDeadInternal(rules)==MID_NONE);
 	
-	bool do_restart=rlist_elevated.size()||rlist_normal.size();
+	bool do_restart=rlist.size();
 	
 	if (ctrl_vars.mode_verbose) do_restart=WaitForUserInput(do_restart);
 	
@@ -731,8 +762,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 	
 	if (do_restart) DoRestart();
 	
-	rlist_normal.clear();
-	rlist_elevated.clear();
+	rlist.clear();
 }
 
 template class Controller<Processes, Killers>;

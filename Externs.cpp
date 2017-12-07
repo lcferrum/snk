@@ -19,11 +19,12 @@ pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64=NULL;
 pAttachConsole fnAttachConsole=NULL;
 pGetConsoleWindow fnGetConsoleWindow=NULL;
 pGetProcessMemoryInfo fnGetProcessMemoryInfo=NULL;
+pCreateProcessWithTokenW fnCreateProcessWithTokenW=NULL;
 
 std::unique_ptr<Externs> Externs::instance;
 
 Externs::Externs(): 
-	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL), hPsapi(NULL)
+	hUser32(NULL), hNtDll(NULL), hKernel32(NULL), hShlwapi(NULL), hPsapi(NULL), hAdvapi32(NULL)
 {
 	LoadFunctions();
 }
@@ -51,6 +52,7 @@ void Externs::LoadFunctions()
 	hKernel32=LoadLibrary(L"kernel32.dll");
 	hShlwapi=LoadLibrary(L"shlwapi.dll");
 	hPsapi=LoadLibrary(L"psapi.dll");
+	hAdvapi32=LoadLibrary(L"advapi32.dll");
 
 	if (hUser32) {
 		fnNtUserHungWindowFromGhostWindow=(pNtUserHungWindowFromGhostWindow)GetProcAddress(hUser32, "HungWindowFromGhostWindow");
@@ -85,11 +87,16 @@ void Externs::LoadFunctions()
 	if (hPsapi) {
 		fnGetProcessMemoryInfo=(pGetProcessMemoryInfo)GetProcAddress(hPsapi, "GetProcessMemoryInfo");
 	}
+	
+	if (hAdvapi32) {
+		fnCreateProcessWithTokenW=(pCreateProcessWithTokenW)GetProcAddress(hAdvapi32, "CreateProcessWithTokenW");
+	}
 }
 
 //And here we are testing for NULLs because LoadLibrary can fail in method above
 void Externs::UnloadFunctions() 
 {
+	if (hAdvapi32) FreeLibrary(hAdvapi32);
 	if (hUser32) FreeLibrary(hUser32);
 	if (hNtDll) FreeLibrary(hNtDll);
 	if (hKernel32) FreeLibrary(hKernel32);
