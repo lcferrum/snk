@@ -26,6 +26,9 @@ inline void FreeTokenUserInformation(PTOKEN_USER ptu) { delete[] (BYTE*)ptu; }
 inline PTOKEN_GROUPS GetTokenGroupsInformation(HANDLE hToken) { return (PTOKEN_GROUPS)GetTokenInformationWrapper(hToken, TokenGroups); }
 inline void FreeTokenGroupsInformation(PTOKEN_GROUPS ptg) { delete[] (BYTE*)ptg; }
 
+bool IsTokenRestrictedEx(HANDLE hToken);
+bool IsTokenElevated(HANDLE hToken);
+
 //OpenProcessWrapper will try to remove PROCESS_VM_READ access flag and change PROCESS_QUERY_INFORMATION to PROCESS_QUERY_LIMITED_INFORMATION if it can't open process with supplied dwDesiredAccess
 //dwMandatory contains access flags that OpenProcessWrapper shoudn't remove (or change) from dwDesiredAccess to try to open process with more relaxed access requirements
 HANDLE OpenProcessWrapper(DWORD dwProcessId, DWORD &dwDesiredAccess, DWORD dwMandatory=0);
@@ -40,5 +43,16 @@ bool Win32WcostreamMessageBox(bool ok_cancel);
 
 bool CachedNtQuerySystemProcessInformation(SYSTEM_PROCESS_INFORMATION** spi_buffer, bool clear_cache=false);
 bool CachedNtQuerySystemHandleInformation(SYSTEM_HANDLE_INFORMATION** shi_buffer, bool clear_cache=false);
+
+struct HandleWrp {
+	HANDLE handle;
+	~HandleWrp() { CloseHandle(handle); }
+	//Get rid of all the constructors
+	HandleWrp()=delete; 
+	HandleWrp(const HandleWrp&)=delete;				
+	HandleWrp& operator=(const HandleWrp&)=delete;
+	HandleWrp(const HandleWrp&&)=delete;
+	HandleWrp& operator=(const HandleWrp&&)=delete;
+};
 
 #endif //COMMON_H

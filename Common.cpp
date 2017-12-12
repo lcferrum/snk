@@ -254,6 +254,44 @@ LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS To
 	return pti;
 }
 
+bool IsTokenElevated(HANDLE hToken)
+{
+	bool elevated=false;
+
+	TOKEN_ELEVATION elevation; 
+	DWORD ret_len; 
+	if (GetTokenInformation(hToken, TokenElevation, &elevation, sizeof(elevation), &ret_len))
+		elevated=elevation.TokenIsElevated;
+	
+	return elevated;
+}
+
+bool IsTokenRestrictedEx(HANDLE hToken)
+{
+	//CreateRestrictedToken function can restrict a token by disabling SIDs, deleting privileges, and specifying a list of restricting SIDs
+	//IsTokenRestricted function checks only for the list of restricting SIDs and is available only since Win 2k
+	//IsTokenRestrictedEx also checks if token has any mandatory groups disabled, which is possible only with CreateRestrictedToken
+	
+	bool restricted=false;
+	PTOKEN_GROUPS ptg;
+	
+	if ((ptg=(PTOKEN_GROUPS)GetTokenInformationWrapper(hToken, TokenRestrictedSids))) {
+		restricted=ptg->GroupCount;
+		delete[] (BYTE*)ptg;
+	}
+	
+	if (!restricted&&(ptg=(PTOKEN_GROUPS)GetTokenInformationWrapper(hToken, TokenGroups))) {
+		for (int i=0; i<ptg->GroupCount; i++)
+		if ((ptg->Groups[i].Attributes&SE_GROUP_MANDATORY)&&!(ptg->Groups[i].Attributes&SE_GROUP_ENABLED)) {
+			restricted=true;
+			break;
+		}
+		delete[] (BYTE*)ptg;
+	}
+	
+	return restricted;
+}
+
 namespace Win32Wcostream {
 	Win32WcostreamBuf wcout_win32(Win32WcostreamBuf::WCOUT);
 	Win32WcostreamBuf wcerr_win32(Win32WcostreamBuf::WCERR);

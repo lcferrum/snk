@@ -2,6 +2,7 @@
 #define KILLERS_H
 
 #include "ProcessUsage.h"
+#include "Common.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -37,8 +38,7 @@ private:
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 	
-	virtual void RestartNormal(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock)=0;
-	virtual void RestartElevated(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock)=0;
+	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, std::unique_ptr<HandleWrp> &&prctoken)=0;
 protected:	
 	//Kills process with highest cpu load (or whatever actual sorting was)
 	bool KillByCpu();

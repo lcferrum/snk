@@ -88,24 +88,30 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 		std::unique_ptr<wchar_t[]> cmdline;
 		std::unique_ptr<wchar_t[]> cwdpath;
 		std::unique_ptr<BYTE[]> envblock;
-		BYTE rstat=0x00;	//0x00 - do not restart; 0x01 - restart w/o elevation; 0x02 - restart w/ elevation
+		std::unique_ptr<HandleWrp> prctoken;
+		bool do_restart=false;
 
-		//If restart mode is enabled - restart only processes w/ valid path, command line, current working directory, environment block and from the same user as current process
+		//If restart mode is enabled - restart only processes w/ valid path, command line, current working directory, environment block and and accessable token
 		if (ModeRestart()&&path.length()) {
-			if (HANDLE hProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
-				if (FPRoutines::GetCmdCwdEnv(hProcess, cmdline, cwdpath, envblock)) {
+			if (HANDLE hPidProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
+				if (FPRoutines::GetCmdCwdEnv(hPidProcess, cmdline, cwdpath, envblock)) {
 					HANDLE hOwnToken;
 					if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
 						if (PTOKEN_USER own_tu=GetTokenUserInformation(hOwnToken)) {
 							HANDLE hPidToken;
-							if (OpenProcessToken(hProcess, TOKEN_QUERY, &hPidToken)) {
+							if (OpenProcessToken(hPidProcess, TOKEN_QUERY|TOKEN_DUPLICATE, &hPidToken)) {
 								if (PTOKEN_USER pid_tu=GetTokenUserInformation(hPidToken)) {
-									if (EqualSid(own_tu->User.Sid, pid_tu->User.Sid)) {
-										rstat=0x01;
-										TOKEN_ELEVATION elevation; 
-										DWORD ret_len; 
-										if (GetTokenInformation(hPidToken, TokenElevation, &elevation, sizeof(elevation), &ret_len)&&elevation.TokenIsElevated) 
-											rstat=0x02;
+									if (EqualSid(own_tu->User.Sid, pid_tu->User.Sid)&&IsTokenElevated(hOwnToken)==IsTokenElevated(hPidToken)&&IsTokenRestrictedEx(hPidToken)==IsTokenRestrictedEx(hOwnToken)) {
+										do_restart=true;
+									} else {
+										HANDLE hDupToken;
+										//TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE and TOKEN_QUERY are needed for both CreateProcessAsUser and CreateProcessWithTokenW
+										//CreateProcessWithTokenW also requires TOKEN_ADJUST_DEFAULT and TOKEN_ADJUST_SESSIONID (though documentation doesn't mention this)
+										if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
+										//if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY|TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
+											do_restart=true;
+											prctoken.reset(new HandleWrp{hDupToken});
+										}
 									}
 									FreeTokenUserInformation(pid_tu);
 								}
@@ -116,7 +122,7 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 						CloseHandle(hOwnToken);
 					}
 				}
-				CloseHandle(hProcess);
+				CloseHandle(hPidProcess);
 			}
 		}
 
@@ -124,19 +130,21 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 			HANDLE hProcess;
 			//PROCESS_TERMINATE is needed for TerminateProcess
 			if ((hProcess=OpenProcessWrapper(PID, PROCESS_TERMINATE))&&TerminateProcess(hProcess, 1)) {
-				std::wcout<<PID<<L" ("<<name<<L") - killed"<<std::endl;
+				std::wcout<<PID<<L" ("<<name<<L") - killed";
 			} else {
-				rstat=0x00;
-				std::wcout<<PID<<L" ("<<name<<L") - can't be terminated"<<std::endl;
+				do_restart=false;
+				std::wcout<<PID<<L" ("<<name<<L") - can't be terminated";
 			}
 			if (hProcess) CloseHandle(hProcess);
 		} else
-			std::wcout<<PID<<L" ("<<name<<L") - closed"<<std::endl;
+			std::wcout<<PID<<L" ("<<name<<L") - closed";
 		
-		if (rstat==0x01)
-			RestartNormal(path, std::move(cmdline), std::move(cwdpath), std::move(envblock));
-		else if (rstat==0x02)
-			RestartElevated(path, std::move(cmdline), std::move(cwdpath), std::move(envblock));
+		if (do_restart)
+			RestartProcess(path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken));
+		else if (ModeRestart())
+			std::wcout<<L", can't be restarted";
+		
+		std::wcout<<std::endl;
 	}
 }
 

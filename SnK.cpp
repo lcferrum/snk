@@ -56,6 +56,55 @@ extern "C" int wmain(int argc, wchar_t* argv[])
 	//We just have to do all the LoadLibrary calls before disabling Wow64FsRedirection (which is already done through Extras class) and we are good to go
 	//IUnknown::QueryInterface calls may lead to additional LoadLibrary calls
 	//But the only place where COM is used is in GetLongPathName implementation from newapis.h and it is employed only on 32-bit systems where native GetLongPathName may not be readily available
+		
+	{
+		HANDLE tokenHandle;
+		DWORD needed_privs[]={29L};
+
+		if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tokenHandle)) {
+			PPRIVILEGE_SET privileges=(PPRIVILEGE_SET)new BYTE[offsetof(PRIVILEGE_SET, Privilege)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
+
+			privileges->PrivilegeCount=0;
+			for (DWORD priv: needed_privs) {
+				privileges->Privilege[privileges->PrivilegeCount].Attributes=SE_PRIVILEGE_ENABLED;
+				privileges->Privilege[privileges->PrivilegeCount].Luid.HighPart=0;
+				privileges->Privilege[privileges->PrivilegeCount].Luid.LowPart=priv;
+				privileges->PrivilegeCount++;
+			}
+			privileges->Control=PRIVILEGE_SET_ALL_NECESSARY;
+			
+			BOOL res;
+			PrivilegeCheck(tokenHandle, privileges, &res);
+			std::wcerr<<L"CreateProcessWithTokenW="<<res<<std::endl;
+			
+			delete[] (BYTE*)privileges;
+			CloseHandle(tokenHandle);
+		}
+	}
+	{
+		HANDLE tokenHandle;
+		DWORD needed_privs[]={5L, 3L};
+
+		if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tokenHandle)) {
+			PPRIVILEGE_SET privileges=(PPRIVILEGE_SET)new BYTE[offsetof(PRIVILEGE_SET, Privilege)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
+
+			privileges->PrivilegeCount=0;
+			for (DWORD priv: needed_privs) {
+				privileges->Privilege[privileges->PrivilegeCount].Attributes=SE_PRIVILEGE_ENABLED;
+				privileges->Privilege[privileges->PrivilegeCount].Luid.HighPart=0;
+				privileges->Privilege[privileges->PrivilegeCount].Luid.LowPart=priv;
+				privileges->PrivilegeCount++;
+			}
+			privileges->Control=PRIVILEGE_SET_ALL_NECESSARY;
+			
+			BOOL res;
+			PrivilegeCheck(tokenHandle, privileges, &res);
+			std::wcerr<<L"CreateProcessAsUser="<<res<<std::endl;
+						
+			delete[] (BYTE*)privileges;
+			CloseHandle(tokenHandle);
+		}
+	}
 	
 	std::stack<std::wstring> rules;
 	MakeRulesFromArgv(argc, argv, rules);

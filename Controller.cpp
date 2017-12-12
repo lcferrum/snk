@@ -357,30 +357,6 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 	//In Task Scheduler option to "run with highest privileges" will work only with admin accounts and result in task running with "elevated" rights
 	//On non-admin accounts this will do nothing - task won't be run under admin account, and current non-admin account rights won't be "elevated"
 
-	bool elevated=false;
-	HANDLE hOwnToken;
-	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
-		TOKEN_ELEVATION elevation; 
-		DWORD ret_len; 
-		if (GetTokenInformation(hOwnToken, TokenElevation, &elevation, sizeof(elevation), &ret_len))
-			elevated=elevation.TokenIsElevated;
-		CloseHandle(hOwnToken);
-	}
-	
-	HANDLE hShellToken=NULL;
-	HWND hShellWnd;
-	DWORD shell_pid;
-	HANDLE hProcess;
-	if (elevated&&(hShellWnd=GetShellWindow())&&(GetWindowThreadProcessId(hShellWnd, &shell_pid), shell_pid)&&
-		(hProcess=OpenProcessWrapper(shell_pid, PROCESS_QUERY_INFORMATION))) {
-		HANDLE hOrigToken;
-		if (OpenProcessToken(hProcess, TOKEN_DUPLICATE, &hOrigToken)) {
-			DuplicateTokenEx(hOrigToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY|TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID, NULL, SecurityImpersonation, TokenPrimary, &hShellToken);
-			CloseHandle(hOrigToken);
-		}
-		CloseHandle(hProcess);
-	}
-	
 #if DEBUG>=2		
 	if (!fnCreateProcessWithTokenW) {
 		std::wcerr<<L"" __FILE__ ":DoRestart:"<<__LINE__<<L": CreateProcessWithTokenW not found!"<<std::endl;
@@ -388,17 +364,17 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 #endif
 	
 	for (const RestartProcessTuple &rprc: rlist) {
-		if (elevated==std::get<4>(rprc))
-			RestartProcessSamePrivileges(rprc);
-		else if (elevated&&fnCreateProcessWithTokenW&&hShellToken)
-			RestartProcessTokenPrivileges(rprc, hShellToken);
+		if (!std::get<4>(rprc))
+			RestartProcessNormal(rprc);
+		else if (fnCreateProcessWithTokenW)
+			RestartProcessToken(rprc);
+		else
+			RestartProcessUser(rprc);
 	}
-	
-	if (hShellToken) CloseHandle(hShellToken);
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessSamePrivileges(const RestartProcessTuple &rprc)
+void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessNormal(const RestartProcessTuple &rprc)
 {
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
@@ -409,17 +385,34 @@ void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessSamePrivileges(co
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessTokenPrivileges(const RestartProcessTuple &rprc, HANDLE hToken)
+void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessToken(const RestartProcessTuple &rprc)
 {
 	//Should check CreateProcessWithTokenW availability outside of this function
-	//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin
-	std::wcout<<L"RestartProcessTokenPrivileges"<<std::endl;
+	//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation
+	std::wcout<<L"CreateProcessWithTokenW"<<std::endl;
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	if (fnCreateProcessWithTokenW(hToken, 0, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
+	if (fnCreateProcessWithTokenW(std::get<4>(rprc)->handle, 0, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
-	}
+	} else std::wcerr<<GetLastError()<<std::endl;
+}
+
+template <typename ProcessesPolicy, typename KillersPolicy>	
+void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessUser(const RestartProcessTuple &rprc)
+{
+	std::wcout<<L"CreateProcessAsUser"<<std::endl;
+	PROCESS_INFORMATION pi={};
+	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
+	//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME which is only available to Local System
+	//Before Vista it was sufficient to impersonate Local System whithout even granting mentioned privileges, but since Vista this won't work anymore
+	//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
+	//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
+	//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
+	if (CreateProcessAsUser(std::get<4>(rprc)->handle, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+	} else std::wcerr<<GetLastError()<<std::endl;
 }
 
 
