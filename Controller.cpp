@@ -389,6 +389,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessToken(const Resta
 {
 	//Should check CreateProcessWithTokenW availability outside of this function
 	//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation
+	//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
 	std::wcout<<L"CreateProcessWithTokenW"<<std::endl;
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
@@ -409,6 +410,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessUser(const Restar
 	//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
 	//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
 	//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
+	//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
 	if (CreateProcessAsUser(std::get<4>(rprc).GetHandle(), std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
