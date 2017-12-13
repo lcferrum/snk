@@ -34,7 +34,7 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 private:
 	enum CmdMode:char {CMDCP_AUTO=0, CMDCP_UTF8, CMDCP_UTF16};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
 	enum MIDStatus:char {MID_HIT, MID_NONE, MID_EMPTY};
-	typedef std::tuple<std::wstring, std::unique_ptr<wchar_t[]>, std::unique_ptr<wchar_t[]>, std::unique_ptr<BYTE[]>, std::unique_ptr<HandleWrp>> RestartProcessTuple;
+	typedef std::tuple<std::wstring, std::unique_ptr<wchar_t[]>, std::unique_ptr<wchar_t[]>, std::unique_ptr<BYTE[]>, UniqueHandle> RestartProcessTuple;
 	
 	struct {
 		bool first_run;
@@ -113,7 +113,7 @@ private:
 	virtual bool ModeBlacklist() { return ctrl_vars.mode_blacklist&&!ctrl_vars.mode_whitelist; }
 	virtual bool ModeWhitelist() { return ctrl_vars.mode_whitelist&&!ctrl_vars.mode_blacklist; }
 	
-	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, std::unique_ptr<HandleWrp> &&prctoken) { rlist.push_back(std::make_tuple(path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken))); }
+	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, UniqueHandle &&prctoken) { rlist.push_back(std::make_tuple(path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken))); }
 public:
 	void MakeItDead(std::stack<std::wstring> &rules);
 	Controller();

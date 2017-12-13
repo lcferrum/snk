@@ -88,7 +88,7 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 		std::unique_ptr<wchar_t[]> cmdline;
 		std::unique_ptr<wchar_t[]> cwdpath;
 		std::unique_ptr<BYTE[]> envblock;
-		std::unique_ptr<HandleWrp> prctoken;
+		UniqueHandle prctoken;
 		bool do_restart=false;
 
 		//If restart mode is enabled - restart only processes w/ valid path, command line, current working directory, environment block and and accessable token
@@ -107,10 +107,10 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 										HANDLE hDupToken;
 										//TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE and TOKEN_QUERY are needed for both CreateProcessAsUser and CreateProcessWithTokenW
 										//CreateProcessWithTokenW also requires TOKEN_ADJUST_DEFAULT and TOKEN_ADJUST_SESSIONID (though documentation doesn't mention this)
-										if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
-										//if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY|TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
+										//if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
+										if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY|TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
 											do_restart=true;
-											prctoken.reset(new HandleWrp{hDupToken});
+											prctoken.ResetHandle(hDupToken);
 										}
 									}
 									FreeTokenUserInformation(pid_tu);

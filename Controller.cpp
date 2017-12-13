@@ -364,7 +364,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 #endif
 	
 	for (const RestartProcessTuple &rprc: rlist) {
-		if (!std::get<4>(rprc))
+		if (!std::get<4>(rprc).IsValid())
 			RestartProcessNormal(rprc);
 		else if (fnCreateProcessWithTokenW)
 			RestartProcessToken(rprc);
@@ -392,7 +392,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessToken(const Resta
 	std::wcout<<L"CreateProcessWithTokenW"<<std::endl;
 	PROCESS_INFORMATION pi={};
 	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	if (fnCreateProcessWithTokenW(std::get<4>(rprc)->handle, 0, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
+	if (fnCreateProcessWithTokenW(std::get<4>(rprc).GetHandle(), 0, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
 	} else std::wcerr<<GetLastError()<<std::endl;
@@ -409,7 +409,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessUser(const Restar
 	//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
 	//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
 	//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
-	if (CreateProcessAsUser(std::get<4>(rprc)->handle, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
+	if (CreateProcessAsUser(std::get<4>(rprc).GetHandle(), std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
 	} else std::wcerr<<GetLastError()<<std::endl;
