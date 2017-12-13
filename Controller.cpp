@@ -364,7 +364,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 #endif
 	
 	for (const RestartProcessTuple &rprc: rlist) {
-		if (!std::get<4>(rprc).IsValid())
+		if (std::get<4>(rprc).IsEmpty())
 			RestartProcessNormal(rprc);
 		else if (fnCreateProcessWithTokenW)
 			RestartProcessToken(rprc);

@@ -50,7 +50,7 @@ private:
 	HANDLE handle;
 public:
 	HANDLE GetHandle() const { return handle; }
-	bool IsValid() const { return valid; }
+	bool IsEmpty() const { return !valid; }
 	HANDLE ReleaseHandle() { valid=false; return handle; }
 	void ResetHandle(HANDLE new_handle) { if (valid) CloseHandle(handle); valid=true; handle=new_handle; }
 
