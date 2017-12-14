@@ -1,4 +1,5 @@
 #include "Killers.h"
+#include "AccessHacks.h"
 #include "FilePathRoutines.h"
 #include "Externs.h"
 #include "Common.h"
@@ -38,6 +39,7 @@ typedef struct _LANGANDCODEPAGE {
 
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 extern pGetProcessMemoryInfo fnGetProcessMemoryInfo;
+extern pCreateProcessWithTokenW fnCreateProcessWithTokenW;
 
 #ifdef _WIN64
 #define EnumDisplayDevicesWrapper EnumDisplayDevices
@@ -101,17 +103,30 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 							HANDLE hPidToken;
 							if (OpenProcessToken(hPidProcess, TOKEN_QUERY|TOKEN_DUPLICATE, &hPidToken)) {
 								if (PTOKEN_USER pid_tu=GetTokenUserInformation(hPidToken)) {
-									if (EqualSid(own_tu->User.Sid, pid_tu->User.Sid)&&IsTokenElevated(hOwnToken)==IsTokenElevated(hPidToken)&&IsTokenRestrictedEx(hPidToken)==IsTokenRestrictedEx(hOwnToken)) {
+									bool running_elevated=IsTokenElevated(hOwnToken);
+									if (EqualSid(own_tu->User.Sid, pid_tu->User.Sid)&&running_elevated==IsTokenElevated(hPidToken)&&IsTokenRestrictedEx(hPidToken)==IsTokenRestrictedEx(hOwnToken)) {
 										do_restart=true;
 									} else {
 										HANDLE hDupToken;
+										DWORD desired_access=TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY;
+										
 										//TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE and TOKEN_QUERY are needed for both CreateProcessAsUser and CreateProcessWithTokenW
 										//CreateProcessWithTokenW also requires TOKEN_ADJUST_DEFAULT and TOKEN_ADJUST_SESSIONID (though documentation doesn't mention this)
-										//if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
-										if (DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY|TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
+										if (fnCreateProcessWithTokenW) desired_access|=TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID;
+											
+										//If CreateProcessWithTokenW is available - we will use it instead of CreateProcessAsUser because thing requires less privileges
+										//Also this means that we are on Vista and above where UAC is present and of course won't allow CreateProcessWithTokenW set needed privileges (SE_IMPERSONATE_NAME) if not run elevated
+										//So check if we are elevated (this also happens when UAC is turned off, but still present, or we run under Local System) before duplicating token
+										//Else use CreateProcessAsUser - this thing typically requires privileges only available to Local System
+										//But before Vista (i.e. on OS where CreateProcessWithTokenW is not available) we can just impersonate it
+										//AccessHacks::ImpersonateLocalSystem also succeeds when process is already run under Local System
+										if ((fnCreateProcessWithTokenW?running_elevated:AccessHacks::IsLocalSytemImpersonated())&&
+											DuplicateTokenEx(hPidToken, desired_access, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
 											do_restart=true;
 											prctoken.ResetHandle(hDupToken);
 										}
+										
+										//TODO: check if privileges needed for CreateProcessWithTokenW and CreateProcessAsUser are held (i.e. just present) in the token (for CreateProcessAsUser before Vista impersonated Local System is also sufficient)
 									}
 									FreeTokenUserInformation(pid_tu);
 								}

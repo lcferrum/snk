@@ -69,8 +69,7 @@ bool AccessHacks::PrivateEnableDebugPrivileges()
 	HANDLE tokenHandle;
 	bool success=true;
 	
-	//Privileges similar to Process Explorer
-	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE, 29L, 3L, 5L};
+	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE, SE_IMPERSONATE_PRIVILEGE};
 
 	if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle)) {
 		PTOKEN_PRIVILEGES privileges=(PTOKEN_PRIVILEGES)new BYTE[offsetof(TOKEN_PRIVILEGES, Privileges)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
@@ -272,7 +271,7 @@ bool AccessHacks::ImpersonateLocalSystemVista(PSID ssid)
 	
 	//N.B.: 
 	//Local System processes on Vista+ happen to have their token DACL with TOKEN_DUPLICATE rights set for the users that have enough rights to open them for TOKEN_QUERY
-	//This doesn't happen on previous OS versions - here we have to set needed DACL permissions manually for this method to work (see ImpersonateLocalSystem2k)
+	//This doesn't happen on previous OS versions - here we have to set needed DACL permissions manually for this method to work (see ImpersonateLocalSystemNT4)
 
 	bool imp_successful=false;
 	SYSTEM_PROCESS_INFORMATION *pspi_all;
@@ -417,4 +416,40 @@ void AccessHacks::RevertDaclPermissions(HANDLE hToken)
 		LocalFree(pOrigSD);
 		pOrigSD=NULL;
 	}
+}
+
+bool AccessHacks::PrivateIsGranted(const DWORD *privs, DWORD cnt)
+{
+	HANDLE tokenHandle;
+	bool granted=false;
+	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tokenHandle)) {
+		PPRIVILEGE_SET privileges=(PPRIVILEGE_SET)new BYTE[offsetof(PRIVILEGE_SET, Privilege)+sizeof(LUID_AND_ATTRIBUTES)*cnt];
+		
+		for (privileges->PrivilegeCount=0; privileges->PrivilegeCount<cnt; privileges->PrivilegeCount++) {
+			privileges->Privilege[privileges->PrivilegeCount].Attributes=SE_PRIVILEGE_ENABLED;
+			privileges->Privilege[privileges->PrivilegeCount].Luid.HighPart=0;
+			privileges->Privilege[privileges->PrivilegeCount].Luid.LowPart=privs[privileges->PrivilegeCount];
+		}
+		privileges->Control=PRIVILEGE_SET_ALL_NECESSARY;
+		
+		BOOL res;
+		PrivilegeCheck(tokenHandle, privileges, &res);
+		granted=res;
+		
+		delete[] (BYTE*)privileges;
+		CloseHandle(tokenHandle);
+	}
+}
+
+bool AccessHacks::IsGrantedIMPERSONATE()
+{
+	DWORD privs[]={SE_IMPERSONATE_PRIVILEGE};
+	if (!instance) return false;
+	else return instance->PrivateIsGranted(privs, 1);
+}
+
+bool AccessHacks::IsLocalSytemImpersonated()
+{
+	if (!instance) return false;
+	else return instance->acc_state&ACC_LOCALSYSTEMIMPERSONATED;
 }

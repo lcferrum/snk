@@ -25,9 +25,11 @@ private:
 	AccessHacks();
 	
 	bool PrivateEnableDebugPrivileges();
+	bool PrivateIsGranted(const DWORD *privs, DWORD cnt);
 	bool PrivateWow64DisableWow64FsRedirection();
 	void PrivateWow64RevertWow64FsRedirection();
 	bool PrivateImpersonateLocalSystem();
+	bool PrivateIsLocalSytemImpersonated();
 	void PrivateRevertToSelf();
 public:
 	~AccessHacks();
@@ -37,9 +39,11 @@ public:
 	AccessHacks& operator=(const AccessHacks&&)=delete;	//Get rid of default move assignment operator
 	
 	static bool EnableDebugPrivileges();
+	static bool IsGrantedIMPERSONATE();
 	static bool Wow64DisableWow64FsRedirection();
 	static void Wow64RevertWow64FsRedirection();
 	static bool ImpersonateLocalSystem();
+	static bool IsLocalSytemImpersonated();
 	static void RevertToSelf();
 
 	static void ResetErrors();
