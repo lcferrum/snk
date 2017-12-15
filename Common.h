@@ -25,6 +25,8 @@ inline PTOKEN_USER GetTokenUserInformation(HANDLE hToken) { return (PTOKEN_USER)
 inline void FreeTokenUserInformation(PTOKEN_USER ptu) { delete[] (BYTE*)ptu; }
 inline PTOKEN_GROUPS GetTokenGroupsInformation(HANDLE hToken) { return (PTOKEN_GROUPS)GetTokenInformationWrapper(hToken, TokenGroups); }
 inline void FreeTokenGroupsInformation(PTOKEN_GROUPS ptg) { delete[] (BYTE*)ptg; }
+inline PTOKEN_PRIVILEGES GetTokenPrivilegesInformation(HANDLE hToken) { return (PTOKEN_PRIVILEGES)GetTokenInformationWrapper(hToken, TokenPrivileges); }
+inline void FreeTokenPrivilegesInformation(PTOKEN_PRIVILEGES ptp) { delete[] (BYTE*)ptp; }
 
 bool IsTokenRestrictedEx(HANDLE hToken);
 bool IsTokenElevated(HANDLE hToken);

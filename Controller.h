@@ -4,6 +4,7 @@
 #include "Common.h"
 #include <stack>
 #include <string>
+#include <memory>
 #include <functional>
 #include <windows.h>
 
@@ -34,7 +35,14 @@ class Controller: private ProcessesPolicy, private KillersPolicy {
 private:
 	enum CmdMode:char {CMDCP_AUTO=0, CMDCP_UTF8, CMDCP_UTF16};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
 	enum MIDStatus:char {MID_HIT, MID_NONE, MID_EMPTY};
-	typedef std::tuple<std::wstring, std::unique_ptr<wchar_t[]>, std::unique_ptr<wchar_t[]>, std::unique_ptr<BYTE[]>, UniqueHandle> RestartProcessTuple;
+	typedef struct {
+		std::wstring path;
+		std::unique_ptr<wchar_t[]> cmdline;
+		std::unique_ptr<wchar_t[]> cwdpath;
+		std::unique_ptr<BYTE[]> envblock;
+		UniqueHandle prctoken;
+		bool use_cpwtw;
+	} RestartProcessItem;
 	
 	struct {
 		bool first_run;
@@ -81,7 +89,7 @@ private:
 	} ctrl_vars;
 	
 	std::stack<std::wstring> args_stack;
-	std::vector<RestartProcessTuple> rlist;
+	std::vector<RestartProcessItem> rlist;
 	
 	//Windows will close mutex handle automatically when the process terminates
 	HANDLE sec_mutex;
@@ -97,9 +105,6 @@ private:
 	bool IsDone(bool sw_res);
 	bool ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
 	void DoRestart();
-	void RestartProcessNormal(const RestartProcessTuple &rprc);
-	void RestartProcessToken(const RestartProcessTuple &rprc);
-	void RestartProcessUser(const RestartProcessTuple &rprc);
 	MIDStatus MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
 	virtual bool ModeAll() { return ctrl_vars.mode_all||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
@@ -113,7 +118,7 @@ private:
 	virtual bool ModeBlacklist() { return ctrl_vars.mode_blacklist&&!ctrl_vars.mode_whitelist; }
 	virtual bool ModeWhitelist() { return ctrl_vars.mode_whitelist&&!ctrl_vars.mode_blacklist; }
 	
-	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, UniqueHandle &&prctoken) { rlist.push_back(std::make_tuple(path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken))); }
+	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, UniqueHandle &&prctoken, bool use_cpwtw) { rlist.push_back({path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken), use_cpwtw}); }
 public:
 	void MakeItDead(std::stack<std::wstring> &rules);
 	Controller();

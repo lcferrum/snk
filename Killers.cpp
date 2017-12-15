@@ -91,10 +91,12 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 		std::unique_ptr<wchar_t[]> cwdpath;
 		std::unique_ptr<BYTE[]> envblock;
 		UniqueHandle prctoken;
+		bool mode_restart=ModeRestart();
+		bool use_cpwtw=false;
 		bool do_restart=false;
 
-		//If restart mode is enabled - restart only processes w/ valid path, command line, current working directory, environment block and and accessable token
-		if (ModeRestart()&&path.length()) {
+		//If restart mode is enabled - restart only processes w/ valid path, command line, current working directory, environment block and accessable token
+		if (mode_restart&&path.length()) {
 			if (HANDLE hPidProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
 				if (FPRoutines::GetCmdCwdEnv(hPidProcess, cmdline, cwdpath, envblock)) {
 					HANDLE hOwnToken;
@@ -103,30 +105,34 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 							HANDLE hPidToken;
 							if (OpenProcessToken(hPidProcess, TOKEN_QUERY|TOKEN_DUPLICATE, &hPidToken)) {
 								if (PTOKEN_USER pid_tu=GetTokenUserInformation(hPidToken)) {
-									bool running_elevated=IsTokenElevated(hOwnToken);
-									if (EqualSid(own_tu->User.Sid, pid_tu->User.Sid)&&running_elevated==IsTokenElevated(hPidToken)&&IsTokenRestrictedEx(hPidToken)==IsTokenRestrictedEx(hOwnToken)) {
+									if (EqualSid(own_tu->User.Sid, pid_tu->User.Sid)&&IsTokenElevated(hOwnToken)==IsTokenElevated(hPidToken)&&IsTokenRestrictedEx(hPidToken)==IsTokenRestrictedEx(hOwnToken)) {
+										//In case we have equal (with targeted PID) user SIDs, elevation status and (similar) token restrictions - use ordinary CreateProcess
 										do_restart=true;
 									} else {
 										HANDLE hDupToken;
-										DWORD desired_access=TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY;
-										
+																				
 										//TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE and TOKEN_QUERY are needed for both CreateProcessAsUser and CreateProcessWithTokenW
-										//CreateProcessWithTokenW also requires TOKEN_ADJUST_DEFAULT and TOKEN_ADJUST_SESSIONID (though documentation doesn't mention this)
-										if (fnCreateProcessWithTokenW) desired_access|=TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID;
-											
-										//If CreateProcessWithTokenW is available - we will use it instead of CreateProcessAsUser because thing requires less privileges
-										//Also this means that we are on Vista and above where UAC is present and of course won't allow CreateProcessWithTokenW set needed privileges (SE_IMPERSONATE_NAME) if not run elevated
-										//So check if we are elevated (this also happens when UAC is turned off, but still present, or we run under Local System) before duplicating token
-										//Else use CreateProcessAsUser - this thing typically requires privileges only available to Local System
-										//But before Vista (i.e. on OS where CreateProcessWithTokenW is not available) we can just impersonate it
-										//AccessHacks::ImpersonateLocalSystem also succeeds when process is already run under Local System
-										if ((fnCreateProcessWithTokenW?running_elevated:AccessHacks::IsLocalSytemImpersonated())&&
-											DuplicateTokenEx(hPidToken, desired_access, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
+										DWORD desired_access=TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY;
+																				
+										if (fnCreateProcessWithTokenW&&AccessHacks::IsUsableCreateProcessWithTokenW()) {
+											//If CreateProcessWithTokenW is available and we have necessary privileges (SE_IMPERSONATE_PRIVILEGE) - use it
+											//CreateProcessWithTokenW also requires TOKEN_ADJUST_DEFAULT and TOKEN_ADJUST_SESSIONID (though documentation doesn't mention this)
+											desired_access|=TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID;
+											use_cpwtw=true;
 											do_restart=true;
-											prctoken.ResetHandle(hDupToken);
+										} else if (AccessHacks::IsUsableCreateProcessAsUser()||(!fnCreateProcessWithTokenW&&AccessHacks::IsLocalSytemImpersonated())) {
+											//If we have necessary privileges for CreateProcessAsUser (SE_INCREASE_QUOTA_PRIVILEGE, SE_ASSIGNPRIMARYTOKEN_PRIVILEGE) - use it
+											//Also use it if we are impersonating Local System and CreateProcessWithTokenW is not available
+											//This happens only on OSes before Vista, where CreateProcessWithTokenW is not available and trick with impersonating works
+											do_restart=true;
 										}
 										
-										//TODO: check if privileges needed for CreateProcessWithTokenW and CreateProcessAsUser are held (i.e. just present) in the token (for CreateProcessAsUser before Vista impersonated Local System is also sufficient)
+										if (do_restart) {
+											if (DuplicateTokenEx(hPidToken, desired_access, NULL, SecurityImpersonation, TokenPrimary, &hDupToken))
+												prctoken.ResetHandle(hDupToken);
+											else
+												do_restart=false;
+										}
 									}
 									FreeTokenUserInformation(pid_tu);
 								}
@@ -148,6 +154,7 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 				std::wcout<<PID<<L" ("<<name<<L") - killed";
 			} else {
 				do_restart=false;
+				mode_restart=false;
 				std::wcout<<PID<<L" ("<<name<<L") - can't be terminated";
 			}
 			if (hProcess) CloseHandle(hProcess);
@@ -155,8 +162,8 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 			std::wcout<<PID<<L" ("<<name<<L") - closed";
 		
 		if (do_restart)
-			RestartProcess(path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken));
-		else if (ModeRestart())
+			RestartProcess(path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken), use_cpwtw);
+		else if (mode_restart)
 			std::wcout<<L", can't be restarted";
 		
 		std::wcout<<std::endl;

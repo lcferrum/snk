@@ -1,6 +1,7 @@
 #include "AccessHacks.h"
 #include "Common.h"
 #include "Externs.h"
+#include <algorithm>	//std::find
 #include <cstddef>		//offsetof
 #include <aclapi.h>		//GetSecurityInfo
 #include <accctrl.h>	//SE_KERNEL_OBJECT
@@ -16,7 +17,9 @@
 #define SE_LOAD_DRIVER_PRIVILEGE (10L)	//Grants device driver load/unload rights [currently no use]
 #define SE_RESTORE_PRIVILEGE (18L)		//Grants write access to any file
 #define SE_SECURITY_PRIVILEGE (8L)		//Grants r/w access to audit and security messages [no use]
-#define SE_IMPERSONATE_PRIVILEGE (29L)	//Grants user impersonation privileges
+#define SE_IMPERSONATE_PRIVILEGE (29L)
+#define SE_INCREASE_QUOTA_PRIVILEGE (5L)
+#define SE_ASSIGNPRIMARYTOKEN_PRIVILEGE (3L)
 
 #define ACC_WOW64FSREDIRDISABLED		(1<<0)
 #define ACC_LOCALSYSTEMIMPERSONATED		(1<<1)
@@ -36,7 +39,7 @@ bool AccessHacks::MakeInstance()
 }
 
 AccessHacks::AccessHacks(): 
-	acc_state(), err_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL), token_type(0xFFFFFFFF)
+	acc_state(), err_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL), token_type(0xFFFFFFFF), privsCreateProcessAsUser(-1), privsCreateProcessWithTokenW(-1)
 {}
 
 AccessHacks::~AccessHacks() 
@@ -69,7 +72,8 @@ bool AccessHacks::PrivateEnableDebugPrivileges()
 	HANDLE tokenHandle;
 	bool success=true;
 	
-	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE, SE_IMPERSONATE_PRIVILEGE};
+	//Privileges similar to Process Explorer
+	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE};
 
 	if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle)) {
 		PTOKEN_PRIVILEGES privileges=(PTOKEN_PRIVILEGES)new BYTE[offsetof(TOKEN_PRIVILEGES, Privileges)+sizeof(LUID_AND_ATTRIBUTES)*sizeof(needed_privs)/sizeof(DWORD)];
@@ -418,34 +422,40 @@ void AccessHacks::RevertDaclPermissions(HANDLE hToken)
 	}
 }
 
-bool AccessHacks::PrivateIsGranted(const DWORD *privs, DWORD cnt)
+bool AccessHacks::PrivateIsPrivilegeAvailable(std::initializer_list<DWORD> luid_low_vals, HANDLE token)
 {
-	HANDLE tokenHandle;
-	bool granted=false;
-	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tokenHandle)) {
-		PPRIVILEGE_SET privileges=(PPRIVILEGE_SET)new BYTE[offsetof(PRIVILEGE_SET, Privilege)+sizeof(LUID_AND_ATTRIBUTES)*cnt];
-		
-		for (privileges->PrivilegeCount=0; privileges->PrivilegeCount<cnt; privileges->PrivilegeCount++) {
-			privileges->Privilege[privileges->PrivilegeCount].Attributes=SE_PRIVILEGE_ENABLED;
-			privileges->Privilege[privileges->PrivilegeCount].Luid.HighPart=0;
-			privileges->Privilege[privileges->PrivilegeCount].Luid.LowPart=privs[privileges->PrivilegeCount];
-		}
-		privileges->Control=PRIVILEGE_SET_ALL_NECESSARY;
-		
-		BOOL res;
-		PrivilegeCheck(tokenHandle, privileges, &res);
-		granted=res;
-		
-		delete[] (BYTE*)privileges;
-		CloseHandle(tokenHandle);
+	bool use_own_token=!token;
+	bool available=false;
+	
+	if (token||OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+		if (PTOKEN_PRIVILEGES privileges=GetTokenPrivilegesInformation(token)) {
+			while (privileges->PrivilegeCount--)
+				if (!(privileges->Privileges[privileges->PrivilegeCount].Attributes&SE_PRIVILEGE_REMOVED)&&privileges->Privileges[privileges->PrivilegeCount].Luid.HighPart==0)
+					if ((available=luid_low_vals.end()!=std::find(luid_low_vals.begin(), luid_low_vals.end(), privileges->Privileges[privileges->PrivilegeCount].Luid.LowPart))) break;
+			FreeTokenPrivilegesInformation(privileges);
+		}		
+		if (use_own_token) CloseHandle(token);
 	}
 }
 
-bool AccessHacks::IsGrantedIMPERSONATE()
+bool AccessHacks::IsUsableCreateProcessAsUser()
 {
-	DWORD privs[]={SE_IMPERSONATE_PRIVILEGE};
-	if (!instance) return false;
-	else return instance->PrivateIsGranted(privs, 1);
+	if (!instance) 
+		return false;
+	else if (instance->privsCreateProcessAsUser!=-1)
+		return instance->privsCreateProcessAsUser;
+	else 
+		return instance->privsCreateProcessAsUser=instance->PrivateIsPrivilegeAvailable({SE_INCREASE_QUOTA_PRIVILEGE, SE_ASSIGNPRIMARYTOKEN_PRIVILEGE});
+}
+
+bool AccessHacks::IsUsableCreateProcessWithTokenW()
+{
+	if (!instance) 
+		return false;
+	else if (instance->privsCreateProcessWithTokenW!=-1)
+		return instance->privsCreateProcessWithTokenW;
+	else 
+		return instance->privsCreateProcessWithTokenW=instance->PrivateIsPrivilegeAvailable({SE_IMPERSONATE_PRIVILEGE});
 }
 
 bool AccessHacks::IsLocalSytemImpersonated()

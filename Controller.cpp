@@ -1,6 +1,7 @@
 #include "Externs.h"
 #include "Common.h"
 #include "Killers.h"
+#include "AccessHacks.h"
 #include "ProcessUsage.h"
 #include "Controller.h"
 #include <conio.h>
@@ -8,7 +9,6 @@
 #include <iostream>
 #include <algorithm> 
 #include <functional>
-#include <memory>
 #include <limits>	//numeric_limits
 
 #define MUTEX_NAME		L"MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
@@ -343,11 +343,6 @@ bool Controller<ProcessesPolicy, KillersPolicy>::IsDone(bool sw_res)
 		return sw_res;
 }
 
-//TODO:
-//Test on Win7+ running as admin on non-admin account
-//	https://stackoverflow.com/questions/1533017/dropping-privileges-in-c-on-windows
-//	https://blogs.msdn.microsoft.com/oldnewthing?p=2643
-//	https://blogs.msdn.microsoft.com/aaron_margosis/faq-how-do-i-start-a-program-as-the-desktop-user-from-an-elevated-app/
 template <typename ProcessesPolicy, typename KillersPolicy>	
 void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 {
@@ -363,62 +358,37 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 	}
 #endif
 	
-	for (const RestartProcessTuple &rprc: rlist) {
-		if (std::get<4>(rprc).IsEmpty())
-			RestartProcessNormal(rprc);
-		else if (fnCreateProcessWithTokenW)
-			RestartProcessToken(rprc);
+	//Process token is added to restart list only if CreateProcessWithTokenW or CreateProcessAsUser should be (and can be) used with it
+	//So if there is a token, use it with CreateProcessWithTokenW if it is available and usable (i.e. we have necessary privileges)
+	//Otherwise use it with CreateProcessAsUser
+	
+	PROCESS_INFORMATION pi={};
+	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
+	bool success;
+	for (const RestartProcessItem &rprc_item: rlist) {
+		if (rprc_item.prctoken.IsEmpty())
+			success=CreateProcess(rprc_item.path.c_str(), rprc_item.cmdline.get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, rprc_item.envblock.get(), rprc_item.cwdpath.get(), &si, &pi);
+		else if (rprc_item.use_cpwtw)
+			//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation (Local Sytem is similar to elevated admin)
+			//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
+			//If SE_IMPERSONATE_NAME is not set, CreateProcessWithTokenW will try to set it on it's own
+			success=fnCreateProcessWithTokenW(rprc_item.prctoken.GetHandle(), 0, rprc_item.path.c_str(), rprc_item.cmdline.get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, rprc_item.envblock.get(), rprc_item.cwdpath.get(), &si, &pi);
 		else
-			RestartProcessUser(rprc);
+			//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
+			//Before Vista it was sufficient to impersonate Local System whithout for this privilege to work, but since Vista this trick won't work anymore
+			//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
+			//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
+			//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
+			//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
+			//If SE_INCREASE_QUOTA_NAME or SE_ASSIGNPRIMARYTOKEN_NAME is not set, CreateProcessAsUser will try to set it on it's own
+			success=CreateProcessAsUser(rprc_item.prctoken.GetHandle(), rprc_item.path.c_str(), rprc_item.cmdline.get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, rprc_item.envblock.get(), rprc_item.cwdpath.get(), &si, &pi);
+		
+		if (success) {
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
+		}
 	}
 }
-
-template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessNormal(const RestartProcessTuple &rprc)
-{
-	PROCESS_INFORMATION pi={};
-	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	if (CreateProcess(std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
-		CloseHandle(pi.hProcess);
-		CloseHandle(pi.hThread);
-	}
-}
-
-template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessToken(const RestartProcessTuple &rprc)
-{
-	//Should check CreateProcessWithTokenW availability outside of this function
-	//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation (Local Sytem is similar to elevated admin)
-	//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
-	//If SE_IMPERSONATE_NAME is not set, CreateProcessWithTokenW will try to set it on it's own
-	std::wcout<<L"CreateProcessWithTokenW"<<std::endl;
-	PROCESS_INFORMATION pi={};
-	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	if (fnCreateProcessWithTokenW(std::get<4>(rprc).GetHandle(), 0, std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
-		CloseHandle(pi.hProcess);
-		CloseHandle(pi.hThread);
-	} else std::wcerr<<GetLastError()<<std::endl;
-}
-
-template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::RestartProcessUser(const RestartProcessTuple &rprc)
-{
-	std::wcout<<L"CreateProcessAsUser"<<std::endl;
-	PROCESS_INFORMATION pi={};
-	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
-	//Before Vista it was sufficient to impersonate Local System whithout for this privilege to work, but since Vista this trick won't work anymore
-	//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
-	//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
-	//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
-	//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
-	//If SE_INCREASE_QUOTA_NAME or SE_ASSIGNPRIMARYTOKEN_NAME is not set, CreateProcessAsUser will try to set it on it's own
-	if (CreateProcessAsUser(std::get<4>(rprc).GetHandle(), std::get<0>(rprc).c_str(), std::get<1>(rprc).get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, std::get<3>(rprc).get(), std::get<2>(rprc).get(), &si, &pi)) {
-		CloseHandle(pi.hProcess);
-		CloseHandle(pi.hThread);
-	} else std::wcerr<<GetLastError()<<std::endl;
-}
-
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 typename Controller<ProcessesPolicy, KillersPolicy>::MIDStatus Controller<ProcessesPolicy, KillersPolicy>::MakeItDeadInternal(std::stack<std::wstring> &rules)

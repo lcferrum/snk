@@ -38,7 +38,7 @@ private:
 	virtual bool ModeBlacklist()=0;
 	virtual bool ModeWhitelist()=0;
 	
-	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, UniqueHandle &&prctoken)=0;
+	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, UniqueHandle &&prctoken, bool use_cpwtw)=0;
 protected:	
 	//Kills process with highest cpu load (or whatever actual sorting was)
 	bool KillByCpu();
