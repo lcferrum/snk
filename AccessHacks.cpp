@@ -7,19 +7,18 @@
 #include <accctrl.h>	//SE_KERNEL_OBJECT
 #include <winternl.h>	//NT_SUCCESS, SYSTEM_HANDLE_INFORMATION, SYSTEM_HANDLE_ENTRY
 
-#define DEBUG 3	//REMOVE THIS
 #ifdef DEBUG
 #include <iostream>
 #endif
 
-#define SE_DEBUG_PRIVILEGE (20L)		//Grants r/w access to any process
-#define SE_BACKUP_PRIVILEGE (17L)		//Grants read access to any file
-#define SE_LOAD_DRIVER_PRIVILEGE (10L)	//Grants device driver load/unload rights [currently no use]
-#define SE_RESTORE_PRIVILEGE (18L)		//Grants write access to any file
-#define SE_SECURITY_PRIVILEGE (8L)		//Grants r/w access to audit and security messages [no use]
-#define SE_IMPERSONATE_PRIVILEGE (29L)
-#define SE_INCREASE_QUOTA_PRIVILEGE (5L)
-#define SE_ASSIGNPRIMARYTOKEN_PRIVILEGE (3L)
+#define SE_DEBUG_PRIVILEGE (20L)				//Grants r/w access to any process
+#define SE_BACKUP_PRIVILEGE (17L)				//Grants read access to any file
+#define SE_LOAD_DRIVER_PRIVILEGE (10L)			//Grants device driver load/unload rights [currently no use]
+#define SE_RESTORE_PRIVILEGE (18L)				//Grants write access to any file
+#define SE_SECURITY_PRIVILEGE (8L)				//Grants r/w access to audit and security messages [no use]
+#define SE_IMPERSONATE_PRIVILEGE (29L)			//Needed for CreateProcessWithTokenW check		
+#define SE_INCREASE_QUOTA_PRIVILEGE (5L)		//Needed for CreateProcessAsUser check
+#define SE_ASSIGNPRIMARYTOKEN_PRIVILEGE (3L)	//Needed for CreateProcessAsUser check
 
 #define ACC_WOW64FSREDIRDISABLED		(1<<0)
 #define ACC_LOCALSYSTEMIMPERSONATED		(1<<1)
@@ -73,6 +72,7 @@ bool AccessHacks::PrivateEnableDebugPrivileges()
 	bool success=true;
 	
 	//Privileges similar to Process Explorer
+	//All those privileges are "well known" and their LUID doesn't have high part
 	DWORD needed_privs[]={SE_DEBUG_PRIVILEGE, SE_BACKUP_PRIVILEGE, SE_LOAD_DRIVER_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_SECURITY_PRIVILEGE};
 
 	if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle)) {
@@ -422,7 +422,7 @@ void AccessHacks::RevertDaclPermissions(HANDLE hToken)
 	}
 }
 
-bool AccessHacks::PrivateIsPrivilegeAvailable(std::initializer_list<DWORD> luid_low_vals, HANDLE token)
+bool AccessHacks::PrivateIsPrivilegeAvailable(std::initializer_list<DWORD> well_known_luids, HANDLE token)
 {
 	bool use_own_token=!token;
 	bool available=false;
@@ -431,11 +431,13 @@ bool AccessHacks::PrivateIsPrivilegeAvailable(std::initializer_list<DWORD> luid_
 		if (PTOKEN_PRIVILEGES privileges=GetTokenPrivilegesInformation(token)) {
 			while (privileges->PrivilegeCount--)
 				if (!(privileges->Privileges[privileges->PrivilegeCount].Attributes&SE_PRIVILEGE_REMOVED)&&privileges->Privileges[privileges->PrivilegeCount].Luid.HighPart==0)
-					if ((available=luid_low_vals.end()!=std::find(luid_low_vals.begin(), luid_low_vals.end(), privileges->Privileges[privileges->PrivilegeCount].Luid.LowPart))) break;
+					if ((available=well_known_luids.end()!=std::find(well_known_luids.begin(), well_known_luids.end(), privileges->Privileges[privileges->PrivilegeCount].Luid.LowPart))) break;
 			FreeTokenPrivilegesInformation(privileges);
 		}		
 		if (use_own_token) CloseHandle(token);
 	}
+
+	return available;
 }
 
 bool AccessHacks::IsUsableCreateProcessAsUser()

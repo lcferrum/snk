@@ -28,7 +28,7 @@ private:
 	AccessHacks();
 	
 	bool PrivateEnableDebugPrivileges();
-	bool PrivateIsPrivilegeAvailable(std::initializer_list<DWORD> luid_low_vals, HANDLE token=NULL);
+	bool PrivateIsPrivilegeAvailable(std::initializer_list<DWORD> well_known_luids, HANDLE token=NULL);
 	bool PrivateWow64DisableWow64FsRedirection();
 	void PrivateWow64RevertWow64FsRedirection();
 	bool PrivateImpersonateLocalSystem();

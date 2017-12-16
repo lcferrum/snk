@@ -113,6 +113,11 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 																				
 										//TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE and TOKEN_QUERY are needed for both CreateProcessAsUser and CreateProcessWithTokenW
 										DWORD desired_access=TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY;
+										
+										//Here we are first checking if it is possible to use CreateProcessWithTokenW or CreateProcessAsUser before actually using them
+										//Of course we can avoid this check altogether and go straight to calling these functions
+										//In this case they may fail and user won't be ready for this - UI will say that there are some apps to restart, but won't say anything if we fail to actually restart them
+										//By checking beforehand if it is possible to use CreateProcessWithTokenW or CreateProcessAsUser functions, SnK won't try to restart non-restartable apps, maintaining consistency with UI
 																				
 										if (fnCreateProcessWithTokenW&&AccessHacks::IsUsableCreateProcessWithTokenW()) {
 											//If CreateProcessWithTokenW is available and we have necessary privileges (SE_IMPERSONATE_PRIVILEGE) - use it
