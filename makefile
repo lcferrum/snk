@@ -109,7 +109,7 @@ endif
 ifeq ($(BUILD),Clang_362)
 	CC=clang++
 	INC=-I$(UPSTREAM_INC)
-	CFLAGS+=-target i486-pc-windows-gnu -march=i486 -Wno-ignored-attributes -Wno-deprecated-register -Wno-inconsistent-dllimport -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
+	CFLAGS+=-target i486-pc-windows-gnu -march=i486 -Wno-ignored-attributes -Wno-deprecated-register -Wno-inconsistent-dllimport -D_WCONIO_DEFINED_S -DUMDF_USING_NTSTATUS -DOBSOLETE_WMAIN
 	WNDSUBSYS=-Wl,--subsystem,windows
 	WINDRES=windres
 	ifndef DEBUG
