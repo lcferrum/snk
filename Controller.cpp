@@ -375,7 +375,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 			success=fnCreateProcessWithTokenW(rprc_item.prctoken.GetHandle(), 0, rprc_item.path.c_str(), rprc_item.cmdline.get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, rprc_item.envblock.get(), rprc_item.cwdpath.get(), &si, &pi);
 		else
 			//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
-			//Before Vista it was sufficient to impersonate Local System whithout for this privilege to work, but since Vista this trick won't work anymore
+			//Before Vista it was sufficient to impersonate Local System for this privilege to work, but since Vista this trick won't work anymore
 			//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
 			//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
 			//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
