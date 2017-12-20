@@ -16,9 +16,10 @@
 #define SE_LOAD_DRIVER_PRIVILEGE (10L)			//Grants device driver load/unload rights [currently no use]
 #define SE_RESTORE_PRIVILEGE (18L)				//Grants write access to any file
 #define SE_SECURITY_PRIVILEGE (8L)				//Grants r/w access to audit and security messages [no use]
-#define SE_IMPERSONATE_PRIVILEGE (29L)			//Needed for CreateProcessWithTokenW check		
-#define SE_INCREASE_QUOTA_PRIVILEGE (5L)		//Needed for CreateProcessAsUser check
-#define SE_ASSIGNPRIMARYTOKEN_PRIVILEGE (3L)	//Needed for CreateProcessAsUser check
+
+#define SE_IMPERSONATE_PRIVILEGE (29L)			//Needed for CreateProcessWithTokenW		
+#define SE_INCREASE_QUOTA_PRIVILEGE (5L)		//Needed for CreateProcessAsUser
+#define SE_ASSIGNPRIMARYTOKEN_PRIVILEGE (3L)	//Needed for CreateProcessAsUser
 
 #define ACC_WOW64FSREDIRDISABLED		(1<<0)
 #define ACC_LOCALSYSTEMIMPERSONATED		(1<<1)
@@ -438,30 +439,4 @@ bool AccessHacks::PrivateIsPrivilegeAvailable(std::initializer_list<DWORD> well_
 	}
 
 	return available;
-}
-
-bool AccessHacks::IsUsableCreateProcessAsUser()
-{
-	if (!instance) 
-		return false;
-	else if (instance->privsCreateProcessAsUser!=-1)
-		return instance->privsCreateProcessAsUser;
-	else 
-		return instance->privsCreateProcessAsUser=instance->PrivateIsPrivilegeAvailable({SE_INCREASE_QUOTA_PRIVILEGE, SE_ASSIGNPRIMARYTOKEN_PRIVILEGE});
-}
-
-bool AccessHacks::IsUsableCreateProcessWithTokenW()
-{
-	if (!instance) 
-		return false;
-	else if (instance->privsCreateProcessWithTokenW!=-1)
-		return instance->privsCreateProcessWithTokenW;
-	else 
-		return instance->privsCreateProcessWithTokenW=instance->PrivateIsPrivilegeAvailable({SE_IMPERSONATE_PRIVILEGE});
-}
-
-bool AccessHacks::IsLocalSytemImpersonated()
-{
-	if (!instance) return false;
-	else return instance->acc_state&ACC_LOCALSYSTEMIMPERSONATED;
 }

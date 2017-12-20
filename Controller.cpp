@@ -1,7 +1,6 @@
 #include "Externs.h"
 #include "Common.h"
 #include "Killers.h"
-#include "AccessHacks.h"
 #include "ProcessUsage.h"
 #include "Controller.h"
 #include <conio.h>
@@ -12,8 +11,6 @@
 #include <limits>	//numeric_limits
 
 #define MUTEX_NAME		L"MUTEX_SNK_8b52740e359a5c38a718f7e3e44307f0"
-
-extern pCreateProcessWithTokenW fnCreateProcessWithTokenW;
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
 Controller<ProcessesPolicy, KillersPolicy>::Controller():
@@ -344,7 +341,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::IsDone(bool sw_res)
 }
 
 template <typename ProcessesPolicy, typename KillersPolicy>	
-void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
+void Controller<ProcessesPolicy, KillersPolicy>::ProcessRestartList(bool do_restart)
 {
 	//On Win Vista+ w/ UAC enabled application running under admin account by default will run with "limited user" rights if not asked otherwise (rights "elevation")
 	//Interesting thing is that option to run with administrator privileges is available also to non-admin accounts
@@ -352,41 +349,13 @@ void Controller<ProcessesPolicy, KillersPolicy>::DoRestart()
 	//In Task Scheduler option to "run with highest privileges" will work only with admin accounts and result in task running with "elevated" rights
 	//On non-admin accounts this will do nothing - task won't be run under admin account, and current non-admin account rights won't be "elevated"
 
-#if DEBUG>=2		
-	if (!fnCreateProcessWithTokenW) {
-		std::wcerr<<L"" __FILE__ ":DoRestart:"<<__LINE__<<L": CreateProcessWithTokenW not found!"<<std::endl;
-	}
-#endif
-	
-	//Process token is added to restart list only if CreateProcessWithTokenW or CreateProcessAsUser should be (and can be) used with it
-	//So if there is a token, use it with CreateProcessWithTokenW if it is available and usable (i.e. we have necessary privileges)
-	//Otherwise use it with CreateProcessAsUser
-	
-	PROCESS_INFORMATION pi={};
-	STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-	bool success;
 	for (const RestartProcessItem &rprc_item: rlist) {
-		if (rprc_item.prctoken.IsEmpty())
-			success=CreateProcess(rprc_item.path.c_str(), rprc_item.cmdline.get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, rprc_item.envblock.get(), rprc_item.cwdpath.get(), &si, &pi);
-		else if (rprc_item.use_cpwtw)
-			//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation (Local Sytem is similar to elevated admin)
-			//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
-			//If SE_IMPERSONATE_NAME is not set, CreateProcessWithTokenW will try to set it on it's own
-			success=fnCreateProcessWithTokenW(rprc_item.prctoken.GetHandle(), 0, rprc_item.path.c_str(), rprc_item.cmdline.get(), NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, rprc_item.envblock.get(), rprc_item.cwdpath.get(), &si, &pi);
+		if (do_restart)
+			ResumeThread(rprc_item.trd_handle);
 		else
-			//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
-			//Before Vista it was sufficient to impersonate Local System for this privilege to work, but since Vista this trick won't work anymore
-			//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
-			//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
-			//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
-			//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
-			//If SE_INCREASE_QUOTA_NAME or SE_ASSIGNPRIMARYTOKEN_NAME is not set, CreateProcessAsUser will try to set it on it's own
-			success=CreateProcessAsUser(rprc_item.prctoken.GetHandle(), rprc_item.path.c_str(), rprc_item.cmdline.get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, rprc_item.envblock.get(), rprc_item.cwdpath.get(), &si, &pi);
-		
-		if (success) {
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
-		}
+			TerminateProcess(rprc_item.prc_handle, ERROR_ACCESS_DENIED);
+		CloseHandle(rprc_item.prc_handle);
+		CloseHandle(rprc_item.trd_handle);
 	}
 }
 
@@ -733,7 +702,7 @@ void Controller<ProcessesPolicy, KillersPolicy>::MakeItDead(std::stack<std::wstr
 	
 	ManageProcessList(LstPriMode::RST_CAN, LstSecMode::LST_DUNNO);
 	
-	if (do_restart) DoRestart();
+	ProcessRestartList(do_restart);
 	
 	rlist.clear();
 }

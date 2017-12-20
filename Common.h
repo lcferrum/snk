@@ -46,24 +46,4 @@ bool Win32WcostreamMessageBox(bool ok_cancel);
 bool CachedNtQuerySystemProcessInformation(SYSTEM_PROCESS_INFORMATION** spi_buffer, bool clear_cache=false);
 bool CachedNtQuerySystemHandleInformation(SYSTEM_HANDLE_INFORMATION** shi_buffer, bool clear_cache=false);
 
-class UniqueHandle {
-private:
-	bool valid;
-	HANDLE handle;
-public:
-	HANDLE GetHandle() const { return handle; }
-	bool IsEmpty() const { return !valid; }
-	HANDLE ReleaseHandle() { valid=false; return handle; }
-	void ResetHandle(HANDLE new_handle) { if (valid) CloseHandle(handle); valid=true; handle=new_handle; }
-
-	UniqueHandle(): valid(false), handle() {}
-	UniqueHandle(HANDLE new_handle): valid(true), handle(new_handle) {}
-	~UniqueHandle() { if (valid) CloseHandle(handle); }
-	UniqueHandle(UniqueHandle &&prev_inst): valid(prev_inst.valid), handle(prev_inst.handle) { prev_inst.valid=false; }
-	UniqueHandle& operator=(UniqueHandle &&prev_inst) { valid=prev_inst.valid; handle=prev_inst.handle; prev_inst.valid=false; return *this; }
-
-	UniqueHandle(const UniqueHandle&)=delete;				
-	UniqueHandle& operator=(const UniqueHandle&)=delete;
-};
-
 #endif //COMMON_H

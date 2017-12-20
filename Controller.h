@@ -36,12 +36,8 @@ private:
 	enum CmdMode:char {CMDCP_AUTO=0, CMDCP_UTF8, CMDCP_UTF16};	//Default mode should be 0 so variable can be reset by assigning it 0 or false
 	enum MIDStatus:char {MID_HIT, MID_NONE, MID_EMPTY};
 	typedef struct {
-		std::wstring path;
-		std::unique_ptr<wchar_t[]> cmdline;
-		std::unique_ptr<wchar_t[]> cwdpath;
-		std::unique_ptr<BYTE[]> envblock;
-		UniqueHandle prctoken;
-		bool use_cpwtw;
+		HANDLE prc_handle;
+		HANDLE trd_handle;
 	} RestartProcessItem;
 	
 	struct {
@@ -104,7 +100,7 @@ private:
 	std::wstring ExpandEnvironmentStringsWrapper(const std::wstring &args);
 	bool IsDone(bool sw_res);
 	bool ProcessCmdFile(std::stack<std::wstring> &rules, const wchar_t* arg_cmdpath, CmdMode param_cmd_mode);
-	void DoRestart();
+	void ProcessRestartList(bool do_restart);
 	MIDStatus MakeItDeadInternal(std::stack<std::wstring> &rules);
 	
 	virtual bool ModeAll() { return ctrl_vars.mode_all||ctrl_vars.mode_blacklist||ctrl_vars.mode_whitelist; }
@@ -118,7 +114,7 @@ private:
 	virtual bool ModeBlacklist() { return ctrl_vars.mode_blacklist&&!ctrl_vars.mode_whitelist; }
 	virtual bool ModeWhitelist() { return ctrl_vars.mode_whitelist&&!ctrl_vars.mode_blacklist; }
 	
-	virtual void RestartProcess(const std::wstring &path, std::unique_ptr<wchar_t[]> &&cmdline, std::unique_ptr<wchar_t[]> &&cwdpath, std::unique_ptr<BYTE[]> &&envblock, UniqueHandle &&prctoken, bool use_cpwtw) { rlist.push_back({path, std::move(cmdline), std::move(cwdpath), std::move(envblock), std::move(prctoken), use_cpwtw}); }
+	virtual void RestartProcess(HANDLE prc_handle, HANDLE trd_handle) { rlist.push_back({prc_handle, trd_handle}); }
 public:
 	void MakeItDead(std::stack<std::wstring> &rules);
 	Controller();
