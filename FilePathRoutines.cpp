@@ -184,6 +184,7 @@ extern pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64;
 namespace FPRoutines {
 	std::vector<std::pair<std::wstring, wchar_t>> DriveList;
 	std::map<DWORD, std::wstring> ServiceMap;
+	bool emulatedGetLongPathName=!GetProcAddress(GetModuleHandle(L"kernel32.dll"), "GetLongPathName");
 	bool KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath);
 	bool GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wstring &fpath);
 	bool GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hMod, std::wstring &fpath);
@@ -880,6 +881,17 @@ bool FPRoutines::MaxPathAwareGetLongPathNameWrapper(std::wstring &fpath, bool *i
 {
 	//GetLongPathName is UNC aware, affected by Wow64FsRedirection, may fail because of security restrictions
 	//Prepend returned path with "\\?\" so GetLongPathName won't fail if path length is more than MAX_PATH
+	
+	if (emulatedGetLongPathName) {
+		//Emulated GetProcAddress is not max path aware
+		std::wstring lpath=GetLongPathNameWrapper(fpath.c_str());
+		if (lpath.length()) {
+			if (is_dir) *is_dir=GetFileAttributes(lpath.c_str())&FILE_ATTRIBUTE_DIRECTORY;
+			fpath=std::move(lpath);
+			return true;
+		}
+		return false;
+	}
 	
 	wchar_t upath[fpath.length()+7]; //7 is "\?\UNC" w/ NULL-terminator
 	bool is_unc=fpath.front()==L'\\';

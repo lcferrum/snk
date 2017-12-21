@@ -86,21 +86,22 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 		else
 			std::wcout<<PID<<L" ("<<name<<L")"<<std::endl;
 	} else {
-		PROCESS_INFORMATION pi={};
 		bool mode_restart=ModeRestart();
-		bool do_restart=false;
-
+		std::unique_ptr<wchar_t[]> cmdline;
+		std::unique_ptr<wchar_t[]> cwdpath;
+		std::unique_ptr<BYTE[]> envblock;
+		HANDLE hDupToken=NULL;
+		bool go_no_token=false;
+		
+#if DEBUG>=2		
+		if (!fnCreateProcessWithTokenW&&mode_restart) {
+			std::wcerr<<L"" __FILE__ ":DoRestart:"<<__LINE__<<L": CreateProcessWithTokenW not found!"<<std::endl;
+		}
+#endif
+		
 		//If restart mode is enabled - restart only processes w/ valid path, command line, current working directory, environment block and accessible token
 		if (mode_restart&&path.length()) {
-#if DEBUG>=2		
-			if (!fnCreateProcessWithTokenW) {
-				std::wcerr<<L"" __FILE__ ":DoRestart:"<<__LINE__<<L": CreateProcessWithTokenW not found!"<<std::endl;
-			}
-#endif
 			if (HANDLE hPidProcess=OpenProcessWrapper(PID, PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, PROCESS_VM_READ)) {
-				std::unique_ptr<wchar_t[]> cmdline;
-				std::unique_ptr<wchar_t[]> cwdpath;
-				std::unique_ptr<BYTE[]> envblock;
 				if (FPRoutines::GetCmdCwdEnv(hPidProcess, cmdline, cwdpath, envblock)) {
 					HANDLE hOwnToken;
 					if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hOwnToken)) {
@@ -108,42 +109,13 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 							HANDLE hPidToken;
 							if (OpenProcessToken(hPidProcess, TOKEN_QUERY|TOKEN_DUPLICATE, &hPidToken)) {
 								if (PTOKEN_USER pid_tu=GetTokenUserInformation(hPidToken)) {
-									STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-									HANDLE hDupToken;
-									
 									//TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE and TOKEN_QUERY are needed for both CreateProcessAsUser and CreateProcessWithTokenW
 									//CreateProcessWithTokenW also requires TOKEN_ADJUST_DEFAULT and TOKEN_ADJUST_SESSIONID (though documentation doesn't mention this)
-									
-									if (fnCreateProcessWithTokenW&&DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY|TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
-										//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation (Local Sytem is similar to elevated admin)
-										//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
-										//If SE_IMPERSONATE_NAME is not set, CreateProcessWithTokenW will try to set it on it's own
-										if (fnCreateProcessWithTokenW(hDupToken, 0, path.c_str(), cmdline.get(), NORMAL_PRIORITY_CLASS|CREATE_SUSPENDED|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi))
-											do_restart=true;
-										CloseHandle(hDupToken);
-									} 
-									
-									if (!do_restart&&DuplicateTokenEx(hPidToken, TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
-										//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
-										//Before Vista it was sufficient to impersonate Local System for this privilege to work, but since Vista this trick won't work anymore
-										//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
-										//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
-										//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
-										//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
-										//If SE_INCREASE_QUOTA_NAME or SE_ASSIGNPRIMARYTOKEN_NAME is not set, CreateProcessAsUser will try to set it on it's own
-										if (CreateProcessAsUser(hDupToken, path.c_str(), cmdline.get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_SUSPENDED|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi))
-											do_restart=true;
-										CloseHandle(hDupToken);
-									} 
-									
-									if (!do_restart&&EqualSid(own_tu->User.Sid, pid_tu->User.Sid)&&IsTokenElevated(hOwnToken)==IsTokenElevated(hPidToken)&&IsTokenRestrictedEx(hPidToken)==IsTokenRestrictedEx(hOwnToken)) {
-										//In case where we failed to duplicate token or CreateProcessWithTokenW and CreateProcessAsUser failed - check if we can use ordinary CreateProcess
-										//We can use it only if PID token is similar to own token so not to grant any additional rights to PID token (or withhold rights) or change SIDs
-										//Proper check would be to completely compare both tokens, but this is actually an overkill - tokens are likely to be mostly equal if owner SID is the same one
-										//Here we are just check if PID token belongs to the same owner SID and have the same level elevation and (almost the same) restrictions, which are the most common cases of dissimilarities between tokens from the same owner
-										if (CreateProcess(path.c_str(), cmdline.get(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS|CREATE_SUSPENDED|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi))
-											do_restart=true;
-									}
+									DWORD dwDesiredAccess=TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_QUERY;
+									if (fnCreateProcessWithTokenW) dwDesiredAccess|=TOKEN_ADJUST_DEFAULT|TOKEN_ADJUST_SESSIONID;
+									DuplicateTokenEx(hPidToken, dwDesiredAccess, NULL, SecurityImpersonation, TokenPrimary, &hDupToken);
+
+									go_no_token=EqualSid(own_tu->User.Sid, pid_tu->User.Sid)&&IsTokenElevated(hOwnToken)==IsTokenElevated(hPidToken)&&IsTokenRestrictedEx(hPidToken)==IsTokenRestrictedEx(hOwnToken);
 
 									FreeTokenUserInformation(pid_tu);
 								}
@@ -172,14 +144,45 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 			std::wcout<<PID<<L" ("<<name<<L") - closed";
 		
 		if (mode_restart) {
-			if (do_restart)
-				RestartProcess(pi.hProcess, pi.hThread);
-			else
-				std::wcout<<L", can't be restarted";
-		} else if (do_restart) {
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
+			bool do_restart=false;
+			
+			if (go_no_token||hDupToken) {
+				PROCESS_INFORMATION pi={};
+				STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
+				
+				if (fnCreateProcessWithTokenW&&hDupToken) {
+					//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation (Local Sytem is similar to elevated admin)
+					//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
+					//If SE_IMPERSONATE_NAME is not set, CreateProcessWithTokenW will try to set it on it's own
+					do_restart=fnCreateProcessWithTokenW(hDupToken, 0, path.c_str(), cmdline.get(), CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
+				} 
+				
+				if (!do_restart&&hDupToken) {
+					//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
+					//Before Vista it was sufficient to impersonate Local System for this privilege to work, but since Vista this trick won't work anymore
+					//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
+					//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
+					//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
+					//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
+					//If SE_INCREASE_QUOTA_NAME or SE_ASSIGNPRIMARYTOKEN_NAME is not set, CreateProcessAsUser will try to set it on it's own
+					do_restart=CreateProcessAsUser(hDupToken, path.c_str(), cmdline.get(), NULL, NULL, FALSE, CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
+				} 
+				
+				if (!do_restart&&go_no_token) {
+					//In case where we failed to duplicate token or CreateProcessWithTokenW and CreateProcessAsUser failed - check if we can use ordinary CreateProcess
+					//We can use it only if PID token is similar to own token so not to grant any additional rights to PID token (or withhold rights) or change SIDs
+					//Proper check would be to completely compare both tokens, but this is actually an overkill - tokens are likely to be mostly equal if owner SID is the same one
+					//Here we are just check if PID token belongs to the same owner SID and have the same level elevation and (almost the same) restrictions, which are the most common cases of dissimilarities between tokens from the same owner
+					do_restart=CreateProcess(path.c_str(), cmdline.get(), NULL, NULL, FALSE, CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
+				}
+				
+				if (do_restart) RestartProcess(pi.hProcess, pi.hThread);
+			}
+			
+			if (!do_restart) std::wcout<<L", can't be restarted";
 		}
+		
+		if (hDupToken) CloseHandle(hDupToken);
 		
 		std::wcout<<std::endl;
 	}
@@ -1167,9 +1170,8 @@ bool Killers::KillByAim()
 		//For hook to work thread should have message loop, though it can be pretty castrated
 		//Only GetMessage is needed because hook callback is actually called inside this one function
 		MSG msg;
-		BOOL ret;
-		while ((ret=GetMessage(&msg, NULL, 0, 0))>0); //GetMessage returns 0 if WM_QUIT and -1 on error
-		if (!ret) aim_pid=msg.wParam;
+		while (GetMessage(&msg, NULL, 0, 0)); //See https://blogs.msdn.microsoft.com/oldnewthing/20130322-00/?p=4873
+		aim_pid=msg.wParam;
 		
 		UnhookWindowsHookEx(ms_hook);
 	}
