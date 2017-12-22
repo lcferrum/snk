@@ -144,42 +144,40 @@ void Killers::KillProcess(DWORD PID, const std::wstring &name, const std::wstrin
 			std::wcout<<PID<<L" ("<<name<<L") - closed";
 		
 		if (mode_restart) {
+			PROCESS_INFORMATION pi={};
+			STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
 			bool do_restart=false;
+				
+			if (fnCreateProcessWithTokenW&&hDupToken) {
+				//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation (Local Sytem is similar to elevated admin)
+				//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
+				//If SE_IMPERSONATE_NAME is not set, CreateProcessWithTokenW will try to set it on it's own
+				do_restart=fnCreateProcessWithTokenW(hDupToken, 0, path.c_str(), cmdline.get(), CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
+			} 
 			
-			if (go_no_token||hDupToken) {
-				PROCESS_INFORMATION pi={};
-				STARTUPINFO si={sizeof(STARTUPINFO), NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, STARTF_USESHOWWINDOW, SW_SHOWNORMAL};
-				
-				if (fnCreateProcessWithTokenW&&hDupToken) {
-					//SE_IMPERSONATE_NAME, needed for CreateProcessWithTokenW, is default enabled for elevated admin and can't be set without elevation (Local Sytem is similar to elevated admin)
-					//Even with token identical to own token, SE_IMPERSONATE_NAME is still needed for CreateProcessWithTokenW
-					//If SE_IMPERSONATE_NAME is not set, CreateProcessWithTokenW will try to set it on it's own
-					do_restart=fnCreateProcessWithTokenW(hDupToken, 0, path.c_str(), cmdline.get(), CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
-				} 
-				
-				if (!do_restart&&hDupToken) {
-					//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
-					//Before Vista it was sufficient to impersonate Local System for this privilege to work, but since Vista this trick won't work anymore
-					//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
-					//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
-					//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
-					//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
-					//If SE_INCREASE_QUOTA_NAME or SE_ASSIGNPRIMARYTOKEN_NAME is not set, CreateProcessAsUser will try to set it on it's own
-					do_restart=CreateProcessAsUser(hDupToken, path.c_str(), cmdline.get(), NULL, NULL, FALSE, CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
-				} 
-				
-				if (!do_restart&&go_no_token) {
-					//In case where we failed to duplicate token or CreateProcessWithTokenW and CreateProcessAsUser failed - check if we can use ordinary CreateProcess
-					//We can use it only if PID token is similar to own token so not to grant any additional rights to PID token (or withhold rights) or change SIDs
-					//Proper check would be to completely compare both tokens, but this is actually an overkill - tokens are likely to be mostly equal if owner SID is the same one
-					//Here we are just check if PID token belongs to the same owner SID and have the same level elevation and (almost the same) restrictions, which are the most common cases of dissimilarities between tokens from the same owner
-					do_restart=CreateProcess(path.c_str(), cmdline.get(), NULL, NULL, FALSE, CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
-				}
-				
-				if (do_restart) RestartProcess(pi.hProcess, pi.hThread);
+			if (!do_restart&&hDupToken) {
+				//CreateProcessAsUser requires SE_INCREASE_QUOTA_NAME and also typically requires SE_ASSIGNPRIMARYTOKEN_NAME, with latter being available only to Local System
+				//Before Vista it was sufficient to impersonate Local System for this privilege to work, but since Vista this trick won't work anymore
+				//Fortunately here we have CreateProcessWithTokenW that doesn't require Local System privileges
+				//Also documentation states that restricted version of own token can be used with CreateProcessAsUser without setting SE_ASSIGNPRIMARYTOKEN_NAME privilege
+				//Unfortunately tests show that SE_ASSIGNPRIMARYTOKEN_NAME is still needed for restricted tokens, at least the ones created by disabling SIDs
+				//But SE_ASSIGNPRIMARYTOKEN_NAME not needed when CreateProcessAsUser is used with token identical to own token
+				//If SE_INCREASE_QUOTA_NAME or SE_ASSIGNPRIMARYTOKEN_NAME is not set, CreateProcessAsUser will try to set it on it's own
+				do_restart=CreateProcessAsUser(hDupToken, path.c_str(), cmdline.get(), NULL, NULL, FALSE, CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
+			} 
+			
+			if (!do_restart&&go_no_token) {
+				//In case where we failed to duplicate token or CreateProcessWithTokenW and CreateProcessAsUser failed - check if we can use ordinary CreateProcess
+				//We can use it only if PID token is similar to own token so not to grant any additional rights to PID token (or withhold rights) or change SIDs
+				//Proper check would be to completely compare both tokens, but this is actually an overkill - tokens are likely to be mostly equal if owner SID is the same one
+				//Here we are just check if PID token belongs to the same owner SID and have the same level elevation and (almost the same) restrictions, which are the most common cases of dissimilarities between tokens from the same owner
+				do_restart=CreateProcess(path.c_str(), cmdline.get(), NULL, NULL, FALSE, CREATE_SUSPENDED|NORMAL_PRIORITY_CLASS|CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT, envblock.get(), cwdpath.get(), &si, &pi);
 			}
-			
-			if (!do_restart) std::wcout<<L", can't be restarted";
+				
+			if (do_restart) 
+				RestartProcess(pi.hProcess, pi.hThread);
+			else			
+				std::wcout<<L", can't be restarted";
 		}
 		
 		if (hDupToken) CloseHandle(hDupToken);
