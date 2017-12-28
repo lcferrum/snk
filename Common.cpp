@@ -211,35 +211,6 @@ std::wstring GetNamePartFromFullPath(const std::wstring& fpath)
 		return std::wstring();
 }
 
-bool CheckIfFileExists(const wchar_t* fpath) 
-{
-	if (!fpath||fpath[0]==L'\0'||(				//We don't need NULL or empty paths
-		(fpath[0]!=L'\\'||fpath[1]!=L'\\')&&	//We interested in UNC and...
-		(fpath[1]!=L':'||fpath[2]!=L'\\')		//...absolute paths
-		))
-		return false;
-	//Ballad about full vs relative paths
-	//CheckIfFileExists needs full path: i.e. path which can't be misinterpreted - it should stay the same regardless of CWD, CD or PATH variable
-	//It needs it because it is heavily used in scenarios where real path should be reconstructed from some nonsense
-	//And some of this nonsense may look like relative path and be falsely reported as something that might be real
-	//In the end, there is no relative-path based algorithms in SnK - only name and full-path based
-	//Here MS have an official paper about which paths are considred relative/full on Windows: https://msdn.microsoft.com/library/windows/desktop/aa365247.aspx#paths
-	//They also have PathIsRelative funcion in shlwapi.dll (4.71+)
-	//In ReactOS/Wine PathIsRelative is reversed to the following algorithm (original Win NT algorithm is actually the same):
-	//If it starts from slash ('\') or second character is colon (':') then return false, otherwise return true
-	//Main thing to consider is Microsoft's definition of "relative path" - here it means "path relative to current directory of the current drive" (historically each drive letter has it's own current directory)
-	//So if PathIsRelative returns false it doesn't really mean that path is absolute - it simply means that path doesn't satisfy the above-mentioned definition
-	//E.g. "C:tmp.txt" (relative to current directory but not drive) and "\blah\blah.txt" (relative to current drive but not directory) causes PathIsRelative to return false
-	//So here is refined algorithm for CheckIfFileExists to check if file path is absolute in strict NT kernel terms: RtlPathTypeUncAbsolute or RtlPathTypeDriveAbsolute (see RtlDetermineDosPathNameType_U):
-	//It starts from double slash ("\\") or it's second-to-third chracters are colon with slash (":\") - it's assumed that supplied path has nothing to do with device paths
-	
-	DWORD dwAttrib=GetFileAttributes(fpath);	//Works with UNC paths (ok), relative paths (fixed by code above), affected by Wow64FsRedirection (need some external code to turn this off), can fail because of security restrictions (whatever)
-	if (dwAttrib!=INVALID_FILE_ATTRIBUTES&&!(dwAttrib&FILE_ATTRIBUTE_DIRECTORY))	//Don't need directories
-		return true;
-	else
-		return false;
-}
-
 LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS TokenInformationClass)
 {
 	DWORD dwSize;

@@ -16,8 +16,6 @@ bool MultiWildcardCmp(const wchar_t* wild, const wchar_t* string, MWCMode mode=M
 //skip_argc - how many ARGVs will be skipped (first ARGV is typically program path)
 void MakeRulesFromArgv(int argc, wchar_t** argv, std::stack<std::wstring> &rules, int skip_argc=1);
 
-bool CheckIfFileExists(const wchar_t* fpath);
-
 std::wstring GetNamePartFromFullPath(const std::wstring& fpath);
 
 LPVOID GetTokenInformationWrapper(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS TokenInformationClass);
