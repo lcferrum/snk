@@ -1091,7 +1091,7 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 		(hProcess&&GetFP_ProcessImageFileName(hProcess, fpath))			//It's a last chance: maybe we have a not-completely-obsolete OS (like XP) and security limitations prevent us from accessing PEB but permit something less complex - NtQueryInformationProcess(ProcessImageFileName) works starting from XP, requires same amount of rights as the very first method but kernel to Win32 path conversion is mandatory
 		) {
 #if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Normalizing path with GetLongPathName: \""<<fpath<<L"\"..."<<std::endl;
+		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Normalizing path with GetLongPathName and PathCanonicalize: \""<<fpath<<L"\"..."<<std::endl;
 #endif
 		//There is a possibilty that returned path will include 8.3 portions (and be all-lowercase)
 		//So it's better convert it to LFN with GetLongPathName (this also restores character case)
@@ -1102,10 +1102,12 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 		//But it's not of concern here because none of GetFP functions is able to return path with slashes as path separator
 		//OwnPathCanonicalize can't fail but won't accept lon path prefixes like "\\?\"
 		if (MaxPathAwareGetLongPathNameWrapper(fpath)) {
+			wchar_t final_path[fpath.length()+2];	//OwnPathCanonicalize can theoretically add single backslash to the path
+			OwnPathCanonicalize(final_path, fpath.c_str());
 #if DEBUG>=3
-			std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Found path for PID "<<(ULONG_PTR)PID<<L": \""<<fpath<<L"\""<<std::endl;
+			std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Found path for PID "<<(ULONG_PTR)PID<<L": \""<<final_path<<L"\""<<std::endl;
 #endif
-			return fpath;
+			return final_path;
 		}
 #if DEBUG>=3
 		std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": GetLongPathName failed for PID "<<(ULONG_PTR)PID<<std::endl;
