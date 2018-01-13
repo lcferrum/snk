@@ -189,6 +189,8 @@ namespace FPRoutines {
 	bool GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wstring &fpath);
 	bool GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hMod, std::wstring &fpath);
 	bool CommandLineToApplicationName(wchar_t *cmdline, std::wstring &appname);
+	void OwnPathCanonicalize(wchar_t* lpszBuf, const wchar_t* lpszPath);
+	bool OwnPathIsUNCServerShare(const wchar_t* lpszPath);
 	bool GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath);
 	bool GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath);
 	bool GetFP_PEB(HANDLE hProcess, std::wstring &fpath);
@@ -382,6 +384,130 @@ bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &ap
 	}
 	
 	return false; //Control flow should never reach here so placing it just to make Clang happy
+}
+
+//Based on PathCanonicalizeW from ReactOS:
+// Path Functions [reactos/dll/win32/shlwapi/path.c]
+// Copyright 1999, 2000 Juergen Schmied
+// Copyright 2001, 2002 Jon Griffiths
+// Licensed under GNU Lesser General Public License version 2.1
+//PathCanonicalize from ReactOS differs in the following ways from various Win32 PathCanonicalize forms:
+// From PathCanonicalize (available since shlwapi.dll v4.70):
+//  - final and source path are not restricted to MAX_PATH length
+//  - accepts paths with "\\" prefix (UNC non-long path prefix)
+// From PathCchCanonicalize (available since Win 8):
+//  - final path is not restricted to MAX_PATH length
+//  - caller doesn't have to declare the size of the returned string
+//  - doesn't accept paths with "\\?\" and "\\?\UNC\" prefixes (long path prefixes)
+//  - doesn't follow rule "remove all trailing periods, except when preceded by the asterisk"
+// From PathCchCanonicalizeEx (available since Win 8):
+//  - caller doesn't have to declare the size of the returned string
+//  - doesn't accept paths with "\\?\" and "\\?\UNC\" prefixes (long path prefixes)
+//  - doesn't follow rule "remove all trailing periods, except when preceded by the asterisk"
+//Because this function is internal to FPRoutines, it lacks sanity checks, commonly found in API functions, present in PathCanonicalizeW from ReactOS
+//So don't use it when lpszBuf or lpszPath might be NULL
+void FPRoutines::OwnPathCanonicalize(wchar_t* lpszBuf, const wchar_t* lpszPath)
+{
+	wchar_t* lpszDst=lpszBuf;
+	const wchar_t* lpszSrc=lpszPath;
+
+	*lpszDst=L'\0';
+
+	if (!*lpszPath)	{
+		*lpszBuf++=L'\\';
+		*lpszBuf=L'\0';
+		return;
+	}
+
+	//Copy path root
+	if (*lpszSrc==L'\\') {
+		//In case of "\"
+		*lpszDst++=*lpszSrc++;
+	} else if (*lpszSrc&&lpszSrc[1]==L':') {
+		//In case of "X:\"
+		*lpszDst++=*lpszSrc++;
+		*lpszDst++=*lpszSrc++;
+		if (*lpszSrc==L'\\') *lpszDst++=*lpszSrc++;
+	}
+
+	//Canonicalize the rest of the path
+	while (*lpszSrc) {
+		if (*lpszSrc==L'.') {
+			if (lpszSrc[1]==L'\\'&&(lpszSrc==lpszPath||lpszSrc[-1]==L'\\'||lpszSrc[-1]==L':')) {
+				//Skip ".\"
+				lpszSrc+=2;
+			} else if (lpszSrc[1]==L'.'&&(lpszDst==lpszBuf||lpszDst[-1]==L'\\')) {
+				//"\.." backs up a directory, over the root if it has no "\" following "X:."
+				//".." is ignored if it would remove a UNC server name or initial "\\"
+				
+				if (lpszDst!=lpszBuf) {
+					//Allow PathIsUNCServerShare test on lpszBuf
+					*lpszDst=L'\0';
+					
+					if (lpszDst>lpszBuf+1&&lpszDst[-1]==L'\\'&&(lpszDst[-2]!=L'\\'||lpszDst>lpszBuf+2)) {
+						if (lpszDst[-2]==L':'&&(lpszDst>lpszBuf+3||lpszDst[-3]==L':')) {
+							lpszDst-=2;
+							
+							while (lpszDst>lpszBuf&&*lpszDst!=L'\\') lpszDst--;
+							
+							if (*lpszDst==L'\\') 
+								//Reset to last "\"
+								lpszDst++;
+							else
+								//Start path again from new root
+								lpszDst=lpszBuf;
+						} else if (lpszDst[-2]!=L':'&&!OwnPathIsUNCServerShare(lpszBuf))
+							lpszDst-=2;
+					}
+					
+					while (lpszDst>lpszBuf&&*lpszDst!=L'\\') lpszDst--;
+					
+					if (lpszDst==lpszBuf) {
+						*lpszDst++=L'\\';
+						lpszSrc++;
+					}
+				}
+				
+				//Skip ".." in src path
+				lpszSrc+=2;
+			} else
+				*lpszDst++=*lpszSrc++;
+		} else
+			*lpszDst++=*lpszSrc++;
+	}
+	
+	//Append "\" to naked drive specs
+	if (lpszDst-lpszBuf==2&&lpszDst[-1]==L':') *lpszDst++=L'\\';
+	*lpszDst++=L'\0';
+}
+
+//Based on PathIsUNCServerShareW from ReactOS:
+// Path Functions [reactos/dll/win32/shlwapi/path.c]
+// Copyright 1999, 2000 Juergen Schmied
+// Copyright 2001, 2002 Jon Griffiths
+// Licensed under GNU Lesser General Public License version 2.1
+//PathIsUNCServerShare from Win32 is available since shlwapi.dll v4.71
+//Because this function is internal to FPRoutines, it lacks sanity checks, commonly found in API functions, present in PathIsUNCServerShareW from ReactOS
+//So don't use it when lpszPath might be NULL
+bool FPRoutines::OwnPathIsUNCServerShare(const wchar_t* lpszPath)
+{
+	if (*lpszPath++==L'\\'&&*lpszPath++==L'\\') {
+		bool bSeenSlash=false;
+		
+		while (*lpszPath) {
+			if (*lpszPath==L'\\') {
+				if (bSeenSlash)
+					return false;
+				bSeenSlash=true;
+			}
+
+			lpszPath++;
+		}
+		
+		return bSeenSlash;
+	}
+
+	return false;
 }
 
 void FPRoutines::FillServiceMap() 
@@ -969,10 +1095,12 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 #endif
 		//There is a possibilty that returned path will include 8.3 portions (and be all-lowercase)
 		//So it's better convert it to LFN with GetLongPathName (this also restores character case)
+		//To get rid of navigation elements (like "." and ".."), that can be also be present in returned path, we use own version of PathCanonicalize
 		//N.B.:
 		//GetLongPathName accepts slash as path deparator but not with "\\?\"
 		//Also GetLongPathName doesn't convert slashes to backslashes in returned path
 		//But it's not of concern here because none of GetFP functions is able to return path with slashes as path separator
+		//OwnPathCanonicalize can't fail but won't accept lon path prefixes like "\\?\"
 		if (MaxPathAwareGetLongPathNameWrapper(fpath)) {
 #if DEBUG>=3
 			std::wcerr<<L"" __FILE__ ":GetFilePath:"<<__LINE__<<L": Found path for PID "<<(ULONG_PTR)PID<<L": \""<<fpath<<L"\""<<std::endl;
