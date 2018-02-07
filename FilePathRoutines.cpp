@@ -778,6 +778,12 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 	return false;
 }
 
+//Ignores WoW64 redirection:		YES
+//Clears navigational elements:		YES
+//Restores letter case:				YES
+//Resolves 8.3 paths:				YES
+//Converts to Win32 paths:			YES		
+//Supports long paths:				YES (shortens names)
 bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -813,6 +819,12 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 	return false;
 }
 
+//Ignores WoW64 redirection:		?
+//Clears navigational elements:		?
+//Restores letter case:				?
+//Resolves 8.3 paths:				?
+//Converts to Win32 paths:			?	
+//Supports long paths:				?
 bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -828,6 +840,12 @@ bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath)
 	}
 }
 
+//Ignores WoW64 redirection:		YES
+//Clears navigational elements:		NO
+//Restores letter case:				NO
+//Resolves 8.3 paths:				NO
+//Converts to Win32 paths:			NO (w/o KernelToWin32Path)		
+//Supports long paths:				YES (returns whatever was in PEB)
 bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -960,6 +978,12 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 	return false;
 }
 
+//Ignores WoW64 redirection:		YES
+//Clears navigational elements:		YES
+//Restores letter case:				YES
+//Resolves 8.3 paths:				YES
+//Converts to Win32 paths:			NO (returns only kernel paths w/o KernelToWin32Path)		
+//Supports long paths:				YES (shortens names)
 bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -1003,6 +1027,12 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	return result;
 }
 
+//Ignores WoW64 redirection:		YES
+//Clears navigational elements:		YES
+//Restores letter case:				YES
+//Resolves 8.3 paths:				YES
+//Converts to Win32 paths:			NO (returns only kernel paths w/o KernelToWin32Path)		
+//Supports long paths:				YES (shortens names)
 bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
