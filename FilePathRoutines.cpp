@@ -683,8 +683,6 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 		return true;
 	}
 	
-	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": AFTER CheckIfFileExists"<<std::endl;
-	
 	if (!fnNtCreateFile) {
 #if DEBUG>=2
 		std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": NtCreateFile not found!"<<std::endl;
@@ -727,8 +725,6 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 	//NtCreateFile will not accept ordinary Win32 paths (will fail with STATUS_OBJECT_PATH_SYNTAX_BAD)
 	if (!NT_SUCCESS(fnNtCreateFile(&hFile, FILE_READ_ATTRIBUTES, &objAttribs, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN, FILE_NON_DIRECTORY_FILE, NULL, 0)))
 		return false;
-	
-	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": AFTER fnNtCreateFile"<<std::endl;
 	
 	//Very inconsistent function which behaviour differs between OS versions
 	//Starting from Vista things are easy - just pass NULL buffer and zero length and you'll get STATUS_INFO_LENGTH_MISMATCH and needed buffer size
