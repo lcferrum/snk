@@ -671,6 +671,8 @@ bool FPRoutines::GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hM
 
 bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath)
 {
+	//KernelToWin32Path is affected by Wow64FsRedirection because of various path functions
+
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": Converting \""<<krn_fpath<<L"\"..."<<std::endl;
 #endif
@@ -680,6 +682,8 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 		w32_fpath=krn_fpath;
 		return true;
 	}
+	
+	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": AFTER CheckIfFileExists"<<std::endl;
 	
 	if (!fnNtCreateFile) {
 #if DEBUG>=2
@@ -723,6 +727,8 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 	//NtCreateFile will not accept ordinary Win32 paths (will fail with STATUS_OBJECT_PATH_SYNTAX_BAD)
 	if (!NT_SUCCESS(fnNtCreateFile(&hFile, FILE_READ_ATTRIBUTES, &objAttribs, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN, FILE_NON_DIRECTORY_FILE, NULL, 0)))
 		return false;
+	
+	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": AFTER fnNtCreateFile"<<std::endl;
 	
 	//Very inconsistent function which behaviour differs between OS versions
 	//Starting from Vista things are easy - just pass NULL buffer and zero length and you'll get STATUS_INFO_LENGTH_MISMATCH and needed buffer size
@@ -778,12 +784,13 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 	return false;
 }
 
-//Ignores WoW64 redirection:		YES
-//Clears navigational elements:		YES
-//Restores letter case:				YES
-//Resolves 8.3 paths:				YES
-//Converts to Win32 paths:			YES		
-//Supports long paths:				YES (shortens names)
+//Not affected by WoW64 redirection:    YES
+//Clears navigational elements:         YES
+//Maintains backslashes:                YES
+//Restores letter case:                 YES
+//Resolves 8.3 paths:                   YES
+//Produces only Win32 paths:            YES
+//Supports long paths:                  YES (shortens names)
 bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -819,12 +826,13 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 	return false;
 }
 
-//Ignores WoW64 redirection:		NO
-//Clears navigational elements:		YES
-//Restores letter case:				NO
-//Resolves 8.3 paths:				NO
-//Converts to Win32 paths:			YES	
-//Supports long paths:				YES (returns whatever was in binPath)
+//Not affected by WoW64 redirection:    NO (binPath is processed locally)
+//Clears navigational elements:         YES
+//Maintains backslashes:                NO
+//Restores letter case:                 NO
+//Resolves 8.3 paths:                   NO
+//Produces only Win32 paths:            YES (binPath supports only Win32 paths)
+//Supports long paths:                  YES (returns whatever was in binPath)
 bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -840,12 +848,13 @@ bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath)
 	}
 }
 
-//Ignores WoW64 redirection:		YES
-//Clears navigational elements:		NO
-//Restores letter case:				NO
-//Resolves 8.3 paths:				NO
-//Converts to Win32 paths:			NO (w/o KernelToWin32Path)		
-//Supports long paths:				YES (returns whatever was in PEB)
+//Not affected by WoW64 redirection:    YES (but not KernelToWin32Path)
+//Clears navigational elements:         NO
+//Maintains backslashes:                YES
+//Restores letter case:                 NO
+//Resolves 8.3 paths:                   NO
+//Produces only Win32 paths:            NO (returns whatever was in PEB w/o KernelToWin32Path)
+//Supports long paths:                  YES (returns whatever was in PEB)
 bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -978,12 +987,13 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 	return false;
 }
 
-//Ignores WoW64 redirection:		YES
-//Clears navigational elements:		YES
-//Restores letter case:				YES
-//Resolves 8.3 paths:				YES
-//Converts to Win32 paths:			NO (returns only kernel paths w/o KernelToWin32Path)		
-//Supports long paths:				YES (shortens names)
+//Not affected by WoW64 redirection:    YES (but not KernelToWin32Path)
+//Clears navigational elements:         YES
+//Maintains backslashes:                YES
+//Restores letter case:                 YES
+//Resolves 8.3 paths:                   YES
+//Produces only Win32 paths:            NO (returns only kernel paths w/o KernelToWin32Path)
+//Supports long paths:                  YES (shortens names)
 bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -1027,12 +1037,13 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	return result;
 }
 
-//Ignores WoW64 redirection:		YES
-//Clears navigational elements:		YES
-//Restores letter case:				YES
-//Resolves 8.3 paths:				YES
-//Converts to Win32 paths:			NO (returns only kernel paths w/o KernelToWin32Path)		
-//Supports long paths:				YES (shortens names)
+//Not affected by WoW64 redirection:    YES (but not KernelToWin32Path)
+//Clears navigational elements:         YES
+//Maintains backslashes:                YES
+//Restores letter case:                 YES
+//Resolves 8.3 paths:                   YES
+//Produces only Win32 paths:            NO (returns only kernel paths w/o KernelToWin32Path)
+//Supports long paths:                  YES (shortens names)
 bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -1149,6 +1160,8 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 
 std::wstring FPRoutines::GetLongPathNameWrapper(const wchar_t* path)
 {
+	//GetLongPathName is UNC aware, affected by Wow64FsRedirection, may fail because of security restrictions
+
 	if (DWORD buf_len=Probe_GetLongPathName(path, NULL, 0)) {
 		wchar_t buffer[buf_len];
 		if (Probe_GetLongPathName(path, buffer, buf_len)) {
