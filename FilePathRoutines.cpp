@@ -819,12 +819,12 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 	return false;
 }
 
-//Ignores WoW64 redirection:		?
-//Clears navigational elements:		?
-//Restores letter case:				?
-//Resolves 8.3 paths:				?
-//Converts to Win32 paths:			?	
-//Supports long paths:				?
+//Ignores WoW64 redirection:		NO
+//Clears navigational elements:		YES
+//Restores letter case:				NO
+//Resolves 8.3 paths:				NO
+//Converts to Win32 paths:			YES	
+//Supports long paths:				YES (returns whatever was in binPath)
 bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath) 
 {
 #if DEBUG>=3
