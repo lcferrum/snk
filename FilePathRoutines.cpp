@@ -294,6 +294,7 @@ void FPRoutines::FillDriveList()
 	}
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::CheckIfFileExists(const wchar_t* fpath, bool req_abs) 
 {
 	if (req_abs) {
@@ -325,6 +326,7 @@ bool FPRoutines::CheckIfFileExists(const wchar_t* fpath, bool req_abs)
 		return false;
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::CommandLineToApplicationName(wchar_t *cmdline, std::wstring &appname)
 {
 	//Same algorithm as CreateProcess uses to get application name from command line
@@ -510,6 +512,7 @@ bool FPRoutines::OwnPathIsUNCServerShare(const wchar_t* lpszPath)
 	return false;
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 void FPRoutines::FillServiceMap() 
 {
 	ServiceMap.clear();
@@ -669,10 +672,9 @@ bool FPRoutines::GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hM
 	return false;
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath)
 {
-	//KernelToWin32Path is affected by Wow64FsRedirection because of various path functions
-
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":KernelToWin32Path:"<<__LINE__<<L": Converting \""<<krn_fpath<<L"\"..."<<std::endl;
 #endif
@@ -780,7 +782,7 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 	return false;
 }
 
-//Not affected by WoW64 redirection:    YES
+//WoW64 redirection removed:            YES
 //Clears navigational elements:         YES
 //Maintains backslashes:                YES
 //Restores letter case:                 YES
@@ -822,7 +824,7 @@ bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &
 	return false;
 }
 
-//Not affected by WoW64 redirection:    NO (binPath is processed locally)
+//WoW64 redirection removed:            YES (services always launched natively)
 //Clears navigational elements:         YES
 //Maintains backslashes:                NO
 //Restores letter case:                 NO
@@ -844,13 +846,14 @@ bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath)
 	}
 }
 
-//Not affected by WoW64 redirection:    YES (but not KernelToWin32Path)
+//WoW64 redirection removed:            YES
 //Clears navigational elements:         NO
 //Maintains backslashes:                YES
 //Restores letter case:                 NO
 //Resolves 8.3 paths:                   NO
 //Produces only Win32 paths:            NO (returns whatever was in PEB w/o KernelToWin32Path)
 //Supports long paths:                  YES (returns whatever was in PEB)
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -983,13 +986,14 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 	return false;
 }
 
-//Not affected by WoW64 redirection:    YES (but not KernelToWin32Path)
+//WoW64 redirection removed:            YES
 //Clears navigational elements:         YES
 //Maintains backslashes:                YES
 //Restores letter case:                 YES
 //Resolves 8.3 paths:                   YES
 //Produces only Win32 paths:            NO (returns only kernel paths w/o KernelToWin32Path)
 //Supports long paths:                  YES (shortens names)
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -1033,13 +1037,14 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 	return result;
 }
 
-//Not affected by WoW64 redirection:    YES (but not KernelToWin32Path)
+//WoW64 redirection removed:            YES
 //Clears navigational elements:         YES
 //Maintains backslashes:                YES
 //Restores letter case:                 YES
 //Resolves 8.3 paths:                   YES
 //Produces only Win32 paths:            NO (returns only kernel paths w/o KernelToWin32Path)
 //Supports long paths:                  YES (shortens names)
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) 
 {
 #if DEBUG>=3
@@ -1073,13 +1078,12 @@ bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath
 	return false;
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::MaxPathAwareGetLongPathNameWrapper(std::wstring &fpath, bool *is_dir)
 {
-	//GetLongPathName is UNC aware, affected by Wow64FsRedirection, may fail because of security restrictions
-	//Prepend returned path with "\\?\" so GetLongPathName won't fail if path length is more than MAX_PATH
+	//GetLongPathName is MAX_PATH aware with "\\?\" but emulated GetLongPathName isn't
 	
 	if (emulatedGetLongPathName) {
-		//Emulated GetProcAddress is not max path aware
 		std::wstring lpath=GetLongPathNameWrapper(fpath.c_str());
 		if (lpath.length()) {
 			if (is_dir) *is_dir=GetFileAttributes(lpath.c_str())&FILE_ATTRIBUTE_DIRECTORY;
@@ -1113,6 +1117,7 @@ bool FPRoutines::MaxPathAwareGetLongPathNameWrapper(std::wstring &fpath, bool *i
 	return false;
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read) 
 {
 #if DEBUG>=3
@@ -1154,6 +1159,7 @@ std::wstring FPRoutines::GetFilePath(HANDLE PID, HANDLE hProcess, bool vm_read)
 	return L"";
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 std::wstring FPRoutines::GetLongPathNameWrapper(const wchar_t* path)
 {
 	//GetLongPathName is UNC aware, affected by Wow64FsRedirection, may fail because of security restrictions
@@ -1376,6 +1382,14 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 	return mlist;
 }
 
+//WoW64 redirection removed:            YES
+//Clears navigational elements:         YES
+//Maintains backslashes:                YES
+//Restores letter case:                 YES
+//Resolves 8.3 paths:                   NO (w/o GetLongPathName)
+//Produces only Win32 paths:            YES (includes kernel to Win32 path conversion)
+//Supports long paths:                  YES (keeps original path) TODO: MaxPathAwareGetLongPathNameWrapper fails on long paths
+//AFFECTED BY WOW64 REDIRECTION
 std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 {
 	if (!fnNtQueryInformationFile) {
@@ -1410,6 +1424,7 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 		if (NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
 			std::wstring hpath;
 			wchar_t* res_krn_path=((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer;
+			std::wcerr<<L"" __FILE__ ":GetHandlePath:"<<__LINE__<<L": KPATH IS: "<<res_krn_path<<std::endl;
 			
 			for (std::pair<std::wstring, wchar_t> &drive: DriveList) {
 				if (!wcsncmp(drive.first.c_str(), res_krn_path, drive.first.length())&&(drive.first.back()==L'\\'||res_krn_path[drive.first.length()]==L'\\')) {
@@ -1437,6 +1452,7 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 				//GetLongPathName fails for paths that don't exist
 				bool is_dir;
 				if (MaxPathAwareGetLongPathNameWrapper(hpath, &is_dir)) {
+					std::wcerr<<L"" __FILE__ ":GetHandlePath:"<<__LINE__<<L": HPATH IS: "<<hpath<<std::endl;
 					if (full)
 						return hpath;
 					else if (!is_dir)
@@ -1449,6 +1465,14 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 	return L"";
 }
 
+//WoW64 redirection removed:            N/A
+//Clears navigational elements:         N/A
+//Maintains backslashes:                N/A
+//Restores letter case:                 N/A
+//Resolves 8.3 paths:                   N/A
+//Produces only Win32 paths:            N/A
+//Supports long paths:                  N/A
+//Returns actual copies of CommandLine, CurrentDirectory and Environment
 bool FPRoutines::GetCmdCwdEnv(HANDLE hProcess, std::unique_ptr<wchar_t[]> &cmdline, std::unique_ptr<wchar_t[]> &cwdpath, std::unique_ptr<BYTE[]> &envblock)
 {
 	if (!hProcess)
