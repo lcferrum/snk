@@ -184,7 +184,7 @@ extern pNtWow64QueryVirtualMemory64 fnNtWow64QueryVirtualMemory64;
 namespace FPRoutines {
 	std::vector<std::pair<std::wstring, wchar_t>> DriveList;
 	std::map<DWORD, std::wstring> ServiceMap;
-	bool emulatedGetLongPathName=!GetProcAddress(GetModuleHandle(L"kernel32.dll"), "GetLongPathName");
+	bool emulatedGetLongPathName=!GetProcAddress(GetModuleHandle(L"kernel32.dll"), "GetLongPathNameW");
 	bool KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_fpath);
 	bool GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wstring &fpath);
 	bool GetMappedFileNameWow64Wrapper(HANDLE hProcess, PTR_64(PVOID) hMod, std::wstring &fpath);
