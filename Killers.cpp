@@ -1234,6 +1234,7 @@ LRESULT CALLBACK Killers::MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam)
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
+#define OflTuple std::tuple<HANDLE, HANDLE, HANDLE*, bool*>
 bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_wcard) 
 {
 	if (!arg_wcard)
@@ -1276,11 +1277,20 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					}
 				} while (entry_idx);
 			}
+			
 			//Search SYSTEM_HANDLE_INFORMATION for file that match arg_wcard
 			ULONG prc_pid=0;
 			HANDLE hProcess=NULL;
 			HANDLE cur_prc=GetCurrentProcess();
 			HANDLE hDupFile;
+			HANDLE get_type_event=CreateEvent(NULL, FALSE, FALSE, NULL);
+			HANDLE ready_event=CreateEvent(NULL, FALSE, FALSE, NULL);
+			bool is_disk_file;
+			OflTuple thread_tuple(get_type_event, ready_event, &hDupFile, &is_disk_file);
+			HANDLE gft_thread=CreateThread(NULL, 0, ThreadGetFileType, (LPVOID)&thread_tuple, CREATE_SUSPENDED, NULL);
+			SetThreadPriority(gft_thread, THREAD_PRIORITY_TIME_CRITICAL);	//Set higher priority for GetFileType thread because it would be tested for timeout
+			ResumeThread(gft_thread);
+			
 			for (entry_idx=0; entry_idx<pshi->Count; entry_idx++) if (pshi->Handle[entry_idx].ObjectType==file_type) {
 				//To speed up enumeration - cache opened process handle
 				if (prc_pid!=pshi->Handle[entry_idx].OwnerPid) {
@@ -1291,14 +1301,29 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": Handles for PID "<<prc_pid<<std::endl;
 #endif
 				}
-				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, 0, FALSE, DUPLICATE_SAME_ACCESS)) {				
+				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, 0, FALSE, DUPLICATE_SAME_ACCESS)) {		
 					//NtQueryObject and NtQueryInformationFile (used in FPRoutines::GetHandlePath) hang on pipe handles
 					//NtQueryInformationFile fails on most non-FILE_TYPE_DISK handles
 					//And we dont't need pipes and other non-FILE_TYPE_DISK handles actually
-					if (GetFileType(hDupFile)==FILE_TYPE_DISK) {
+					
+					SetEvent(get_type_event);
+					if (WaitForSingleObject(ready_event, 1000)==WAIT_TIMEOUT) {
+#if DEBUG>=3
+						std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": GetFileType hanged on "<<std::hex<<(ULONG_PTR)pshi->Handle[entry_idx].ObjectPointer<<std::dec<<std::endl;
+#endif
+						SuspendThread(gft_thread);
+						TerminateThread(gft_thread, 1);
+						CloseHandle(gft_thread);
+						gft_thread=CreateThread(NULL, 0, ThreadGetFileType, (LPVOID)&thread_tuple, CREATE_SUSPENDED, NULL);
+						SetThreadPriority(gft_thread, THREAD_PRIORITY_TIME_CRITICAL);
+						ResumeThread(gft_thread);
+						is_disk_file=false;
+					}
+
+					if (is_disk_file) {
 						std::wstring fpath=FPRoutines::GetHandlePath(hDupFile, param_full);
 #if DEBUG>=3
-						if (fpath.length()) std::wcerr<<L"\t\""<<fpath<<L"\""<<std::endl;
+						if (fpath.length()) std::wcerr<<L"\t\""<<fpath<<L"\"";
 #endif
 						if (fpath.length()&&MultiWildcardCmp(arg_wcard, fpath.c_str(), param_strict?MWC_PTH:MWC_STR)) {
 							ul_array.push_back(prc_pid);
@@ -1306,14 +1331,22 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 							CloseHandle(hProcess);
 							hProcess=NULL;
 #if DEBUG>=3
-							std::wcerr<<L"\tMATCHED"<<std::endl;
+							std::wcerr<<L" - MATCHED";
 #endif
 						}
+#if DEBUG>=3
+						if (fpath.length()) std::wcerr<<std::endl;
+#endif
 					}
 					CloseHandle(hDupFile);
 				}
 			}
-			if (hProcess) CloseHandle(hProcess);	
+			if (hProcess) CloseHandle(hProcess);
+			hDupFile=INVALID_HANDLE_VALUE;
+			SetEvent(get_type_event);
+			CloseHandle(gft_thread);
+			CloseHandle(get_type_event);
+			CloseHandle(ready_event);			
 		}
 		
 		if (h_ownexe!=INVALID_HANDLE_VALUE) CloseHandle(h_ownexe);
@@ -1338,4 +1371,25 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 		std::wcout<<L"\" NOT found"<<std::endl;
 		return false;
 	}
+}
+
+DWORD WINAPI Killers::ThreadGetFileType(LPVOID lpParameter)
+{
+	HANDLE get_type_event=std::get<0>(*(OflTuple*)lpParameter);
+	HANDLE ready_event=std::get<1>(*(OflTuple*)lpParameter);
+	HANDLE *test_handle=std::get<2>(*(OflTuple*)lpParameter);
+	bool *is_disk_file=std::get<3>(*(OflTuple*)lpParameter);
+
+	while (WaitForSingleObject(get_type_event, INFINITE)==WAIT_OBJECT_0) {
+		if (*test_handle==INVALID_HANDLE_VALUE) break;
+		
+		if (GetFileType(*test_handle)==FILE_TYPE_DISK)
+			*is_disk_file=true;
+		else
+			*is_disk_file=false;
+
+		SetEvent(ready_event);
+	}
+	
+	return 0;
 }

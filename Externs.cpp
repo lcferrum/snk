@@ -6,6 +6,7 @@ pNtOpenSymbolicLinkObject fnNtOpenSymbolicLinkObject=NULL;
 pNtQuerySymbolicLinkObject fnNtQuerySymbolicLinkObject=NULL;
 pNtCreateFile fnNtCreateFile=NULL;
 pNtQueryInformationFile fnNtQueryInformationFile=NULL;
+pNtQueryVolumeInformationFile fnNtQueryVolumeInformationFile=NULL;
 pNtQueryObject fnNtQueryObject=NULL;
 pNtQueryInformationProcess fnNtQueryInformationProcess=NULL;
 pNtWow64QueryInformationProcess64 fnNtWow64QueryInformationProcess64=NULL;
@@ -62,6 +63,7 @@ void Externs::LoadFunctions()
 		fnNtQuerySystemInformation=(pNtQuerySystemInformation)GetProcAddress(hNtDll, "NtQuerySystemInformation");
 		fnNtCreateFile=(pNtCreateFile)GetProcAddress(hNtDll, "NtCreateFile");
 		fnNtQueryInformationFile=(pNtQueryInformationFile)GetProcAddress(hNtDll, "NtQueryInformationFile");
+		fnNtQueryVolumeInformationFile=(pNtQueryVolumeInformationFile)GetProcAddress(hNtDll, "NtQueryVolumeInformationFile");
 		fnNtQueryObject=(pNtQueryObject)GetProcAddress(hNtDll, "NtQueryObject");
 		fnNtOpenSymbolicLinkObject=(pNtOpenSymbolicLinkObject)GetProcAddress(hNtDll, "NtOpenSymbolicLinkObject");
 		fnNtQuerySymbolicLinkObject=(pNtQuerySymbolicLinkObject)GetProcAddress(hNtDll, "NtQuerySymbolicLinkObject");

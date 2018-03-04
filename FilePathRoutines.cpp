@@ -1388,7 +1388,7 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 //Restores letter case:                 YES
 //Resolves 8.3 paths:                   NO (w/o GetLongPathName)
 //Produces only Win32 paths:            YES (includes kernel to Win32 path conversion)
-//Supports long paths:                  YES (keeps original path) TODO: MaxPathAwareGetLongPathNameWrapper fails on long paths
+//Supports long paths:                  YES (keeps original path)
 //AFFECTED BY WOW64 REDIRECTION
 std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 {
@@ -1424,7 +1424,6 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 		if (NT_SUCCESS(fnNtQueryObject(hFile, ObjectNameInformation, (OBJECT_NAME_INFORMATION*)oni_buf, buf_len, NULL))) {
 			std::wstring hpath;
 			wchar_t* res_krn_path=((OBJECT_NAME_INFORMATION*)oni_buf)->Name.Buffer;
-			std::wcerr<<L"" __FILE__ ":GetHandlePath:"<<__LINE__<<L": KPATH IS: "<<res_krn_path<<std::endl;
 			
 			for (std::pair<std::wstring, wchar_t> &drive: DriveList) {
 				if (!wcsncmp(drive.first.c_str(), res_krn_path, drive.first.length())&&(drive.first.back()==L'\\'||res_krn_path[drive.first.length()]==L'\\')) {
@@ -1452,7 +1451,6 @@ std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 				//GetLongPathName fails for paths that don't exist
 				bool is_dir;
 				if (MaxPathAwareGetLongPathNameWrapper(hpath, &is_dir)) {
-					std::wcerr<<L"" __FILE__ ":GetHandlePath:"<<__LINE__<<L": HPATH IS: "<<hpath<<std::endl;
 					if (full)
 						return hpath;
 					else if (!is_dir)

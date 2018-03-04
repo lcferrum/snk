@@ -28,6 +28,7 @@ private:
 	static BOOL CALLBACK EnumWndFsc(HWND hwnd, LPARAM lParam);
 	static BOOL CALLBACK EnumWndClose(HWND hwnd, LPARAM lParam);
 	static LRESULT CALLBACK MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam);
+	static DWORD WINAPI ThreadGetFileType(LPVOID lpParameter);
 	
 	virtual bool ModeBlank()=0;
 	virtual bool ModeRecent()=0;
