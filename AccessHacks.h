@@ -15,6 +15,7 @@ private:
 	HANDLE hSysToken;					//Cached Local System token for ImpersonateLocalSystem
 	PSECURITY_DESCRIPTOR pOrigSD;		//Saved original token security descriptor used in RevertDaclPermissions
 	PACL pOrigDACL;						//Saved original token DACL (actually points to someplace in pOrigSD) used in RevertDaclPermissions
+	HANDLE hOrigToken;					//Handle, for which pOrigSD and pOrigDACL were saved, used in RevertDaclPermissions
 	DWORD token_type;					//Object type for token - it's BYTE in size actually, so only low byte of low word has any meaning 
 	BOOL privsCreateProcessAsUser;		//Privileges needed for CreateProcessAsUser are available (-1 is unknown)
 	BOOL privsCreateProcessWithTokenW;	//Privileges needed for CreateProcessWithTokenW are available (-1 is unknown)
@@ -23,7 +24,7 @@ private:
 	bool ImpersonateLocalSystem2k(PSID ssid, HANDLE hOwnToken);
 	bool ImpersonateLocalSystemNT4(PSID ssid, PSID usid);
 	bool GrantDaclPermissions(HANDLE hToken, PSID pSid, DWORD dwAccessPermissions);
-	void RevertDaclPermissions(HANDLE hToken);
+	void RevertDaclPermissions();
 	
 	AccessHacks();
 	

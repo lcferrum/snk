@@ -39,7 +39,7 @@ bool AccessHacks::MakeInstance()
 }
 
 AccessHacks::AccessHacks(): 
-	acc_state(), err_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL), token_type(0xFFFFFFFF), privsCreateProcessAsUser(-1), privsCreateProcessWithTokenW(-1)
+	acc_state(), err_state(), wow64_fs_redir(), hSysToken(NULL), pOrigSD(NULL), pOrigDACL(NULL), hOrigToken(NULL), token_type(0xFFFFFFFF), privsCreateProcessAsUser(-1), privsCreateProcessWithTokenW(-1)
 {}
 
 AccessHacks::~AccessHacks() 
@@ -361,7 +361,7 @@ bool AccessHacks::ImpersonateLocalSystemNT4(PSID ssid, PSID usid)
 										if (!imp_successful) CloseHandle(hSysToken);
 									}
 									//On successful tap we revert this PID's DACL to original state
-									RevertDaclPermissions(hToken);
+									RevertDaclPermissions();
 								} else
 									hToken=NULL;
 							}
@@ -388,6 +388,7 @@ bool AccessHacks::GrantDaclPermissions(HANDLE hToken, PSID pSid, DWORD dwAccessP
 	
 	bool tap_successful=false;
 	if (pOrigSD) LocalFree(pOrigSD);
+	hOrigToken=hToken;
 	
 	if (GetSecurityInfo(hToken, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, &pOrigDACL, NULL, &pOrigSD)==ERROR_SUCCESS) {
 		EXPLICIT_ACCESS ea_for_sid;
@@ -414,10 +415,12 @@ bool AccessHacks::GrantDaclPermissions(HANDLE hToken, PSID pSid, DWORD dwAccessP
 	return tap_successful;
 }
 
-void AccessHacks::RevertDaclPermissions(HANDLE hToken)
+void AccessHacks::RevertDaclPermissions()
 {
+	//This function can revert DACL permissions only for the last used token
+
 	if (pOrigSD) {
-		SetSecurityInfo(hToken, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, pOrigDACL, NULL);
+		SetSecurityInfo(hOrigToken, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, pOrigDACL, NULL);
 		LocalFree(pOrigSD);
 		pOrigSD=NULL;
 	}
