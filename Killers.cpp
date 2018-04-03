@@ -1302,9 +1302,23 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 #endif
 				}
 				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, 0, FALSE, DUPLICATE_SAME_ACCESS)) {		
-					//NtQueryObject and NtQueryInformationFile (used in FPRoutines::GetHandlePath) hang on pipe handles
-					//NtQueryInformationFile fails on most non-FILE_TYPE_DISK handles
-					//And we dont't need pipes and other non-FILE_TYPE_DISK handles actually
+					//NtQueryObject and NtQueryInformationFile (used in FPRoutines::GetHandlePath) can hang on synchronous named pipes that are already in a pending wait operation
+					//Bad news is that NtQueryVolumeInformationFile, used in GetFileType, is also vexed with the same problem
+					//Walkaround is to use these functions in a separate thread and wait for it respond with function result or terminate it on timeout
+					//But here we face another problem - when NtQueryObject or NtQueryInformationFile hang, thread enters non-alertable wait state in kernel
+					//Such thread can't be terminated by application and will remain in zombie-like state till system shutdown
+					//Hopefully when NtQueryVolumeInformationFile hangs it avoids NtQueryObject/NtQueryInformationFile fate at it's thread can be terminated
+					//KillByOfl should only care about real files, and not consoles, sockets or pipes which all fall in "file" category for handles
+					//So we can call GetFileType in separate thread and feed FPRoutines::GetHandlePath only FILE_TYPE_DISK handles
+					
+					//And we have one more nuisance to take care of
+					//On pre-Vista systems TerminateThread won't free thread's initial stack
+					//Conveniently there is undocumented RtlFreeUserThreadStack that can be used to free thread's initial stack
+					//And, surprise, it's avalable only from Win NT4 and up to and including Win XP
+					//So if RtlFreeUserThreadStack available, we will use it to clean up the mess after TerminateThread
+					//And if it's not available then TerminateThread is able to clean after itself
+					//Internally RtlFreeUserThreadStack frees thread's initial stack by using VirtualFree (NtFreeVirtualMemory) on TEB.DeallocationStack
+					//We can get the same address as TEB.DeallocationStack by getting MEMORY_BASIC_INFORMATION.AllocationBase for some variable from initial stack
 					
 					SetEvent(get_type_event);
 					if (WaitForSingleObject(ready_event, 1000)==WAIT_TIMEOUT) {
