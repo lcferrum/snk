@@ -908,8 +908,8 @@ bool Killers::KillByFgd()
 	}
 }
 
-#define WndTuple std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM>
-bool Killers::KillByWnd(const wchar_t* arg_wcard)
+#define WndTuple std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>
+bool Killers::KillByWnd(bool param_class, const wchar_t* arg_wcard)
 {
 	if (!arg_wcard)
 		arg_wcard=L"";
@@ -922,11 +922,15 @@ bool Killers::KillByWnd(const wchar_t* arg_wcard)
 	//At least we can use tuples so not to litter class definition with structs
 	//Same thing with "Ghost" class ATOM as in KillByInr
 	WNDCLASS dummy_wnd;
-	WndTuple enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
+	WndTuple enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), param_class);
 	EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
 	
 	PrintCommonKillPrefix();
-	std::wcout<<L"which window title matches wildcard \""<<arg_wcard;
+	if (param_class)
+		std::wcout<<L"which window class name matches wildcard \"";
+	else
+		std::wcout<<L"which window title matches wildcard \"";
+	std::wcout<<arg_wcard;
 
 	bool found=!dw_array.empty()&&ApplyToProcesses([this, &dw_array](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 		if (std::find(dw_array.begin(), dw_array.end(), PID)!=dw_array.end()) {
@@ -947,7 +951,11 @@ bool Killers::KillByWnd(const wchar_t* arg_wcard)
 
 BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam) 
 {
-	if (IsWindowVisible(hwnd)) {	//Filtering out non-visible windows to speed up the search
+	bool use_class=std::get<3>(*(WndTuple*)lParam);
+	
+	//Filtering out non-visible windows to speed up the search
+	//If user opts to match windows class name, it's assumed that he knows what he is doing and filter is not applied
+	if (use_class||IsWindowVisible(hwnd)) {
 		const wchar_t* wcard=std::get<0>(*(WndTuple*)lParam);
 		std::vector<DWORD> &dw_array=std::get<1>(*(WndTuple*)lParam);
 		ATOM ghost_atom=std::get<2>(*(WndTuple*)lParam);
@@ -956,8 +964,8 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 		
 		//Why not filtering out ghost windows completely?
 		//If not filtering it out, assuming that NtUserHungWindowFromGhostWindow is available, we will add two identical PIDs (for ghost window and original one)
-		//This may look that something that we don't want
-		//But user may supply something like "*(Not Responding)" for wcard in hope for killing hung application
+		//This may look like something that we don't want
+		//But user may supply something like "*(Not Responding)" for wcard (or "Ghost" if matching class name) in hope for killing hung application
 		//That's why we are also querying ghost windows
 		if (GetClassLongPtr(hwnd, GCW_ATOM)==ghost_atom) {
 			if (fnNtUserHungWindowFromGhostWindow)
@@ -967,13 +975,23 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 		}
 		
 		bool wcard_matched=false;
-		if (int title_len=GetWindowTextLength(hwnd)) {
-			wchar_t title_buf[title_len+1];
-			if (GetWindowText(hwnd, title_buf, title_len+1)&&MultiWildcardCmp(wcard, title_buf, MWC_STR, NULL))
+		if (use_class) {
+			//Window class name can't exceed 255 characters (256 if counting NULL-terminator), see WNDCLASS and WNDCLASSEX definitions
+			//Window class name can't be empty string, GetClassName returning 0 indicates error
+			//BTW, class names are actually case-insensitive, like path names, so using case-insensitive MultiWildcardCmp is ok here
+			
+			wchar_t cls_buf[256];	
+			if (GetClassName(hwnd, cls_buf, 256)&&MultiWildcardCmp(wcard, cls_buf, MWC_STR, NULL))	
 				wcard_matched=true;
-		} else if (GetLastError()==ERROR_SUCCESS) {	//Empty window title is also title
-			if (MultiWildcardCmp(wcard, L"", MWC_STR, NULL))
-				wcard_matched=true;
+		} else {
+			if (int title_len=GetWindowTextLength(hwnd)) {
+				wchar_t title_buf[title_len+1];
+				if (GetWindowText(hwnd, title_buf, title_len+1)&&MultiWildcardCmp(wcard, title_buf, MWC_STR, NULL))
+					wcard_matched=true;
+			} else if (GetLastError()==ERROR_SUCCESS) {	//Empty window title is also title
+				if (MultiWildcardCmp(wcard, L"", MWC_STR, NULL))
+					wcard_matched=true;
+			}
 		}
 		
 		DWORD pid;
@@ -1305,10 +1323,20 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 				if (prc_pid!=pshi->Handle[entry_idx].OwnerPid) {
 					prc_pid=pshi->Handle[entry_idx].OwnerPid;
 					if (hProcess) CloseHandle(hProcess);
-					hProcess=OpenProcessWrapper(prc_pid, PROCESS_DUP_HANDLE);
+					
+					//Not querying pids that are not available to ApplyToProcesses
+					//This further speeds up enumeration and lessens probability of hanging with GetFileType if system processes are excluded (see below)
+					if (IsPidAvailable(prc_pid)) {
+						hProcess=OpenProcessWrapper(prc_pid, PROCESS_DUP_HANDLE);
 #if DEBUG>=3
-					std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": Handles for PID "<<prc_pid<<std::endl;
+						std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": Handles for PID "<<prc_pid<<std::endl;
 #endif
+					} else {
+						hProcess=NULL;
+#if DEBUG>=3
+						std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": Skipping PID "<<prc_pid<<std::endl;
+#endif
+					}
 				}
 				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &thread_io.test_handle, 0, FALSE, DUPLICATE_SAME_ACCESS)) {		
 					//NtQueryObject and NtQueryInformationFile (used in FPRoutines::GetHandlePath) can hang on synchronous named pipes that are already in a pending wait operation
@@ -1365,6 +1393,7 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					CloseHandle(thread_io.test_handle);
 				}
 			}
+			
 			if (hProcess) CloseHandle(hProcess);
 			thread_io.test_handle=INVALID_HANDLE_VALUE;
 			SetEvent(thread_io.get_type_event);

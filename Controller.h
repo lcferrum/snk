@@ -69,6 +69,7 @@ private:
 			bool param_simple;
 			bool param_anywnd;
 			bool param_vm;
+			bool param_class;
 		};
 		union {
 			bool param_second;

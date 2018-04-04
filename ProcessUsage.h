@@ -47,10 +47,11 @@ public:
 	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool appended, bool system);
 };
 
-//This is common parent for cross delegation of ApplyToProcesses function with Killers policy
+//This is common parent for cross delegation of ApplyToProcesses and IsPidAvailable functions with Killers policy
 class ProcessesCrossBase {
 protected:
 	virtual bool ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&, bool)> mutator)=0;
+	virtual bool IsPidAvailable(ULONG_PTR pid)=0;
 };
 
 //This is default Processes policy, that is intended to be used on NT based OSes
@@ -81,6 +82,9 @@ protected:
 	//Applies function ("mutator") to processes from CAN according to currently active modes
 	//If "mutator" returned TRUE - marks this PID as disabled and exits loop 
 	bool ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstring&, const std::wstring&, bool)> mutator);
+	
+	//Searches CAN for the specified pid and checks is it available for ApplyToProcesses function
+	bool IsPidAvailable(ULONG_PTR pid);
 	
 	//Synchronizes local CAN with ref CAN - some function calls for local CAN items will now be redirected to ref CAN
 	//It's important not to modify ref CAN after synchronization (add, delete, reorder items) while this object still exists

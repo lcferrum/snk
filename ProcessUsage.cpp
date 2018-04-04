@@ -72,6 +72,18 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 	return applied;
 }
 
+bool Processes::IsPidAvailable(ULONG_PTR pid)
+{
+	for (PData &data: CAN) if (data.GetPID()==pid) {
+		if (data.GetDisabled()||data.GetDiscarded()||(ModeAll()?false:data.GetSystem()))
+			return false;
+		else
+			return true;
+	}
+	
+	return false;
+}
+
 void Processes::Synchronize(Processes &ref)
 {
 	//In both objects CANs should be of equal size

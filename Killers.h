@@ -95,7 +95,8 @@ protected:
 	//Kills process with highest cpu load which window title matches wildcard (case-insensitive, with globbing)
 	//Checks only visible windows
 	//arg_wcard - wildcard to match
-	bool KillByWnd(const wchar_t* arg_wcard);
+	//If param_class - will match window class name instead of window title
+	bool KillByWnd(bool param_class, const wchar_t* arg_wcard);
 	
 	//Kills process with highest cpu load which user name matches one of wildcards (case-insensitive, with globbing)
 	//arg_wcard - wildcards to match (delimeted by comma or semicolon)
