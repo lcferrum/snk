@@ -12,11 +12,6 @@
 
 #define INR_TIMEOUT					5000 //ms
 
-typedef struct _LANGANDCODEPAGE {
-	WORD wLanguage;
-	WORD wCodePage;
-} LANGANDCODEPAGE;
-
 //These are also defined in windows.h in ifdef OEMRESOURCE clause
 //#define SNK_OCR_SIZE 32640	//OBSOLETE: use OCR_SIZEALL
 //#define SNK_OCR_ICON 32641	//OBSOLETE: use OCR_NORMAL
@@ -39,6 +34,7 @@ typedef struct _LANGANDCODEPAGE {
 extern pNtUserHungWindowFromGhostWindow fnNtUserHungWindowFromGhostWindow;
 extern pGetProcessMemoryInfo fnGetProcessMemoryInfo;
 extern pCreateProcessWithTokenW fnCreateProcessWithTokenW;
+extern pRtlFreeUserThreadStack fnRtlFreeUserThreadStack;
 
 #ifdef _WIN64
 #define EnumDisplayDevicesWrapper EnumDisplayDevices
@@ -395,6 +391,11 @@ bool Killers::KillByPid(const wchar_t* arg_parray)
 		return false;
 	}
 }
+
+typedef struct {
+	WORD wLanguage;
+	WORD wCodePage;
+} LANGANDCODEPAGE;
 
 //Checks if StringFileInfo ITEM contains DESC string
 //Check is case-sensetive for both DESCs and ITEMs
@@ -1234,11 +1235,23 @@ LRESULT CALLBACK Killers::MouseHookAim(int nCode, WPARAM wParam, LPARAM lParam)
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-#define OflTuple std::tuple<HANDLE, HANDLE, HANDLE*, bool*>
+typedef struct {
+	HANDLE get_type_event;
+	HANDLE ready_event;
+	HANDLE test_handle;
+	bool is_disk_file;
+} CREATE_THREAD_PARAMETER;
+
 bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_wcard) 
 {
 	if (!arg_wcard)
 		arg_wcard=L"";
+	
+#if DEBUG>=2		
+	if (!fnRtlFreeUserThreadStack) {
+		std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": RtlFreeUserThreadStack not found!"<<std::endl;
+	}
+#endif
 	
 	std::vector<ULONG> ul_array;	//ULONG PID because SYSTEM_HANDLE_ENTRY.OwnerPid is ULONG
 	
@@ -1282,12 +1295,8 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 			ULONG prc_pid=0;
 			HANDLE hProcess=NULL;
 			HANDLE cur_prc=GetCurrentProcess();
-			HANDLE hDupFile;
-			HANDLE get_type_event=CreateEvent(NULL, FALSE, FALSE, NULL);
-			HANDLE ready_event=CreateEvent(NULL, FALSE, FALSE, NULL);
-			bool is_disk_file;
-			OflTuple thread_tuple(get_type_event, ready_event, &hDupFile, &is_disk_file);
-			HANDLE gft_thread=CreateThread(NULL, 0, ThreadGetFileType, (LPVOID)&thread_tuple, CREATE_SUSPENDED, NULL);
+			CREATE_THREAD_PARAMETER thread_io={CreateEvent(NULL, FALSE, FALSE, NULL), CreateEvent(NULL, FALSE, FALSE, NULL)};
+			HANDLE gft_thread=CreateThread(NULL, 0, ThreadGetFileType, (LPVOID)&thread_io, CREATE_SUSPENDED, NULL);
 			SetThreadPriority(gft_thread, THREAD_PRIORITY_TIME_CRITICAL);	//Set higher priority for GetFileType thread because it would be tested for timeout
 			ResumeThread(gft_thread);
 			
@@ -1301,13 +1310,13 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": Handles for PID "<<prc_pid<<std::endl;
 #endif
 				}
-				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &hDupFile, 0, FALSE, DUPLICATE_SAME_ACCESS)) {		
+				if (hProcess&&DuplicateHandle(hProcess, (HANDLE)(ULONG_PTR)pshi->Handle[entry_idx].HandleValue, cur_prc, &thread_io.test_handle, 0, FALSE, DUPLICATE_SAME_ACCESS)) {		
 					//NtQueryObject and NtQueryInformationFile (used in FPRoutines::GetHandlePath) can hang on synchronous named pipes that are already in a pending wait operation
 					//Bad news is that NtQueryVolumeInformationFile, used in GetFileType, is also vexed with the same problem
 					//Walkaround is to use these functions in a separate thread and wait for it respond with function result or terminate it on timeout
 					//But here we face another problem - when NtQueryObject or NtQueryInformationFile hang, thread enters non-alertable wait state in kernel
 					//Such thread can't be terminated by application and will remain in zombie-like state till system shutdown
-					//Hopefully when NtQueryVolumeInformationFile hangs it avoids NtQueryObject/NtQueryInformationFile fate at it's thread can be terminated
+					//Hopefully when NtQueryVolumeInformationFile hangs it avoids NtQueryObject/NtQueryInformationFile fate and it's thread can be terminated
 					//KillByOfl should only care about real files, and not consoles, sockets or pipes which all fall in "file" category for handles
 					//So we can call GetFileType in separate thread and feed FPRoutines::GetHandlePath only FILE_TYPE_DISK handles
 					
@@ -1320,22 +1329,23 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					//Internally RtlFreeUserThreadStack frees thread's initial stack by using VirtualFree (NtFreeVirtualMemory) on TEB.DeallocationStack
 					//We can get the same address as TEB.DeallocationStack by getting MEMORY_BASIC_INFORMATION.AllocationBase for some variable from initial stack
 					
-					SetEvent(get_type_event);
-					if (WaitForSingleObject(ready_event, 1000)==WAIT_TIMEOUT) {
+					SetEvent(thread_io.get_type_event);
+					if (WaitForSingleObject(thread_io.ready_event, 1000)==WAIT_TIMEOUT) {
 #if DEBUG>=3
 						std::wcerr<<L"" __FILE__ ":KillByOfl:"<<__LINE__<<L": GetFileType hanged on "<<std::hex<<(ULONG_PTR)pshi->Handle[entry_idx].ObjectPointer<<std::dec<<std::endl;
 #endif
 						SuspendThread(gft_thread);
+						if (fnRtlFreeUserThreadStack) fnRtlFreeUserThreadStack(cur_prc, gft_thread);
 						TerminateThread(gft_thread, 1);
 						CloseHandle(gft_thread);
-						gft_thread=CreateThread(NULL, 0, ThreadGetFileType, (LPVOID)&thread_tuple, CREATE_SUSPENDED, NULL);
+						gft_thread=CreateThread(NULL, 0, ThreadGetFileType, (LPVOID)&thread_io, CREATE_SUSPENDED, NULL);
 						SetThreadPriority(gft_thread, THREAD_PRIORITY_TIME_CRITICAL);
 						ResumeThread(gft_thread);
-						is_disk_file=false;
+						thread_io.is_disk_file=false;
 					}
 
-					if (is_disk_file) {
-						std::wstring fpath=FPRoutines::GetHandlePath(hDupFile, param_full);
+					if (thread_io.is_disk_file) {
+						std::wstring fpath=FPRoutines::GetHandlePath(thread_io.test_handle, param_full);
 #if DEBUG>=3
 						if (fpath.length()) std::wcerr<<L"\t\""<<fpath<<L"\"";
 #endif
@@ -1352,15 +1362,15 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 						if (fpath.length()) std::wcerr<<std::endl;
 #endif
 					}
-					CloseHandle(hDupFile);
+					CloseHandle(thread_io.test_handle);
 				}
 			}
 			if (hProcess) CloseHandle(hProcess);
-			hDupFile=INVALID_HANDLE_VALUE;
-			SetEvent(get_type_event);
+			thread_io.test_handle=INVALID_HANDLE_VALUE;
+			SetEvent(thread_io.get_type_event);
 			CloseHandle(gft_thread);
-			CloseHandle(get_type_event);
-			CloseHandle(ready_event);			
+			CloseHandle(thread_io.get_type_event);
+			CloseHandle(thread_io.ready_event);			
 		}
 		
 		if (h_ownexe!=INVALID_HANDLE_VALUE) CloseHandle(h_ownexe);
@@ -1389,20 +1399,15 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 
 DWORD WINAPI Killers::ThreadGetFileType(LPVOID lpParameter)
 {
-	HANDLE get_type_event=std::get<0>(*(OflTuple*)lpParameter);
-	HANDLE ready_event=std::get<1>(*(OflTuple*)lpParameter);
-	HANDLE *test_handle=std::get<2>(*(OflTuple*)lpParameter);
-	bool *is_disk_file=std::get<3>(*(OflTuple*)lpParameter);
-
-	while (WaitForSingleObject(get_type_event, INFINITE)==WAIT_OBJECT_0) {
-		if (*test_handle==INVALID_HANDLE_VALUE) break;
+	while (WaitForSingleObject(((CREATE_THREAD_PARAMETER*)lpParameter)->get_type_event, INFINITE)==WAIT_OBJECT_0) {
+		if (((CREATE_THREAD_PARAMETER*)lpParameter)->test_handle==INVALID_HANDLE_VALUE) break;
 		
-		if (GetFileType(*test_handle)==FILE_TYPE_DISK)
-			*is_disk_file=true;
+		if (GetFileType(((CREATE_THREAD_PARAMETER*)lpParameter)->test_handle)==FILE_TYPE_DISK)
+			((CREATE_THREAD_PARAMETER*)lpParameter)->is_disk_file=true;
 		else
-			*is_disk_file=false;
+			((CREATE_THREAD_PARAMETER*)lpParameter)->is_disk_file=false;
 
-		SetEvent(ready_event);
+		SetEvent(((CREATE_THREAD_PARAMETER*)lpParameter)->ready_event);
 	}
 	
 	return 0;

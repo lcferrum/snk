@@ -156,7 +156,7 @@ bool Controller<ProcessesPolicy, KillersPolicy>::ProcessCmdFile(std::stack<std::
 	//CommandLineToArgvW has an interesting behaviour of how it parses the very first argument
 	//Without going into details - double quotes handling algorithm is different from the rest of arguments
 	//If you want to use double quotes to keep spaces in the first argument - the very first character of input string should be double quote
-	//E.g.: string ["argumen one"] works as expected but [argument" one"] will produce two arguments instead - [argument"] and [one"]
+	//E.g.: string ["argument one"] works as expected but [argument" one"] will produce two arguments instead - [argument"] and [one"]
 	//So you can't use something like [/pth:full="C:\Program Files\program.exe"] for the first argument
 	//But you can use ["/pth:full=C:\Program Files\program.exe"] which looks ugly but does the work	
 	//In the end it's better to prepend input string with whitespace - that will simply produce empty first argument

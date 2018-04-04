@@ -21,6 +21,7 @@ pAttachConsole fnAttachConsole=NULL;
 pGetConsoleWindow fnGetConsoleWindow=NULL;
 pGetProcessMemoryInfo fnGetProcessMemoryInfo=NULL;
 pCreateProcessWithTokenW fnCreateProcessWithTokenW=NULL;
+pRtlFreeUserThreadStack fnRtlFreeUserThreadStack=NULL;
 
 std::unique_ptr<Externs> Externs::instance;
 
@@ -72,6 +73,7 @@ void Externs::LoadFunctions()
 		fnNtWow64ReadVirtualMemory64=(pNtWow64ReadVirtualMemory64)GetProcAddress(hNtDll, "NtWow64ReadVirtualMemory64");
 		fnNtQueryVirtualMemory=(pNtQueryVirtualMemory)GetProcAddress(hNtDll, "NtQueryVirtualMemory");
 		fnNtWow64QueryVirtualMemory64=(pNtWow64QueryVirtualMemory64)GetProcAddress(hNtDll, "NtWow64QueryVirtualMemory64");
+		fnRtlFreeUserThreadStack=(pRtlFreeUserThreadStack)GetProcAddress(hNtDll, "RtlFreeUserThreadStack");
 	}
 	
 	if (hKernel32) {

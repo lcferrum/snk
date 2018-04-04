@@ -57,5 +57,6 @@ typedef HWND (WINAPI *pGetConsoleWindow)(void);
 typedef BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
 typedef BOOL (WINAPI *pGetProcessMemoryInfo)(HANDLE Process, PPROCESS_MEMORY_COUNTERS ppsmemCounters, DWORD cb);
 typedef BOOL (WINAPI *pCreateProcessWithTokenW)(HANDLE hToken, DWORD dwLogonFlags, LPCWSTR lpApplicationName, LPWSTR lpCommandLine, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCWSTR lpCurrentDirectory, LPSTARTUPINFOW lpStartupInfo, LPPROCESS_INFORMATION lpProcessInfo);
+typedef NTSTATUS (WINAPI *pRtlFreeUserThreadStack)(HANDLE hProcess, HANDLE hThread);
 
 #endif //EXTERNS_H
