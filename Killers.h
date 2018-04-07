@@ -86,7 +86,7 @@ protected:
 	//By default only exclusive fullscreen and borderless windowed processes are checked
 	//If param_anywnd - checks processes with any window
 	//If param_primary - checks only windows that belong to primary display
-	//If param_strict - only fullscreen windows with largest are checked
+	//If param_strict - only fullscreen windows with largest area are checked
 	bool KillByFsc(bool param_anywnd, bool param_primary, bool param_strict);
 	
 	//Kills process with highest cpu load which window is in foreground

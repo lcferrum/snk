@@ -1391,6 +1391,7 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 						if (fpath.length()) std::wcerr<<std::endl;
 #endif
 					}
+
 					CloseHandle(thread_io.test_handle);
 				}
 			}
