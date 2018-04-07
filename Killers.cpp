@@ -908,7 +908,13 @@ bool Killers::KillByFgd()
 	}
 }
 
-#define WndTuple std::tuple<const wchar_t*, std::vector<DWORD>&, ATOM, bool>
+typedef struct {
+	const wchar_t* wcard;
+	std::vector<DWORD>& dw_array;
+	BOOL ghost_atom;
+	bool use_class;
+} WND_PARAM;
+
 bool Killers::KillByWnd(bool param_class, const wchar_t* arg_wcard)
 {
 	if (!arg_wcard)
@@ -919,11 +925,10 @@ bool Killers::KillByWnd(bool param_class, const wchar_t* arg_wcard)
 	//Unfortunately, can't use those pretty capture-less lambdas here because of calling conventions
 	//By default lambda calling conventions is __cdecl, which is OK on x86-64 because CALLBACK is also __cdecl here
 	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
-	//At least we can use tuples so not to litter class definition with structs
 	//Same thing with "Ghost" class ATOM as in KillByInr
 	WNDCLASS dummy_wnd;
-	WndTuple enum_wnd_tuple(arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), param_class);
-	EnumWindows(EnumWndWnd, (LPARAM)&enum_wnd_tuple);
+	WND_PARAM callback_io={arg_wcard, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), param_class};
+	EnumWindows(EnumWndWnd, (LPARAM)&callback_io);
 	
 	PrintCommonKillPrefix();
 	if (param_class)
@@ -951,15 +956,11 @@ bool Killers::KillByWnd(bool param_class, const wchar_t* arg_wcard)
 
 BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam) 
 {
-	bool use_class=std::get<3>(*(WndTuple*)lParam);
+	WND_PARAM &callback_io=*(WND_PARAM*)lParam;
 	
 	//Filtering out non-visible windows to speed up the search
 	//If user opts to match windows class name, it's assumed that he knows what he is doing and filter is not applied
-	if (use_class||IsWindowVisible(hwnd)) {
-		const wchar_t* wcard=std::get<0>(*(WndTuple*)lParam);
-		std::vector<DWORD> &dw_array=std::get<1>(*(WndTuple*)lParam);
-		ATOM ghost_atom=std::get<2>(*(WndTuple*)lParam);
-				
+	if (callback_io.use_class||IsWindowVisible(hwnd)) {
 		HWND real_hwnd=hwnd;
 		
 		//Why not filtering out ghost windows completely?
@@ -967,7 +968,7 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 		//This may look like something that we don't want
 		//But user may supply something like "*(Not Responding)" for wcard (or "Ghost" if matching class name) in hope for killing hung application
 		//That's why we are also querying ghost windows
-		if (GetClassLongPtr(hwnd, GCW_ATOM)==ghost_atom) {
+		if (GetClassLongPtr(hwnd, GCW_ATOM)==callback_io.ghost_atom) {
 			if (fnNtUserHungWindowFromGhostWindow)
 				real_hwnd=fnNtUserHungWindowFromGhostWindow(hwnd);
 			else
@@ -975,21 +976,21 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 		}
 		
 		bool wcard_matched=false;
-		if (use_class) {
+		if (callback_io.use_class) {
 			//Window class name can't exceed 255 characters (256 if counting NULL-terminator), see WNDCLASS and WNDCLASSEX definitions
 			//Window class name can't be empty string, GetClassName returning 0 indicates error
 			//BTW, class names are actually case-insensitive, like path names, so using case-insensitive MultiWildcardCmp is ok here
 			
 			wchar_t cls_buf[256];	
-			if (GetClassName(hwnd, cls_buf, 256)&&MultiWildcardCmp(wcard, cls_buf, MWC_STR, NULL))	
+			if (GetClassName(hwnd, cls_buf, 256)&&MultiWildcardCmp(callback_io.wcard, cls_buf, MWC_STR, NULL))	
 				wcard_matched=true;
 		} else {
 			if (int title_len=GetWindowTextLength(hwnd)) {
 				wchar_t title_buf[title_len+1];
-				if (GetWindowText(hwnd, title_buf, title_len+1)&&MultiWildcardCmp(wcard, title_buf, MWC_STR, NULL))
+				if (GetWindowText(hwnd, title_buf, title_len+1)&&MultiWildcardCmp(callback_io.wcard, title_buf, MWC_STR, NULL))
 					wcard_matched=true;
 			} else if (GetLastError()==ERROR_SUCCESS) {	//Empty window title is also title
-				if (MultiWildcardCmp(wcard, L"", MWC_STR, NULL))
+				if (MultiWildcardCmp(callback_io.wcard, L"", MWC_STR, NULL))
 					wcard_matched=true;
 			}
 		}
@@ -999,7 +1000,7 @@ BOOL CALLBACK Killers::EnumWndWnd(HWND hwnd, LPARAM lParam)
 #if DEBUG>=3
 			std::wcerr<<L"" __FILE__ ":EnumWndWnd:"<<__LINE__<<L": PID("<<pid<<L") HWND("<<std::hex<<(ULONG_PTR)hwnd<<std::dec<<L")"<<std::endl;
 #endif
-			dw_array.push_back(pid);
+			callback_io.dw_array.push_back(pid);
 		}
 	}
 
@@ -1258,7 +1259,7 @@ typedef struct {
 	HANDLE ready_event;
 	HANDLE test_handle;
 	bool is_disk_file;
-} CREATE_THREAD_PARAMETER;
+} OFL_PARAM;
 
 bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_wcard) 
 {
@@ -1313,7 +1314,7 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 			ULONG prc_pid=0;
 			HANDLE hProcess=NULL;
 			HANDLE cur_prc=GetCurrentProcess();
-			CREATE_THREAD_PARAMETER thread_io={CreateEvent(NULL, FALSE, FALSE, NULL), CreateEvent(NULL, FALSE, FALSE, NULL)};
+			OFL_PARAM thread_io={CreateEvent(NULL, FALSE, FALSE, NULL), CreateEvent(NULL, FALSE, FALSE, NULL)};
 			HANDLE gft_thread=CreateThread(NULL, 0, ThreadGetFileType, (LPVOID)&thread_io, CREATE_SUSPENDED, NULL);
 			SetThreadPriority(gft_thread, THREAD_PRIORITY_TIME_CRITICAL);	//Set higher priority for GetFileType thread because it would be tested for timeout
 			ResumeThread(gft_thread);
@@ -1428,15 +1429,17 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 
 DWORD WINAPI Killers::ThreadGetFileType(LPVOID lpParameter)
 {
-	while (WaitForSingleObject(((CREATE_THREAD_PARAMETER*)lpParameter)->get_type_event, INFINITE)==WAIT_OBJECT_0) {
-		if (((CREATE_THREAD_PARAMETER*)lpParameter)->test_handle==INVALID_HANDLE_VALUE) break;
-		
-		if (GetFileType(((CREATE_THREAD_PARAMETER*)lpParameter)->test_handle)==FILE_TYPE_DISK)
-			((CREATE_THREAD_PARAMETER*)lpParameter)->is_disk_file=true;
-		else
-			((CREATE_THREAD_PARAMETER*)lpParameter)->is_disk_file=false;
+	OFL_PARAM &thread_io=*(OFL_PARAM*)lpParameter;
 
-		SetEvent(((CREATE_THREAD_PARAMETER*)lpParameter)->ready_event);
+	while (WaitForSingleObject(thread_io.get_type_event, INFINITE)==WAIT_OBJECT_0) {
+		if (thread_io.test_handle==INVALID_HANDLE_VALUE) break;
+		
+		if (GetFileType(thread_io.test_handle)==FILE_TYPE_DISK)
+			thread_io.is_disk_file=true;
+		else
+			thread_io.is_disk_file=false;
+
+		SetEvent(thread_io.ready_event);
 	}
 	
 	return 0;
