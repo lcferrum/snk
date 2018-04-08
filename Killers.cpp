@@ -6,7 +6,6 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
-#include <tuple>
 #include <algorithm>
 #include <cstdio>
 
@@ -628,7 +627,12 @@ bool Killers::WithinRect(const RECT &outer, const RECT &inner)
 	return inner.left>=outer.left&&inner.top>=outer.top&&inner.right<=outer.right&&inner.bottom<=outer.bottom;
 }
 
-#define InrTuple std::tuple<bool, std::vector<DWORD>&, ATOM>
+typedef struct {
+	bool plus_version;
+	std::vector<DWORD> &dw_array;
+	BOOL ghost_atom;
+} INR_PARAM;
+
 bool Killers::KillByInr(bool param_plus) 
 {
 	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId returns PID as DWORD
@@ -638,11 +642,11 @@ bool Killers::KillByInr(bool param_plus)
 	//But on good old x86 CALLBACK is __stdcall which is incompatible with __cdecl
 	//At least we can use tuples so not to litter class definition with structs
 	WNDCLASS dummy_wnd;
-	InrTuple enum_wnd_tuple(param_plus, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd));
+	INR_PARAM callback_io={param_plus, dw_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd)};
 	//The trick with GetClassInfo is described by Raymond Chen in his blog http://blogs.msdn.com/b/oldnewthing/archive/2004/10/11/240744.aspx
 	//Undocumented side of GetClassInfo is that it returns ATOM for the queried window class
 	//By passing NULL as HINSTANCE we can get ATOM for the system "Ghost" class
-	EnumWindows(EnumWndInr, (LPARAM)&enum_wnd_tuple);
+	EnumWindows(EnumWndInr, (LPARAM)&callback_io);
 	
 	PrintCommonKillPrefix();
 	if (ModeLoop())
@@ -669,12 +673,9 @@ bool Killers::KillByInr(bool param_plus)
 
 BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam) 
 {
-	ATOM ghost_atom=std::get<2>(*(InrTuple*)lParam);
+	INR_PARAM &callback_io=*(INR_PARAM*)lParam;
 					
 	if (IsTaskWindow(hwnd)) {	//Filtering out non-task windows because they can be erroneously reported as hung
-		bool plus_version=std::get<0>(*(InrTuple*)lParam);
-		std::vector<DWORD> &dw_array=std::get<1>(*(InrTuple*)lParam);
-
 		DWORD pid;
 
 		//This is the way Windows checks if application is hung - using IsHungAppWindow
@@ -690,10 +691,10 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 			//Comparing class name with "Ghost" can be unreliable - application can register it's own local class with that name
 			//But outside of enum function we already got ATOM of the actual system "Ghost" class
 			//So all we have to do is just compare window class ATOM with "Ghost" class ATOM
-			if (GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom)
+			if (GetClassLongPtr(hwnd, GCW_ATOM)!=callback_io.ghost_atom)
 				if ((GetWindowThreadProcessId(hwnd, &pid), pid))	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
-					dw_array.push_back(pid);
-		} else if (plus_version) {
+					callback_io.dw_array.push_back(pid);
+		} else if (callback_io.plus_version) {
 			//Pretty straightforward method that is suggested by MS https://support.microsoft.com/kb/231844
 			//Just wait for SendMessageTimeout to fail - because of abort (if app is hung) or actual timeout
 			//This method perfectly detects SuspendThread test apps 
@@ -704,18 +705,26 @@ BOOL CALLBACK Killers::EnumWndInr(HWND hwnd, LPARAM lParam)
 			//So this method is used here as optional supplement for IsHungAppWindow
 			if (!SendMessageTimeout(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG|SMTO_BLOCK, INR_TIMEOUT, NULL))
 				if ((GetWindowThreadProcessId(hwnd, &pid), pid))	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
-					dw_array.push_back(pid);
+					callback_io.dw_array.push_back(pid);
 		}
 	}
 	
 	return TRUE;
 }
 
-#define FscTuple std::tuple<bool, bool, bool, std::vector<DWORD>&, std::vector<RECT>&, ATOM, DWORD&>
+typedef struct {
+	bool any_wnd;
+	bool pri_disp;
+	bool strict;
+	std::vector<DWORD> &dw_array;
+	std::vector<RECT> &disp_array;
+	BOOL ghost_atom;
+	DWORD cur_max_area;
+} FSC_PARAM;
+
 bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict) 
 {
 	std::vector<DWORD> dw_array;	//DWORD PID because GetWindowThreadProcessId return PID as DWORD
-	DWORD cur_max_area=0;
 	std::vector<RECT> disp_array;
 	
 	//So what's the deal with EnumDisplayDevicesWrapper and Duff's Device?
@@ -764,8 +773,8 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict
 		//Test if disp_array is empty before passing it to EnumWndFsc or some udefined behavior might happen!
 		//Same thing with "Ghost" class ATOM as in KillByInr
 		WNDCLASS dummy_wnd;
-		FscTuple enum_wnd_tuple(param_anywnd, param_primary, param_strict, dw_array, disp_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), cur_max_area);
-		EnumWindows(EnumWndFsc, (LPARAM)&enum_wnd_tuple);
+		FSC_PARAM callback_io={param_anywnd, param_primary, param_strict, dw_array, disp_array, GetClassInfo(NULL, L"Ghost", &dummy_wnd), 0};
+		EnumWindows(EnumWndFsc, (LPARAM)&callback_io);
 	}
 	
 	PrintCommonKillPrefix();
@@ -793,17 +802,10 @@ bool Killers::KillByFsc(bool param_anywnd, bool param_primary, bool param_strict
 //This will also guarantee that display vector is non-empty in this callback
 BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam) 
 {
-	ATOM ghost_atom=std::get<5>(*(FscTuple*)lParam);
+	FSC_PARAM &callback_io=*(FSC_PARAM*)lParam;
 	
 	//IsTaskWindow is a must here because even with less strict IsWindowVisible (or no filtering at all) we will count as "fullscreen" some technical windows like explorer's one
-	if (IsTaskWindow(hwnd)&&GetClassLongPtr(hwnd, GCW_ATOM)!=ghost_atom) {	//Filtering out non-task windows and "ghost" windows to speed up the search and not kill dwm/explorer accidentally
-		bool any_wnd=std::get<0>(*(FscTuple*)lParam);
-		bool pri_disp=std::get<1>(*(FscTuple*)lParam);
-		bool strict=std::get<2>(*(FscTuple*)lParam);
-		std::vector<DWORD> &dw_array=std::get<3>(*(FscTuple*)lParam);
-		std::vector<RECT> &disp_array=std::get<4>(*(FscTuple*)lParam);
-		DWORD &cur_max_area=std::get<6>(*(FscTuple*)lParam);
-
+	if (IsTaskWindow(hwnd)&&GetClassLongPtr(hwnd, GCW_ATOM)!=callback_io.ghost_atom) {	//Filtering out non-task windows and "ghost" windows to speed up the search and not kill dwm/explorer accidentally
 		RECT client_rect;
 		RECT window_rect;
 		if (GetClientRect(hwnd, &client_rect)&&GetWindowRect(hwnd, &window_rect)) {
@@ -813,24 +815,24 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 			//Otherwise - assuming that we are testing exclusive fullscreen apps or apps that have borderless window
 			//	Check if client area dimension equals window dimension - should be true for both exclusive fullscreen and borderless window
 			//	Client RECT's top left corner is always at (0,0) so bottom right corner represents width/height of client area
-			if (any_wnd||(client_rect.right==window_rect.right-window_rect.left&&client_rect.bottom==window_rect.bottom-window_rect.top)) {
+			if (callback_io.any_wnd||(client_rect.right==window_rect.right-window_rect.left&&client_rect.bottom==window_rect.bottom-window_rect.top)) {
 				DWORD pid;
 				bool add=false;
-				if (disp_array.size()==1) {
+				if (callback_io.disp_array.size()==1) {
 					//If we have only one display - use more relaxed algorithm
 					//Some fullscreen game windows have their coordinates unaligned with display (e.g. Valkyria Chronicles)
 					//Some fullscreen game windows have size greater than display size
 					//So just check that app's window size is greater or equal to display size
-					if (window_rect.right-window_rect.left>=disp_array[0].right-disp_array[0].left&&window_rect.bottom-window_rect.top>=disp_array[0].bottom-disp_array[0].top)
+					if (window_rect.right-window_rect.left>=callback_io.disp_array[0].right-callback_io.disp_array[0].left&&window_rect.bottom-window_rect.top>=callback_io.disp_array[0].bottom-callback_io.disp_array[0].top)
 						if ((GetWindowThreadProcessId(hwnd, &pid), pid)) add=true;	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 				} else {
 					//Relaxed algorithm that is suitable for single display can cause false positive on multiple displays
 					//For multiple displays test if app's RECT contains at least one of the displays' RECT to consider it fullscreen app
 					//Still, games for which relaxed algorithm works best behave the same on multiple displays and therefore will not be considered fullscreen there
 					//In this case KillByFgd is more suitable
-					if (pri_disp
-						?WithinRect(window_rect, disp_array[0])
-						:std::any_of(disp_array.begin(), disp_array.end(), std::bind(WithinRect, window_rect, std::placeholders::_1)))
+					if (callback_io.pri_disp
+						?WithinRect(window_rect, callback_io.disp_array[0])
+						:std::any_of(callback_io.disp_array.begin(), callback_io.disp_array.end(), std::bind(WithinRect, window_rect, std::placeholders::_1)))
 						if ((GetWindowThreadProcessId(hwnd, &pid), pid)) add=true;	//See note on GetWindowThreadProcessId in Killers::MouseHookAim
 				}
 				
@@ -840,19 +842,19 @@ BOOL CALLBACK Killers::EnumWndFsc(HWND hwnd, LPARAM lParam)
 						<<client_rect.left<<L","<<client_rect.top<<L")("<<client_rect.right<<L","<<client_rect.bottom<<L") - WRECT=("
 						<<window_rect.left<<L","<<window_rect.top<<L")("<<window_rect.right<<L","<<window_rect.bottom<<L")"<<std::endl;
 #endif
-					if (strict) {
+					if (callback_io.strict) {
 						//By convention, the right and bottom edges of the rectangle are normally considered exclusive
 						//So the pixel with (right, bottom) coordinates lies immediately outside of the rectangle
 						DWORD area=(window_rect.right-window_rect.left)*(window_rect.bottom-window_rect.top);
-						if (area==cur_max_area) {
-							dw_array.push_back(pid);
-						} else if (area>cur_max_area) {
-							cur_max_area=area;
-							dw_array.clear();
-							dw_array.push_back(pid);
+						if (area==callback_io.cur_max_area) {
+							callback_io.dw_array.push_back(pid);
+						} else if (area>callback_io.cur_max_area) {
+							callback_io.cur_max_area=area;
+							callback_io.dw_array.clear();
+							callback_io.dw_array.push_back(pid);
 						}
 					} else {
-						dw_array.push_back(pid);
+						callback_io.dw_array.push_back(pid);
 					}
 				}
 			}

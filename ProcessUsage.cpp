@@ -252,7 +252,7 @@ void Processes::SortByRecentlyCreated()
 
 DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid)
 {
-	SYSTEM_PROCESS_INFORMATION *pspi_all=NULL, *pspi_cur=NULL;
+	SYSTEM_PROCESS_INFORMATION *pspi_cur=NULL;
 	DWORD ret_size=0;
 	DWORD cur_len=0;	//Taking into account that even on x64 ReturnLength of NtQuerySystemInformation is PULONG (i.e. DWORD*), it's safe to assume that process count won't overflow DWORD
 	NTSTATUS st;
@@ -266,10 +266,9 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 	
 	tick_not_tock=!tick_not_tock;	//Flipping tick_not_tock
 	
-	if (!CachedNtQuerySystemProcessInformation(&pspi_all))
+	if (!CachedNtQuerySystemProcessInformation(&pspi_cur))
 		return 0;
 	
-	pspi_cur=pspi_all;
 	while (pspi_cur) {
 		if (pspi_cur->UniqueProcessId&&self_pid!=(ULONG_PTR)pspi_cur->UniqueProcessId&&(ULONG_PTR)pspi_cur->UniqueProcessId!=parent_pid&&(ULONG_PTR)pspi_cur->UniqueProcessId!=4&&(ULONG_PTR)pspi_cur->UniqueProcessId!=2&&(ULONG_PTR)pspi_cur->UniqueProcessId!=8) {	//If it's not current process' PID or idle (PID 0), or parent PID (0 by default), or system process (PID 2 on NT4, PID 8 on 2000, PID 4 on everything else)
 			if (first_time||	//If it's the first time pass - don't bother checking PIDs, just add everything
