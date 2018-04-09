@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <limits>		//numeric_limits
 #include <psapi.h>
+#include <ntstatus.h>
 
 #define USAGE_TIMEOUT 	1500 	//ms
 
@@ -194,10 +195,33 @@ void Processes::RequestPopulatedCAN()
 	//This results in non-default copy-constructor which should duplicate self_lsid with GetLengthSid/CopySid
 	//To keep things simple (get rid of non-default destructor and copy-constructor) self_lsid is now local variable
 	//Because calling EnumProcessUsage outside of this function is currently unneeded functionality
-
-	if (invalid) {
+	
+#if DEBUG>=2
+	if (!fnNtQueryInformationProcess)
+		std::wcerr<<L"" __FILE__ ":RequestPopulatedCAN:"<<__LINE__<<L": NtQueryInformationProcess not found!"<<std::endl;
+#endif
+	
+	if (invalid&&fnNtQueryInformationProcess) {
 		PSID self_lsid=GetLogonSID(GetCurrentProcess());
 		DWORD self_pid=GetCurrentProcessId();
+		bool io_counters=fnNtQueryInformationProcess(GetCurrentProcess(), ProcessIoCounters, NULL, 0, NULL)==STATUS_INFO_LENGTH_MISMATCH;
+		
+#if DEBUG>=3
+		std::wcerr<<L"" __FILE__ ":RequestPopulatedCAN:"<<__LINE__<<L": IO_COUNTERS supported: "<<io_counters<<std::endl;
+#endif
+
+		//Size of SYSTEM_PROCESS_INFORMATION was changed between NT4 and Win 2000, though it has remained the same since then
+		//The difference between pre-Win2000 and Win2000 version is addition of IO_COUNTERS to SYSTEM_PROCESS_INFORMATION
+		//SYSTEM_PROCESS_INFORMATION for each of the processes (plus additional data) can be quiried with NtQuerySystemInformation using several information classes
+		//When such classes are used, all NtQuerySystemInformation does regarding SYSTEM_PROCESS_INFORMATION is copying respective fields from EPROCESS to SYSTEM_PROCESS_INFORMATION
+		//EPROCESS structure represents process object inside NT kernel - it contains all the fields that SYSTEM_PROCESS_INFORMATION has plus some other information
+		//When IO_COUNTERS wasn't available to SYSTEM_PROCESS_INFORMATION it was also not present in EPROCESS
+		//It's the addition of IO_COUNTERS to EPROCESS that made IO_COUNTERS available to SYSTEM_PROCESS_INFORMATION
+		//NtQueryInformationProcess can be used to query various information for specific process
+		//Various information classes are available to NtQueryInformationProcess, including ProcessIoCounters
+		//Source of actual data for most of them is the same as for the SYSTEM_PROCESS_INFORMATION - EPROCESS struct
+		//So when IO_COUNTERS was made available to EPROCESS, ProcessIoCounters information class was implemented for NtQueryInformationProcess
+		//If IO_COUNTERS can't be queried using NtQueryInformationProcess then it's not present in SYSTEM_PROCESS_INFORMATION
 		
 		EnumProcessUsage(true, self_lsid, self_pid);
 		
