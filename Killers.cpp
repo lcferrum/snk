@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <cstdio>
+#include <ntstatus.h>
 
 #define INR_TIMEOUT					5000 //ms
 
