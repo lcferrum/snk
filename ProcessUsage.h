@@ -17,6 +17,7 @@ private:
 	ULONG_PTR pid;				//In NT internal structures it is HANDLE aka PVOID (though public Win API function treat PID as DWORD), so cast it to ULONG_PTR like MS recommends
 	bool discarded;				//Indicates that process is now untouchable and will be omitted from any queries
 	bool disabled;				//Indicates that process has already been killed (or at least was tried to be killed) and should be omitted from any further queries
+	bool suspended;				//Indicates that process is suspended
 	bool system;				//Indicates that this is a system process (i.e. process that wasn't created by user)
 	std::wstring name;			//Name of the process executable
 	std::wstring path;			//Full path to the process executable
@@ -35,6 +36,7 @@ public:
 	ULONGLONG GetCrtTime() const { return crt_time; }
 	bool GetTickNotTock() const { return tick_not_tock; }
 	bool GetSystem() const { return system; }
+	bool GetSuspended() const { return suspended; }
 	bool GetDiscarded() const { return discarded; }
 	void SetDiscarded(bool value) { discarded=value; }
 	bool GetDisabled() const { return ref?ref->GetDisabled():disabled; }
@@ -44,7 +46,7 @@ public:
 	std::wstring GetPath() const { return path; }
 
 	bool ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur);
-	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool appended, bool system);
+	PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool appended, bool suspended, bool system);
 };
 
 //This is common parent for cross delegation of ApplyToProcesses and IsPidAvailable functions with Killers policy
@@ -65,7 +67,7 @@ private:
 	ULONG_PTR parent_pid;	//Parent pid, that's excluded from enumeration (default is 0 - idle process PID and which can't be parent of any process)
 	bool fast_mode;			//Causes RequestPopulatedCAN to not calculate deltas (all deltas will default to 0)
 
-	DWORD EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid);
+	DWORD EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid, size_t spi_size);
 	PSID GetLogonSID(HANDLE hProcess);	//Always free resulting PSID with FreeLogonSID
 	void FreeLogonSID(PSID lsid) { delete[] (BYTE*)lsid; }
 	

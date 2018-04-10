@@ -5,10 +5,14 @@
 #include <iostream>
 #include <algorithm>
 #include <limits>		//numeric_limits
+#include <cstddef>
 #include <psapi.h>
 #include <ntstatus.h>
 
 #define USAGE_TIMEOUT 	1500 	//ms
+
+#define THREAD_STATE_WAITING 0x05
+#define WAIT_REASON_SUSPENDED 0x05
 
 #ifdef USE_CYCLE_TIME
 #define USER_TIME(pspi) (ULONGLONG)pspi->Reserved[2].QuadPart	//SYSTEM_PROCESS_INFORMATION.CycleTime, available since Win 7
@@ -33,8 +37,8 @@ bool PData::ComputeDelta(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONG
 }
 
 //Assuming that UNICODE_STRING not necessary terminated
-PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool appended, bool system):
-	prc_time_dlt(appended?prck_time_cur+prcu_time_cur:0), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), system(system), disabled(false), tick_not_tock(tick_not_tock), ref(NULL)
+PData::PData(ULONGLONG prck_time_cur, ULONGLONG prcu_time_cur, ULONGLONG crt_time_cur, ULONG_PTR pid, bool tick_not_tock, UNICODE_STRING name, const std::wstring &path, bool appended, bool suspended, bool system):
+	prc_time_dlt(appended?prck_time_cur+prcu_time_cur:0), name(name.Buffer, name.Length/sizeof(wchar_t)), path(path), pid(pid), prck_time_prv(prck_time_cur), prcu_time_prv(prcu_time_cur), crt_time(crt_time_cur), discarded(false), suspended(suspended), system(system), disabled(false), tick_not_tock(tick_not_tock), ref(NULL)
 {
 	//If path exists - extract name from it instead using supplied one
 	if (!this->path.empty())
@@ -49,7 +53,7 @@ void Processes::DumpProcesses()
 {
 #if DEBUG>=1
 	for (PData &data: CAN)
-		std::wcerr<<data.GetPID()<<L" => "<<data.GetDelta()<<L" / "<<data.GetCrtTime()<<L" ("<<(data.GetSystem()?L"s":L"_")<<(data.GetDiscarded()?L"d":L"_")<<(data.GetDisabled()?L"D) ":L"_) ")<<data.GetName()<<L" ["<<data.GetPath()<<L"]"<<std::endl;
+		std::wcerr<<data.GetPID()<<L" => "<<data.GetDelta()<<L" / "<<data.GetCrtTime()<<(data.GetSuspended()?L" (S":L" (_")<<(data.GetSystem()?L"s":L"_")<<(data.GetDiscarded()?L"d":L"_")<<(data.GetDisabled()?L"D) ":L"_) ")<<data.GetName()<<L" ["<<data.GetPath()<<L"]"<<std::endl;
 #endif
 }
 
@@ -59,7 +63,7 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 	
 	//Old fashioned "for" because C++11 ranged-based version can't go in reverse
 	for (std::vector<PData>::reverse_iterator rit=CAN.rbegin(); rit!=CAN.rend(); ++rit) {
-		if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem())&&mutator(rit->GetPID(), rit->GetName(), rit->GetPath(), applied)) {
+		if (!rit->GetDisabled()&&!rit->GetDiscarded()&&!(ModeAll()?false:rit->GetSystem()||rit->GetSuspended())&&mutator(rit->GetPID(), rit->GetName(), rit->GetPath(), applied)) {
 			applied=true;
 			if (!ModeBlank()) rit->SetDisabled(true);
 			if (ModeBlacklist()) rit->SetDiscarded(true);
@@ -76,7 +80,7 @@ bool Processes::ApplyToProcesses(std::function<bool(ULONG_PTR, const std::wstrin
 bool Processes::IsPidAvailable(ULONG_PTR pid)
 {
 	for (PData &data: CAN) if (data.GetPID()==pid) {
-		if (data.GetDisabled()||data.GetDiscarded()||(ModeAll()?false:data.GetSystem()))
+		if (data.GetDisabled()||data.GetDiscarded()||(ModeAll()?false:data.GetSystem()||data.GetSuspended()))
 			return false;
 		else
 			return true;
@@ -170,7 +174,7 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 							if (ModeAll())
 								std::wcout<<L"Available processes:"<<std::endl;
 							else
-								std::wcout<<L"Available user processes:"<<std::endl;	
+								std::wcout<<L"Available active user processes:"<<std::endl;	
 							avail_found=true;
 						}
 						std::wcout<<rit->GetPID()<<L" ("<<rit->GetName()<<L")"<<std::endl;
@@ -180,7 +184,7 @@ void Processes::ManageProcessList(LstPriMode param_lst_pri_mode, LstSecMode para
 					if (ModeAll())
 						std::wcout<<L"No processes available"<<std::endl;
 					else
-						std::wcout<<L"No user processes available"<<std::endl;	
+						std::wcout<<L"No active user processes available"<<std::endl;	
 				}
 				break;
 			}
@@ -204,11 +208,19 @@ void Processes::RequestPopulatedCAN()
 	if (invalid&&fnNtQueryInformationProcess) {
 		PSID self_lsid=GetLogonSID(GetCurrentProcess());
 		DWORD self_pid=GetCurrentProcessId();
-		bool io_counters=fnNtQueryInformationProcess(GetCurrentProcess(), ProcessIoCounters, NULL, 0, NULL)==STATUS_INFO_LENGTH_MISMATCH;
+		size_t spi_size;
 		
+		if (fnNtQueryInformationProcess(GetCurrentProcess(), ProcessIoCounters, NULL, 0, NULL)==STATUS_INFO_LENGTH_MISMATCH) {
 #if DEBUG>=3
-		std::wcerr<<L"" __FILE__ ":RequestPopulatedCAN:"<<__LINE__<<L": IO_COUNTERS supported: "<<io_counters<<std::endl;
+			std::wcerr<<L"" __FILE__ ":RequestPopulatedCAN:"<<__LINE__<<L": IO_COUNTERS supported"<<std::endl;
 #endif
+			spi_size=sizeof(SYSTEM_PROCESS_INFORMATION);
+		} else {
+#if DEBUG>=3
+			std::wcerr<<L"" __FILE__ ":RequestPopulatedCAN:"<<__LINE__<<L": IO_COUNTERS not supported"<<std::endl;
+#endif
+			spi_size=offsetof(SYSTEM_PROCESS_INFORMATION, IoCounters);
+		}
 
 		//Size of SYSTEM_PROCESS_INFORMATION was changed between NT4 and Win 2000, though it has remained the same since then
 		//The difference between pre-Win2000 and Win2000 version is addition of IO_COUNTERS to SYSTEM_PROCESS_INFORMATION
@@ -223,14 +235,14 @@ void Processes::RequestPopulatedCAN()
 		//So when IO_COUNTERS was made available to EPROCESS, ProcessIoCounters information class was implemented for NtQueryInformationProcess
 		//If IO_COUNTERS can't be queried using NtQueryInformationProcess then it's not present in SYSTEM_PROCESS_INFORMATION
 		
-		EnumProcessUsage(true, self_lsid, self_pid);
+		EnumProcessUsage(true, self_lsid, self_pid, spi_size);
 		
 		if (!fast_mode) {
 			Sleep(USAGE_TIMEOUT);
 			
 			CachedNtQuerySystemProcessInformation(NULL, true);
 			CachedNtQuerySystemHandleInformation(NULL, true);
-			EnumProcessUsage(false, self_lsid, self_pid);
+			EnumProcessUsage(false, self_lsid, self_pid, spi_size);
 			
 			if (ModeRecent())
 				SortByRecentlyCreated();
@@ -274,7 +286,7 @@ void Processes::SortByRecentlyCreated()
 #endif
 }
 
-DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid)
+DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pid, size_t spi_size)
 {
 	SYSTEM_PROCESS_INFORMATION *pspi_cur=NULL;
 	DWORD ret_size=0;
@@ -310,10 +322,20 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 					}
 				}
 				
+				SYSTEM_THREADS *threads=(SYSTEM_THREADS*)((ULONG_PTR)pspi_cur+spi_size);
+				bool suspended=true;
+				while (pspi_cur->NumberOfThreads) {
+					pspi_cur->NumberOfThreads--;
+					if (threads[pspi_cur->NumberOfThreads].State!=StateWait||threads[pspi_cur->NumberOfThreads].WaitReason!=Suspended) {
+						suspended=false;
+						break;
+					}
+				}
+				
 				//It was observed that SYSTEM_PROCESS_INFORMATION.ImageName sometimes has mangled name - with partial or completely omitted extension
 				//Process Explorer shows the same thing, so it has something to do with particular processes
 				//So it's better to use wildcard in place of extension when killing process using it's name (and not full file path) to circumvent such situation
-				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !first_time, !user));
+				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !first_time, suspended, !user));
 				
 				if (hProcess) CloseHandle(hProcess);
 			}

@@ -58,16 +58,16 @@ void Killers::PrintCommonKillPrefix()
 		if (ModeAll())
 			std::wcout<<L"Processes ";
 		else
-			std::wcout<<L"User processes ";	
+			std::wcout<<L"Active user processes ";	
 	} else {
 		if (ModeRecent()&&ModeAll())
 			std::wcout<<L"Recently created process ";
 		else if (ModeAll())
 			std::wcout<<L"Process with highest CPU usage ";
 		else if (ModeRecent())
-			std::wcout<<L"Recently created user process ";
+			std::wcout<<L"Recently created active user process ";
 		else
-			std::wcout<<L"User process with highest CPU usage ";
+			std::wcout<<L"Active user process with highest CPU usage ";
 	}
 }
 
@@ -370,7 +370,7 @@ bool Killers::KillByPid(const wchar_t* arg_parray)
 		if (ModeAll())
 			std::wcout<<L"Process that matches PID ";
 		else
-			std::wcout<<L"User process that matches PID ";	
+			std::wcout<<L"Active user process that matches PID ";	
 	}
 	std::wcout<<arg_parray<<L' ';
 	
@@ -1205,7 +1205,7 @@ bool Killers::KillByAim()
 	if (ModeAll())
 		std::wcout<<L"Targeted process ";
 	else
-		std::wcout<<L"Targeted user process ";
+		std::wcout<<L"Targeted active user process ";
 	
 	bool found=aim_pid&&ApplyToProcesses([this, aim_pid](ULONG_PTR PID, const std::wstring &name, const std::wstring &path, bool applied){
 			if (aim_pid==PID) {
