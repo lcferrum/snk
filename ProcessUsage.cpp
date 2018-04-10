@@ -210,6 +210,18 @@ void Processes::RequestPopulatedCAN()
 		DWORD self_pid=GetCurrentProcessId();
 		size_t spi_size;
 		
+		//Size of SYSTEM_PROCESS_INFORMATION was changed between NT4 and Win 2000, though it has remained the same since then
+		//Cause of the change was addition of IO_COUNTERS to EPROCESS structure - this is the actual structure that represents process object inside NT kernel
+		//After IO_COUNTERS was added to EPROCESS, this information was made available to various functions that query process data
+		//As such: 
+		// IO_COUNTERS was added to SYSTEM_PROCESS_INFORMATION structure (returned by NtQuerySystemInformation), changing it's size
+		// New information class (ProcessIoCounters) was added to NtQueryInformationProcess to get IO_COUNTERS for specific process 
+		//Since then MS apparently decided that changing SYSTEM_PROCESS_INFORMATION size further is a bad idea and now, with the change of EPROCESS, just reuses reserved fields or adds new information classes to NtQuerySystemInformation
+		//Following paradigm of test-by-feature and not test-by-version, we test if IO_COUNTERS is available to system and assume correct SYSTEM_PROCESS_INFORMATION size based on it's availability
+		//NtQueryInformationProcess(ProcessIoCounters) will return STATUS_NOT_SUPPORTED on systems where IO_COUNTERS is not available
+		//On systems where IO_COUNTERS is available NtQueryInformationProcess(ProcessIoCounters) will correctly process information class and return needed data or STATUS_INFO_LENGTH_MISMATCH is supplied buffer is not large enough
+		//N.B. SYSTEM_PROCESS_INFORMATION defined in MinGW headers correctly doesn't include Threads pseudo-member, so sizeof returns actual SYSTEM_PROCESS_INFORMATION size
+		
 		if (fnNtQueryInformationProcess(GetCurrentProcess(), ProcessIoCounters, NULL, 0, NULL)==STATUS_INFO_LENGTH_MISMATCH) {
 #if DEBUG>=3
 			std::wcerr<<L"" __FILE__ ":RequestPopulatedCAN:"<<__LINE__<<L": IO_COUNTERS supported"<<std::endl;
@@ -221,19 +233,6 @@ void Processes::RequestPopulatedCAN()
 #endif
 			spi_size=offsetof(SYSTEM_PROCESS_INFORMATION, IoCounters);
 		}
-
-		//Size of SYSTEM_PROCESS_INFORMATION was changed between NT4 and Win 2000, though it has remained the same since then
-		//The difference between pre-Win2000 and Win2000 version is addition of IO_COUNTERS to SYSTEM_PROCESS_INFORMATION
-		//SYSTEM_PROCESS_INFORMATION for each of the processes (plus additional data) can be quiried with NtQuerySystemInformation using several information classes
-		//When such classes are used, all NtQuerySystemInformation does regarding SYSTEM_PROCESS_INFORMATION is copying respective fields from EPROCESS to SYSTEM_PROCESS_INFORMATION
-		//EPROCESS structure represents process object inside NT kernel - it contains all the fields that SYSTEM_PROCESS_INFORMATION has plus some other information
-		//When IO_COUNTERS wasn't available to SYSTEM_PROCESS_INFORMATION it was also not present in EPROCESS
-		//It's the addition of IO_COUNTERS to EPROCESS that made IO_COUNTERS available to SYSTEM_PROCESS_INFORMATION
-		//NtQueryInformationProcess can be used to query various information for specific process
-		//Various information classes are available to NtQueryInformationProcess, including ProcessIoCounters
-		//Source of actual data for most of them is the same as for the SYSTEM_PROCESS_INFORMATION - EPROCESS struct
-		//So when IO_COUNTERS was made available to EPROCESS, ProcessIoCounters information class was implemented for NtQueryInformationProcess
-		//If IO_COUNTERS can't be queried using NtQueryInformationProcess then it's not present in SYSTEM_PROCESS_INFORMATION
 		
 		EnumProcessUsage(true, self_lsid, self_pid, spi_size);
 		
@@ -310,20 +309,20 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 			if (first_time||	//If it's the first time pass - don't bother checking PIDs, just add everything
 				(pd=std::find(CAN.begin(), CAN.end(), (ULONG_PTR)pspi_cur->UniqueProcessId))==CAN.end()||	//If PID not found - add it
 				!pd->ComputeDelta(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart)) {	//If PID is found - calculate delta or, in case it's a wrong PID, add it
-				bool user=false;
+				bool system=true;
+				bool suspended=true;
 				DWORD dwDesiredAccess=PROCESS_QUERY_INFORMATION|PROCESS_VM_READ;
 				HANDLE hProcess=OpenProcessWrapper((ULONG_PTR)pspi_cur->UniqueProcessId, dwDesiredAccess);
 				
 				//If we can't open process with PROCESS_QUERY_(LIMITED_)INFORMATION|(PROCESS_VM_READ) rights or can't get it's Logon SID - assume that it's a non-user process
 				if (hProcess) {
 					if (PSID pid_lsid=GetLogonSID(hProcess)) {
-						user=self_lsid?EqualSid(self_lsid, pid_lsid):true;	//If for some reason current Logon SID is unknown (this may happen under Local System) - assume that queried process belongs to user (because at least we have opened it with PROCESS_QUERY_(LIMITED_)INFORMATION and got Logon SID)
+						system=self_lsid?!EqualSid(self_lsid, pid_lsid):false;	//If for some reason current Logon SID is unknown (this may happen under Local System) - assume that queried process belongs to user (because at least we have opened it with PROCESS_QUERY_(LIMITED_)INFORMATION and got Logon SID)
 						FreeLogonSID(pid_lsid);
 					}
 				}
 				
 				SYSTEM_THREADS *threads=(SYSTEM_THREADS*)((ULONG_PTR)pspi_cur+spi_size);
-				bool suspended=true;
 				while (pspi_cur->NumberOfThreads) {
 					pspi_cur->NumberOfThreads--;
 					if (threads[pspi_cur->NumberOfThreads].State!=StateWait||threads[pspi_cur->NumberOfThreads].WaitReason!=Suspended) {
@@ -335,7 +334,7 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 				//It was observed that SYSTEM_PROCESS_INFORMATION.ImageName sometimes has mangled name - with partial or completely omitted extension
 				//Process Explorer shows the same thing, so it has something to do with particular processes
 				//So it's better to use wildcard in place of extension when killing process using it's name (and not full file path) to circumvent such situation
-				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !first_time, suspended, !user));
+				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !first_time, suspended, system));
 				
 				if (hProcess) CloseHandle(hProcess);
 			}
