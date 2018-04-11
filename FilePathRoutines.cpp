@@ -1173,12 +1173,12 @@ std::wstring FPRoutines::GetLongPathNameWrapper(const wchar_t* path)
 	return L"";
 }
 
-//WoW64 redirection removed:            ?
-//Clears navigational elements:         ?
-//Maintains backslashes:                ?
-//Restores letter case:                 ?
-//Resolves 8.3 paths:                   ?
-//Produces only Win32 paths:            ?
+//WoW64 redirection removed:            NO (w/o GetMappedFileName)
+//Clears navigational elements:         YES
+//Maintains backslashes:                YES
+//Restores letter case:                 NO (w/o GetLongPathName)
+//Resolves 8.3 paths:                   NO (w/o GetLongPathName)
+//Produces only Win32 paths:            YES (process image path, which can be in kernel form, is skipped)
 //Supports long paths:                  ?
 std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full) 
 {
