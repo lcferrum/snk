@@ -1352,6 +1352,13 @@ bool Killers::KillByOfl(bool param_full, bool param_strict, const wchar_t* arg_w
 					//KillByOfl should only care about real files, and not consoles, sockets or pipes which all fall in "file" category for handles
 					//So we can call GetFileType in separate thread and feed FPRoutines::GetHandlePath only FILE_TYPE_DISK handles
 					
+					//Good news is that things get easier on post-XP systems
+					//GetFileType doesn't hang at all now
+					//NtQueryObject and NtQueryInformationFile still hang, though this time thread can be terminated normally
+					//Also now we have GetFileInformationByHandleEx and GetFinalPathNameByHandle, but internally they still use NtQueryObject
+					//We still need to support XP and earlier systems so GetFileType should still run in it's personal thread
+					//But at least performance will improve because GetFileType thread will never hang so we don't have to wait for timeout
+					
 					//And we have one more nuisance to take care of
 					//On pre-Vista systems TerminateThread won't free thread's initial stack
 					//Conveniently there is undocumented RtlFreeUserThreadStack that can be used to free thread's initial stack

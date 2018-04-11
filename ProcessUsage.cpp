@@ -216,7 +216,7 @@ void Processes::RequestPopulatedCAN()
 		//As such: 
 		// IO_COUNTERS was added to SYSTEM_PROCESS_INFORMATION structure (returned by NtQuerySystemInformation), changing it's size
 		// New information class (ProcessIoCounters) was added to NtQueryInformationProcess to get IO_COUNTERS for specific process 
-		//Since then MS apparently decided that changing SYSTEM_PROCESS_INFORMATION size further is a bad idea and now, with the change of EPROCESS, just reuses reserved fields or adds new information classes to NtQuerySystemInformation
+		//Since then MS apparently decided that changing SYSTEM_PROCESS_INFORMATION size further is a bad idea and now, when EPROCESS struct changes, they just reuse previously reserved fields or add new information classes to NtQuerySystemInformation
 		//Following paradigm of test-by-feature and not test-by-version, we test if IO_COUNTERS is available to system and assume correct SYSTEM_PROCESS_INFORMATION size based on it's availability
 		//NtQueryInformationProcess(ProcessIoCounters) will return STATUS_NOT_SUPPORTED on systems where IO_COUNTERS is not available
 		//On systems where IO_COUNTERS is available NtQueryInformationProcess(ProcessIoCounters) will correctly process information class and return needed data or STATUS_INFO_LENGTH_MISMATCH is supplied buffer is not large enough
@@ -322,6 +322,9 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 					}
 				}
 				
+				//Process is assumed to be suspended if all of it's threads are suspended
+				//Thread information is contained within same buffer returned by NtQuerySystemInformation(SystemProcessInformation)
+				//Right after every SYSTEM_PROCESS_INFORMATION struct comes array of SYSTEM_THREAD_INFORMATION structs (SYSTEM_THREADS in MinGW headers) for the same process
 				SYSTEM_THREADS *threads=(SYSTEM_THREADS*)((ULONG_PTR)pspi_cur+spi_size);
 				while (pspi_cur->NumberOfThreads) {
 					pspi_cur->NumberOfThreads--;
