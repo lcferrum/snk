@@ -1173,7 +1173,13 @@ std::wstring FPRoutines::GetLongPathNameWrapper(const wchar_t* path)
 	return L"";
 }
 
-#define SELECTED_MODULE_LIST InMemoryOrderModuleList
+//WoW64 redirection removed:            ?
+//Clears navigational elements:         ?
+//Maintains backslashes:                ?
+//Restores letter case:                 ?
+//Resolves 8.3 paths:                   ?
+//Produces only Win32 paths:            ?
+//Supports long paths:                  ?
 std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full) 
 {
 	std::vector<std::wstring> mlist;
@@ -1226,9 +1232,9 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 			//One thing to remember is that Flink/Blink members of LIST_ENTRY don't actually point to the start of structures composing the list
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRYXX ldteXX;
-			if (ReadProcessMemory(hProcess, (LPCVOID)(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST)), &ldteXX.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL)&&ldteXX.SELECTED_MODULE_LIST.Flink) {
-				while (ldteXX.SELECTED_MODULE_LIST.Flink!=(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, SELECTED_MODULE_LIST))) {	//Enumerate all the list members till list closes
-					if (ReadProcessMemory(hProcess, (LPCVOID)(ldteXX.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRYXX, SELECTED_MODULE_LIST)), &ldteXX, sizeof(ldteXX), NULL)) {
+			if (ReadProcessMemory(hProcess, (LPCVOID)(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, InMemoryOrderModuleList)), &ldteXX.InMemoryOrderModuleList, sizeof(LIST_ENTRY), NULL)&&ldteXX.InMemoryOrderModuleList.Flink) {
+				while (ldteXX.InMemoryOrderModuleList.Flink!=(pebXX.LdrData+offsetof(PEB_LDR_DATAXX, InMemoryOrderModuleList))) {	//Enumerate all the list members till list closes
+					if (ReadProcessMemory(hProcess, (LPCVOID)(ldteXX.InMemoryOrderModuleList.Flink-offsetof(LDR_DATA_TABLE_ENTRYXX, InMemoryOrderModuleList)), &ldteXX, sizeof(ldteXX), NULL)) {
 						if (ldteXX.DllBase==pebXX.ImageBaseAddress)	//Skip process image entry
 							continue;
 							
@@ -1283,9 +1289,9 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 			//One thing to remember is that Flink/Blink members of LIST_ENTRY don't actually point to the start of structures composing the list
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRY32 ldte32;
-			if (ReadProcessMemory(hProcess, (LPCVOID)(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST)), &ldte32.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL)&&ldte32.SELECTED_MODULE_LIST.Flink) {
-				while (ldte32.SELECTED_MODULE_LIST.Flink!=(peb32.LdrData+offsetof(PEB_LDR_DATA32, SELECTED_MODULE_LIST))) {	//Enumerate all the list members till list closes
-					if (ReadProcessMemory(hProcess, (LPCVOID)(ldte32.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY32, SELECTED_MODULE_LIST)), &ldte32, sizeof(ldte32), NULL)) {
+			if (ReadProcessMemory(hProcess, (LPCVOID)(peb32.LdrData+offsetof(PEB_LDR_DATA32, InMemoryOrderModuleList)), &ldte32.InMemoryOrderModuleList, sizeof(LIST_ENTRY), NULL)&&ldte32.InMemoryOrderModuleList.Flink) {
+				while (ldte32.InMemoryOrderModuleList.Flink!=(peb32.LdrData+offsetof(PEB_LDR_DATA32, InMemoryOrderModuleList))) {	//Enumerate all the list members till list closes
+					if (ReadProcessMemory(hProcess, (LPCVOID)(ldte32.InMemoryOrderModuleList.Flink-offsetof(LDR_DATA_TABLE_ENTRY32, InMemoryOrderModuleList)), &ldte32, sizeof(ldte32), NULL)) {
 						if (ldte32.DllBase==peb32.ImageBaseAddress)	//Skip process image entry
 							continue;
 						
@@ -1343,9 +1349,9 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 			//One thing to remember is that Flink/Blink members of LIST_ENTRY don't actually point to the start of structures composing the list
 			//They point to the LIST_ENTRY member of these structures that corresponds to the list currently being walked
 			LDR_DATA_TABLE_ENTRY64 ldte64;
-			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST), &ldte64.SELECTED_MODULE_LIST, sizeof(LIST_ENTRY), NULL))&&ldte64.SELECTED_MODULE_LIST.Flink) {
-				while (ldte64.SELECTED_MODULE_LIST.Flink!=(peb64.LdrData+offsetof(PEB_LDR_DATA64, SELECTED_MODULE_LIST))) {	//Enumerate all the list members till list closes
-					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.SELECTED_MODULE_LIST.Flink-offsetof(LDR_DATA_TABLE_ENTRY64, SELECTED_MODULE_LIST), &ldte64, sizeof(ldte64), NULL))) {
+			if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, peb64.LdrData+offsetof(PEB_LDR_DATA64, InMemoryOrderModuleList), &ldte64.InMemoryOrderModuleList, sizeof(LIST_ENTRY), NULL))&&ldte64.InMemoryOrderModuleList.Flink) {
+				while (ldte64.InMemoryOrderModuleList.Flink!=(peb64.LdrData+offsetof(PEB_LDR_DATA64, InMemoryOrderModuleList))) {	//Enumerate all the list members till list closes
+					if (NT_SUCCESS(fnNtWow64ReadVirtualMemory64(hProcess, ldte64.InMemoryOrderModuleList.Flink-offsetof(LDR_DATA_TABLE_ENTRY64, InMemoryOrderModuleList), &ldte64, sizeof(ldte64), NULL))) {
 						if (ldte64.DllBase==peb64.ImageBaseAddress)	//Skip process image entry
 							continue;
 							
