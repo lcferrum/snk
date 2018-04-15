@@ -613,6 +613,7 @@ void FPRoutines::FillServiceMap()
 	CloseServiceHandle(schSCMgr);
 }
 
+//AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::GetMappedFileNameWrapper(HANDLE hProcess, LPVOID hMod, std::wstring &fpath)
 {
 	//Alright, this is reinvention of GetMappedFileName from psapi.dll
@@ -1176,10 +1177,11 @@ std::wstring FPRoutines::GetLongPathNameWrapper(const wchar_t* path)
 //WoW64 redirection removed:            NO (w/o GetMappedFileName)
 //Clears navigational elements:         YES
 //Maintains backslashes:                YES
-//Restores letter case:                 NO (w/o GetLongPathName)
+//Restores letter case:                 NO (w/o GetLongPathName or GetMappedFileName)
 //Resolves 8.3 paths:                   NO (w/o GetLongPathName)
 //Produces only Win32 paths:            YES (process image path, which can be in kernel form, is skipped)
-//Supports long paths:                  ?
+//Supports long paths:                  YES
+//AFFECTED BY WOW64 REDIRECTION
 std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full) 
 {
 	std::vector<std::wstring> mlist;
@@ -1394,7 +1396,7 @@ std::vector<std::wstring> FPRoutines::GetModuleList(HANDLE hProcess, bool full)
 //Restores letter case:                 YES
 //Resolves 8.3 paths:                   NO (w/o GetLongPathName)
 //Produces only Win32 paths:            YES (includes kernel to Win32 path conversion)
-//Supports long paths:                  YES (keeps original path)
+//Supports long paths:                  YES
 //AFFECTED BY WOW64 REDIRECTION
 std::wstring FPRoutines::GetHandlePath(HANDLE hFile, bool full)
 {
