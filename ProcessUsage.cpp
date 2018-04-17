@@ -335,8 +335,10 @@ DWORD Processes::EnumProcessUsage(bool first_time, PSID self_lsid, DWORD self_pi
 				}
 				
 				//It was observed that SYSTEM_PROCESS_INFORMATION.ImageName sometimes has mangled name - with partial or completely omitted extension
-				//Process Explorer shows the same thing, so it has something to do with particular processes
-				//So it's better to use wildcard in place of extension when killing process using it's name (and not full file path) to circumvent such situation
+				//This is because SYSTEM_PROCESS_INFORMATION.ImageName is filled from EPROCESS.ImageFileName (see RequestPopulatedCAN for more info on EPROCESS)
+				//EPROCESS.ImageFileName happens to be ANSI NULL-terminated string buffer of limited length: 32 bytes on NT 3.1, 16 bytes from NT 3.5 to Vista, 15 bytes on Win 7 and higher
+				//So if process file name doesn't fit into this buffer, it becomes truncated
+				//That's why process file name is derived from process file path if it's available in PData constructor
 				CAN.push_back(PData(KERNEL_TIME(pspi_cur), USER_TIME(pspi_cur), pspi_cur->CreateTime.QuadPart, (ULONG_PTR)pspi_cur->UniqueProcessId, tick_not_tock, pspi_cur->ImageName, FPRoutines::GetFilePath(pspi_cur->UniqueProcessId, hProcess, dwDesiredAccess&PROCESS_VM_READ), !first_time, suspended, system));
 				
 				if (hProcess) CloseHandle(hProcess);
