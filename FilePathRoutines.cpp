@@ -792,6 +792,8 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 //Supports long paths:                  YES (shortens names)
 bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath) 
 {
+	//NtQueryInformationProcess(ProcessImageFileNameWin32) is used in QueryFullProcessImageName internally
+
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileNameWin32:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
@@ -857,6 +859,17 @@ bool FPRoutines::GetFP_QueryServiceConfig(HANDLE PID, std::wstring &fpath)
 //AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath) 
 {
+	//PEB is used in GetModuleFileNameEx internally
+	//Most of the PEB structure is created by NtCreatePtocess used internally in CreateProcess family of functions
+	//But it's ProcessParameters get filled after NtCreatePtocess call, before resuming thread of newly created process
+	//In CreateProcess, CreateProcessAsUser and CreateProcessWithLogonW ProcessParameters.ImagePathName gets filled from lpApplicationName or lpCommandLine parameters
+	//It should be noted that first lpApplicationName and lpCommandLine are processed to get absolute file path from them (which is also used to create section for NtCreatePtocess call) and only then it is saved to ImagePathName
+	//And this processing works only with Win32 paths (though it is then translated to NT path for section creation)
+	//In RtlCreateUserProcess ProcessParameters structure (including ImagePathName) gets filled with whatever was passed to the function as corresponding parameter, without any processing
+	//Section gets created not based on passed ProcessParameters but on NtImagePathName parameter, which is unicode string and shoud already be in NT path form
+	//So, in case of RtlCreateUserProcess, it is possible for ProcessParameters.ImagePathName to have erroneus path because it's not the actual path used to create process
+	//All in all, PEB.ProcessParameters.ImagePathName is a cached file path that is filled during process creation and will not be updated if executable file is renamed or moved 
+	
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_PEB:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
@@ -1048,6 +1061,18 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 //AFFECTED BY WOW64 REDIRECTION
 bool FPRoutines::GetFP_ProcessImageFileName(HANDLE hProcess, std::wstring &fpath) 
 {
+	//NtQueryInformationProcess(ProcessImageFileName) is used in GetProcessImageFileName internally
+	//It gets file path directly from EPROCESS structure (see Processes::RequestPopulatedCAN for more info) using SeLocateProcessImageName
+	//In turn, SeLocateProcessImageName gets file path from EPROCESS using following algorithm:
+	// If EPROCESS.SeAuditProcessCreationInfo (it's UNICODE_STRING) is not empty, file path is copied from it
+	// If EPROCESS.SeAuditProcessCreationInfo is empty, file path is taken from EPROCESS.SectionObject and cached in SeAuditProcessCreationInfo
+	//EPROCESS.SectionObject is the same section that is created from application file path and passed to NtCreateProcess internally in CreateProcess family of functions
+	//To get file path from SectionObject, first it is traversed to it's underlying FileObject (SECTION_OBJECT->SEGMENT_OBJECT->CONTROL_AREA->FILE_OBJECT) and then ObQueryNameString is called for it
+	//ObQueryNameString is intersting in a way that it doesn't return some cached file path but instead queries file system for the current location of memory mapped file
+	//That means if executable file was renamed or moved after process creation, ObQueryNameString will return it's current file path
+	//Though, because ObQueryNameString is not used directly by NtQueryInformationProcess(ProcessImageFileName), but instead is wrapped in SeLocateProcessImageName, file path becomes cached after the first call of this function for the queried process
+	
+
 #if DEBUG>=3
 	std::wcerr<<L"" __FILE__ ":GetFP_ProcessImageFileName:"<<__LINE__<<L": Calling..."<<std::endl;
 #endif
