@@ -786,8 +786,8 @@ bool FPRoutines::KernelToWin32Path(const wchar_t* krn_fpath, std::wstring &w32_f
 //WoW64 redirection removed:            YES
 //Clears navigational elements:         YES
 //Maintains backslashes:                YES
-//Restores letter case:                 YES
-//Resolves 8.3 paths:                   YES
+//Restores letter case:                 NO (pre-Vista)
+//Resolves 8.3 paths:                   NO
 //Produces only Win32 paths:            YES
 //Supports long paths:                  YES (shortens names)
 bool FPRoutines::GetFP_ProcessImageFileNameWin32(HANDLE hProcess, std::wstring &fpath) 
@@ -1003,8 +1003,8 @@ bool FPRoutines::GetFP_PEB(HANDLE hProcess, std::wstring &fpath)
 //WoW64 redirection removed:            YES
 //Clears navigational elements:         YES
 //Maintains backslashes:                YES
-//Restores letter case:                 YES
-//Resolves 8.3 paths:                   YES
+//Restores letter case:                 NO (pre-Vista)
+//Resolves 8.3 paths:                   NO
 //Produces only Win32 paths:            NO (returns only kernel paths w/o KernelToWin32Path)
 //Supports long paths:                  YES (shortens names)
 //AFFECTED BY WOW64 REDIRECTION
@@ -1054,8 +1054,8 @@ bool FPRoutines::GetFP_SystemProcessIdInformation(HANDLE PID, std::wstring &fpat
 //WoW64 redirection removed:            YES
 //Clears navigational elements:         YES
 //Maintains backslashes:                YES
-//Restores letter case:                 YES
-//Resolves 8.3 paths:                   YES
+//Restores letter case:                 NO (pre-Vista)
+//Resolves 8.3 paths:                   NO
 //Produces only Win32 paths:            NO (returns only kernel paths w/o KernelToWin32Path)
 //Supports long paths:                  YES (shortens names)
 //AFFECTED BY WOW64 REDIRECTION
